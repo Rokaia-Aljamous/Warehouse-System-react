@@ -38,36 +38,34 @@ export function SubscriptionModal({
 
   useEffect(() => {
     if (!open) return;
-    setLoadingPlans(true);
-    setPlansError(null);
-    fetchSubscriptionPlans()
-      .then((data) => {
-        const filtered = data.filter((p) => p.duration_days !== 7);
-        setPlans(filtered);
-        setPlansError(null);
-        if (filtered.length > 0) setPlanId(filtered[0].id);
-      })
-      .catch(() => {
-        setPlansError("load_failed");
-        toast.error("Failed to load subscription plans");
-      })
-      .finally(() => setLoadingPlans(false));
+    let mounted = true;
 
-    const onVisible = () => {
-      if (document.visibilityState === "visible") {
-        fetchSubscriptionPlans()
-          .then((data) => {
-            const filtered = data.filter((p) => p.duration_days !== 7);
-            setPlans(filtered);
-            setPlansError(null);
-            const prev = planIdRef.current;
-            setPlanId(prev && filtered.some((p) => p.id === prev) ? prev : (filtered[0]?.id ?? null));
-          })
-          .catch(() => {});
-      }
+    const load = () => {
+      setLoadingPlans(true);
+      setPlansError(null);
+      fetchSubscriptionPlans()
+        .then((data) => {
+          if (!mounted) return;
+          const filtered = data.filter((p) => p.duration_days !== 7);
+          setPlans(filtered);
+          setPlansError(null);
+          if (filtered.length > 0) setPlanId(filtered[0].id);
+        })
+        .catch(() => {
+          if (!mounted) return;
+          setPlansError("load_failed");
+          toast.error("Failed to load subscription plans");
+        })
+        .finally(() => {
+          if (mounted) setLoadingPlans(false);
+        });
     };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
+
+    load();
+
+    return () => {
+      mounted = false;
+    };
   }, [open]);
 
   if (!open) return null;
@@ -107,6 +105,8 @@ export function SubscriptionModal({
         company_name: company.trim(),
         warehouses_count: count,
         url_slug: slug.toLowerCase().trim(),
+        return_url: `${window.location.origin}/checkout/success`,
+        cancel_url: `${window.location.origin}/checkout/cancel`,
       });
       window.location.href = res.approval_url;
     } catch (error: any) {
@@ -180,9 +180,10 @@ export function SubscriptionModal({
                   setPlansError(null);
                   fetchSubscriptionPlans()
                     .then((data) => {
-                      setPlans(data);
+                      const filtered = data.filter((p) => p.duration_days !== 7);
+                      setPlans(filtered);
                       setPlansError(null);
-                      if (data.length > 0) setPlanId(data[0].id);
+                      if (filtered.length > 0) setPlanId(filtered[0].id);
                     })
                     .catch(() => {
                       setPlansError("load_failed");

@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   LayoutDashboard, Users, Warehouse, BarChart3, Wallet, Settings as SettingsIcon,
@@ -78,6 +78,8 @@ const ICON_MAP: Record<string, React.ComponentType<React.SVGProps<SVGSVGElement>
 };
 
 function DashboardPage() {
+  const navigate = useNavigate();
+  useEffect(() => { navigate({ to: "/manager" }); }, []);
   const [section, setSection] = useState<SectionId>("dashboard");
   const [collapsed, setCollapsed] = useState(false);
   const [managers, setManagers] = useState<Manager[]>(initialManagers);

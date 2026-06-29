@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -8,25 +9,32 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { subscriptionStore, type SubscriptionRequest } from "@/lib/subscription-data";
+import { fetchSubscribers, type BackendSubscriber } from "@/lib/subscribers-api";
 
 export const Route = createFileRoute("/subscribers")({
   component: SubscribersPage,
   head: () => ({
     meta: [
       { title: "Subscribers — Stockyard" },
-      { name: "description", content: "Read-only list of platform subscribers for admins." },
+      { name: "description", content: "List of platform subscribers." },
     ],
   }),
 });
 
 function SubscribersPage() {
-  const [subs, setSubs] = useState<SubscriptionRequest[]>(() => (typeof window === "undefined" ? [] : subscriptionStore.list()));
+  const [subs, setSubs] = useState<BackendSubscriber[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    setSubs(subscriptionStore.list());
-    const unsub = subscriptionStore.subscribe(() => setSubs(subscriptionStore.list()));
-    return unsub;
+    fetchSubscribers()
+      .then(setSubs)
+      .catch((err) => {
+        const status = err.response?.status;
+        const msg = err.response?.data?.message || err.message || "Failed to load subscribers.";
+        setError(status ? `${status}: ${msg}` : msg);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   return (
@@ -35,7 +43,7 @@ function SubscribersPage() {
         <div className="mb-4 flex items-start justify-between">
           <div>
             <h2 className="text-lg font-semibold">Platform Subscribers</h2>
-            <p className="mt-1 text-sm text-muted-foreground">A simple, read-only list of users who have subscribed to the platform.</p>
+            <p className="mt-1 text-sm text-muted-foreground">Users who have subscribed to the platform.</p>
           </div>
         </div>
 
@@ -45,20 +53,38 @@ function SubscribersPage() {
               <TableRow className="border-b border-white/40 hover:bg-transparent">
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
+                <TableHead>Company</TableHead>
+                <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {subs.length === 0 && (
+              {loading && (
                 <TableRow>
-                  <TableCell colSpan={2} className="py-6 text-center text-muted-foreground">
+                  <TableCell colSpan={4} className="py-6 text-center text-muted-foreground">
+                    <Loader2 className="mx-auto size-5 animate-spin" />
+                  </TableCell>
+                </TableRow>
+              )}
+              {!loading && error && (
+                <TableRow>
+                  <TableCell colSpan={4} className="py-6 text-center text-red-500">
+                    {error}
+                  </TableCell>
+                </TableRow>
+              )}
+              {!loading && !error && subs.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={4} className="py-6 text-center text-muted-foreground">
                     No subscribers yet.
                   </TableCell>
                 </TableRow>
               )}
               {subs.map((s) => (
                 <TableRow key={s.id} className="border-white/40">
-                  <TableCell className="font-medium text-muted-foreground">{s.fullName}</TableCell>
+                  <TableCell className="font-medium text-muted-foreground">{s.full_name}</TableCell>
                   <TableCell className="text-muted-foreground">{s.email}</TableCell>
+                  <TableCell className="text-muted-foreground">{s.tenant?.company_name || "—"}</TableCell>
+                  <TableCell className="text-muted-foreground">{s.tenant?.status || "—"}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

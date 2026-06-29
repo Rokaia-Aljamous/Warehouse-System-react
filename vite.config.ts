@@ -36,12 +36,14 @@ const proxyRoutes: Record<string, ProxyOptions> = {
   "/tenant": laravelProxy(),
   "/platform": laravelProxy(),
   "/customers": laravelProxy(),
+  "/platform-admin": laravelProxy(),
   "/verify-email": laravelProxy(),
   "/login": laravelProxy({
     bypass: (req) => {
       if (req.method === "GET") return req.url;
     },
   }),
+  "/api": laravelProxy(),
 };
 
 // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).

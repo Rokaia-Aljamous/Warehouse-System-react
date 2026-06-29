@@ -90,8 +90,8 @@ export interface OwnerSetupResponse {
 
 /* ===== Subscription Plans ===== */
 
-export const fetchSubscriptionPlans = async (): Promise<SubscriptionPlan[]> => {
-  const response = await api.get<{ data: SubscriptionPlan[] }>("/subscription-plans");
+export const fetchSubscriptionPlans = async (signal?: AbortSignal): Promise<SubscriptionPlan[]> => {
+  const response = await api.get<{ data: SubscriptionPlan[] }>("/subscription-plans", { signal });
   return response.data.data;
 };
 
@@ -109,6 +109,8 @@ export interface CreateOrderData {
   company_name: string;
   warehouses_count: number;
   url_slug: string;
+  return_url?: string;
+  cancel_url?: string;
 }
 
 export const createPayPalOrder = async (data: CreateOrderData): Promise<PayPalOrderResponse> => {
@@ -145,13 +147,6 @@ export const setupTenantOwner = async (data: OwnerData): Promise<OwnerSetupRespo
   return response.data;
 };
 
-/* ===== Email Verification ===== */
-
-export const resendVerificationEmail = async (): Promise<void> => {
-  await getCsrfCookie();
-  await api.post("/email/verification-notification");
-};
-
 /* ===== User Helpers ===== */
 
 export interface UserResource {
@@ -159,8 +154,8 @@ export interface UserResource {
   full_name: string;
   email: string;
   birthday: string | null;
-  email_verified_at: string | null;
   tenant: TenantResource | null;
+  is_admin?: boolean;
 }
 
 const USER_KEY = "stockyard.user";
@@ -180,4 +175,17 @@ export const setStoredUser = (user: UserResource) => {
 
 export const clearStoredUser = () => {
   localStorage.removeItem(USER_KEY);
+};
+
+export const verifyStoredUser = async (): Promise<UserResource | null> => {
+  const stored = getStoredUser();
+  if (stored?.is_admin) return stored;
+  try {
+    const response = await api.get<UserResource>("/api/user");
+    setStoredUser(response.data);
+    return response.data;
+  } catch {
+    clearStoredUser();
+    return null;
+  }
 };

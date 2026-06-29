@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { setStoredUser } from "@/lib/api";
+import { api, getCsrfCookie, setStoredUser } from "@/lib/api";
 
 // Birthdate string DD/MM/YYYY → Date
 function parseDOB(s: string): Date | null {
@@ -153,7 +153,6 @@ export function SignUpForm({ onSubmitted }: Props) {
     setLoading(true);
     
     try {
-      const { api, getCsrfCookie } = await import("@/lib/api");
       await getCsrfCookie();
       const parts = form.birthdate.split("/");
       const birthday = `${parts[2]}-${parts[1]}-${parts[0]}`;
@@ -165,21 +164,43 @@ export function SignUpForm({ onSubmitted }: Props) {
         password_confirmation: form.confirm
       });
 
-      setStoredUser(response.data.user);
-      toast.success("Account created successfully! Check your email to verify.");
-      onSubmitted(); 
+      const user = response.data?.user || response.data;
+      if (user && (user.id || user.email)) {
+        setStoredUser(user);
+        toast.success("Account created successfully!");
+        onSubmitted();
+      } else {
+        toast.success("Account created!");
+        onSubmitted();
+      }
       
     } catch (error: any) {
-      if (error.response && error.response.status === 422) {
-        const serverErrors = error.response.data.errors;
-        if (serverErrors) {
-          const firstErrorKey = Object.keys(serverErrors)[0];
-          toast.error(serverErrors[firstErrorKey][0]);
+      if (error.response) {
+        const data = error.response.data;
+        const msg = data?.message || "";
+        const user = data?.user || data;
+
+        if (error.response.status === 419) {
+          toast.error("Session expired. Please refresh the page and try again.");
+        } else if (error.response.status === 422) {
+          const serverErrors = data?.errors;
+          if (serverErrors) {
+            const firstErrorKey = Object.keys(serverErrors)[0];
+            toast.error(serverErrors[firstErrorKey][0]);
+          } else {
+            toast.error(msg || "Registration failed");
+          }
+        } else if (error.response.status >= 500 && user && user.id) {
+          setStoredUser(user);
+          toast.success("Account created successfully!");
+          onSubmitted();
         } else {
-          toast.error(error.response.data.message || "Registration failed");
+          toast.error(msg || `Server error (${error.response.status})`);
         }
+      } else if (error.request) {
+        toast.error("No response from server. Is the backend running?");
       } else {
-        toast.error("Something went wrong with the server. Please try again.");
+        toast.error("Something went wrong. Please try again.");
       }
     } finally {
       setLoading(false);
@@ -202,7 +223,7 @@ export function SignUpForm({ onSubmitted }: Props) {
           value={form.name} error={errors.name} onChange={(v) => set("name", v)} delay={140} />
         <Field id="email" label="Work email" type="email" placeholder="jane@company.com" icon={Mail}
           value={form.email} error={errors.email} onChange={(v) => set("email", v)} delay={180}
-          tooltip="Use your company email — admins use this to verify you." />
+          tooltip="Use your company email — admins use this to contact you." />
   {/* Phone field removed per design */}
         <Field id="birthdate" label="Birthdate" placeholder="DD/MM/YYYY" icon={Calendar}
           inputMode="numeric"

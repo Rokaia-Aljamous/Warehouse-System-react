@@ -14,6 +14,7 @@ import {
   ArrowRight,
   CheckCircle2,
   Loader2,
+  List,
   LogIn,
   LogOut,
   X,
@@ -33,14 +34,14 @@ import {
   getStoredUser,
   setStoredUser,
   clearStoredUser,
+  verifyStoredUser,
   type SubscriptionPlan,
 } from "@/lib/api";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
   component: Index,
-  validateSearch: (search: Record<string, unknown>): { verified?: boolean; login?: boolean } => ({
-    verified: search.verified === "1" || undefined,
+  validateSearch: (search: Record<string, unknown>): { login?: boolean } => ({
     login: search.login === "1" || undefined,
   }),
   head: () => ({
@@ -57,10 +58,9 @@ export const Route = createFileRoute("/")({
 
 // Relax typing for NAV to allow extension without regenerating route tree here.
 const NAV: any = [
-  { to: "/dashboard", label: "Admin dashboard", icon: LayoutDashboard },
+  { to: "/manager", label: "Admin dashboard", icon: LayoutDashboard },
   { to: "/manager", label: "Manager portal", icon: UserCog },
   { to: "/supervisor/dashboard", label: "Supervisor", icon: Users },
-  { to: "/subscribers", label: "Subscribers", icon: Users },
   { to: "/", label: "Stockyard landing", icon: Warehouse },
 ] as const;
 
@@ -80,7 +80,8 @@ const FEATURES = [
 ];
 
 function Index() {
-  const { verified, login } = Route.useSearch();
+  const { login } = Route.useSearch();
+  const navigate = useNavigate();
   const [submitted, setSubmitted] = useState(false);
   const [showPlans, setShowPlans] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
@@ -89,7 +90,8 @@ function Index() {
   const handleLogout = async () => {
     try {
       await getCsrfCookie();
-      await api.post("/logout");
+      const endpoint = user?.is_admin ? "/platform-admin/logout" : "/logout";
+      await api.post(endpoint);
     } catch {
       // Proceed with local logout even if the server request fails
     }
@@ -99,15 +101,18 @@ function Index() {
   };
 
   useEffect(() => {
-    if (verified) {
-      setShowPlans(true);
-      toast.success("Email verified! Choose a subscription plan to get started.");
-    }
-  }, [verified]);
-
-  useEffect(() => {
     if (login) setLoginOpen(true);
   }, [login]);
+
+  useEffect(() => {
+    const stored = getStoredUser();
+    if (stored) {
+      verifyStoredUser().then((valid) => {
+        if (valid) setUser(valid);
+        else setUser(null);
+      });
+    }
+  }, []);
 
   useEffect(() => {
     if (showPlans) {
@@ -147,7 +152,7 @@ function Index() {
           <div className="flex items-center gap-3">
             {user ? (
               <div className="flex items-center gap-2">
-                <span className="hidden text-xs text-[#f0ecdb]/60 sm:inline">{user.email}</span>
+                <span className="text-xs text-[#f0ecdb]/60">{user.email}</span>
                 <button
                   onClick={handleLogout}
                   className="flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.06] px-4 py-2 text-xs font-semibold text-[#f0ecdb] shadow transition hover:-translate-y-0.5 hover:bg-white/[0.12]"
@@ -169,6 +174,23 @@ function Index() {
           </div>
         </div>
       </header>
+
+      {/* ============ Admin Bar ============ */}
+      {user?.is_admin && (
+        <div className="border-b border-[#f3a523]/20 bg-[#f3a523]/5">
+          <div className="mx-auto flex max-w-7xl items-center gap-4 px-6 py-2.5">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[#f3a523]">
+              Admin
+            </span>
+            <Link
+              to="/subscribers"
+              className="flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold text-[#f0ecdb]/80 transition hover:bg-white/10 hover:text-[#f0ecdb]"
+            >
+              <List className="size-3.5" /> Subscribers
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* ============ Hero + Form ============ */}
       <section className="relative">
@@ -334,16 +356,12 @@ function Index() {
         <LoginOverlay
           onClose={() => setLoginOpen(false)}
           onLoginSuccess={() => {
-            setUser(getStoredUser());
+            const u = getStoredUser();
+            setUser(u);
             setLoginOpen(false);
-            setTimeout(() => {
-              setShowPlans(true);
-              setTimeout(() => {
-                document
-                  .getElementById("plans")
-                  ?.scrollIntoView({ behavior: "smooth", block: "start" });
-              }, 300);
-            }, 50);
+            if (!u?.is_admin) {
+              setTimeout(() => window.location.href = "/manager", 50);
+            }
           }}
           onRegisterSuccess={() => {
             setUser(getStoredUser());
@@ -387,34 +405,34 @@ function PlansPanel() {
   planIdRef.current = planId;
 
   useEffect(() => {
-    fetchSubscriptionPlans()
-      .then((data) => {
-        const filtered = filterPlans(data);
-        setPlans(filtered);
-        setPlansError(null);
-        if (filtered.length > 0) setPlanId(filtered[0].id);
-      })
-      .catch(() => {
-        setPlansError("load_failed");
-        toast.error("Failed to load subscription plans");
-      })
-      .finally(() => setLoadingPlans(false));
+    const abort = new AbortController();
+    let mounted = true;
 
-    const onVisible = () => {
-      if (document.visibilityState === "visible") {
-        fetchSubscriptionPlans()
-          .then((data) => {
-            const filtered = filterPlans(data);
-            setPlans(filtered);
-            setPlansError(null);
-            const prev = planIdRef.current;
-            setPlanId(prev && filtered.some((p) => p.id === prev) ? prev : (filtered[0]?.id ?? null));
-          })
-          .catch(() => {});
-      }
+    const load = (signal: AbortSignal) => {
+      setLoadingPlans(true);
+      fetchSubscriptionPlans(signal)
+        .then((data) => {
+          if (signal.aborted) return;
+          const filtered = filterPlans(data);
+          setPlans(filtered);
+          setPlansError(null);
+          if (filtered.length > 0) setPlanId(filtered[0].id);
+        })
+        .catch(() => {
+          if (signal.aborted) return;
+          setPlansError("load_failed");
+          toast.error("Failed to load subscription plans");
+        })
+        .finally(() => {
+          if (!signal.aborted) setLoadingPlans(false);
+        });
     };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
+
+    load(abort.signal);
+
+    return () => {
+      abort.abort();
+    };
   }, []);
 
   const perLabel = (days: number) => {
@@ -452,6 +470,8 @@ function PlansPanel() {
         company_name: company.trim(),
         warehouses_count: count,
         url_slug: slug.toLowerCase().trim(),
+        return_url: `${window.location.origin}/checkout/success`,
+        cancel_url: `${window.location.origin}/checkout/cancel`,
       });
       window.location.href = res.approval_url;
     } catch (error: any) {
@@ -504,9 +524,10 @@ function PlansPanel() {
               setPlansError(null);
               fetchSubscriptionPlans()
                 .then((data) => {
-                  setPlans(data);
+                  const filtered = filterPlans(data);
+                  setPlans(filtered);
                   setPlansError(null);
-                  if (data.length > 0) setPlanId(data[0].id);
+                  if (filtered.length > 0) setPlanId(filtered[0].id);
                 })
                 .catch(() => {
                   setPlansError("load_failed");
@@ -816,6 +837,7 @@ function LoginOverlay({
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
   const [signupSubmitted, setSignupSubmitted] = useState(false);
+  const [adminMode, setAdminMode] = useState(false);
   const [open, setOpen] = useState(false);
   const loggedIn = !!getStoredUser();
 
@@ -833,13 +855,33 @@ function LoginOverlay({
     setLoading(true);
     try {
       await getCsrfCookie();
-      const res = await api.post("/login", { email, password });
-      setStoredUser(res.data.user);
-      toast.success(res.data.message || "Welcome back!");
-      onLoginSuccess();
+      const endpoint = adminMode ? "/platform-admin/login" : "/login";
+      const res = await api.post(endpoint, { email, password });
+      const admin = adminMode ? res.data?.admin : null;
+      const user = adminMode ? (admin ? { ...admin, is_admin: true } : null) : (res.data?.user || res.data);
+      if (user && user.id) {
+        setStoredUser(user);
+        toast.success(res.data?.message || "Welcome back!");
+        onLoginSuccess();
+      } else {
+        toast.error("Login succeeded but no user data returned. Check the backend response format.");
+        setStoredUser(res.data);
+      }
     } catch (error: any) {
       if (error.response) {
-        toast.error(error.response.data?.message || `Server error (${error.response.status})`);
+        const data = error.response.data;
+        const msg = data?.message || "";
+        const user = data?.user || data;
+
+        if (error.response.status === 419) {
+          toast.error("Session expired. Please refresh and try again.");
+        } else if (error.response.status >= 500 && user && user.id) {
+          setStoredUser(user);
+          toast.success("Logged in.");
+          onLoginSuccess();
+        } else {
+          toast.error(msg || `Server error (${error.response.status})`);
+        }
       } else if (error.request) {
         toast.error("No response from server. Is the backend running?");
       } else {
@@ -896,14 +938,14 @@ function LoginOverlay({
               <form onSubmit={handleLogin} className="mt-6 space-y-4">
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold text-[#1a2942]">
-                    Email Address
+                    {adminMode ? "Admin Email" : "Email Address"}
                   </label>
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    placeholder="jane@company.com"
+                    placeholder={adminMode ? "admin@company.com" : "jane@company.com"}
                     className="w-full rounded-lg border border-[#dcdace] bg-white px-3 py-2.5 text-sm text-[#1a2942] outline-none transition focus:border-[#f3a523] focus:ring-4 focus:ring-[#f3a523]/15"
                   />
                 </div>
@@ -937,10 +979,19 @@ function LoginOverlay({
                     </>
                   ) : (
                     <>
-                      <LogIn className="size-4" /> Log In
+                      <LogIn className="size-4" /> {adminMode ? "Admin Log In" : "Log In"}
                     </>
                   )}
                 </button>
+                <div className="mt-4 text-center">
+                  <button
+                    type="button"
+                    onClick={() => setAdminMode(!adminMode)}
+                    className="text-xs text-[#1a2942]/50 hover:text-[#f3a523] transition-colors"
+                  >
+                    {adminMode ? "Switch to user login" : "Admin login"}
+                  </button>
+                </div>
               </form>
             </div>
 
