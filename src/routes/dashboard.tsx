@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   LayoutDashboard, Users, Warehouse, BarChart3, Wallet, Settings as SettingsIcon,
@@ -48,6 +48,11 @@ import { ProfilePictureUpload } from "@/components/ProfilePictureUpload";
 import { getProfilePic, subscribeProfilePic } from "@/lib/profile-storage";
 import { subscriptionStore, type SubscriptionRequest } from "@/lib/subscription-data";
 import { cn } from "@/lib/utils";
+import { getStoredUser } from "@/lib/api";
+import {
+  fetchWarehouses, createWarehouse, updateWarehouse, deleteWarehouse,
+  getTypeStyle, type Warehouse as BackendWarehouse, type WarehouseInput,
+} from "@/lib/dashboard-api";
 
 export const Route = createFileRoute("/dashboard")({
   component: DashboardPage,
@@ -77,9 +82,7 @@ const ICON_MAP: Record<string, React.ComponentType<React.SVGProps<SVGSVGElement>
   Snowflake, Package, Flame, Truck, Boxes, Warehouse,
 };
 
-function DashboardPage() {
-  const navigate = useNavigate();
-  useEffect(() => { navigate({ to: "/manager" }); }, []);
+export function DashboardPage() {
   const [section, setSection] = useState<SectionId>("dashboard");
   const [collapsed, setCollapsed] = useState(false);
   const [managers, setManagers] = useState<Manager[]>(initialManagers);
@@ -639,8 +642,314 @@ function ManagerDialog({
   );
 }
 
-/* -------------------- Warehouse Types -------------------- */
+/* -------------------- Warehouses -------------------- */
 function WarehousesSection({
+  types, setTypes, managers,
+}: {
+  types: WarehouseType[]; setTypes: React.Dispatch<React.SetStateAction<WarehouseType[]>>; managers: Manager[];
+}) {
+  const user = getStoredUser();
+  const slug = user?.tenant?.url_slug;
+  const hasBackend = !!slug;
+
+  if (!hasBackend) {
+    return <WarehouseTypesSection types={types} setTypes={setTypes} managers={managers} />;
+  }
+  return <WarehouseManager slug={slug} />;
+}
+
+/* -------------------- My Warehouses (Backend) -------------------- */
+function WarehouseManager({ slug }: { slug: string }) {
+  const [warehouses, setWarehouses] = useState<BackendWarehouse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<BackendWarehouse | null>(null);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [allowedCount, setAllowedCount] = useState(0);
+
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetchWarehouses(slug);
+      setWarehouses(res.warehouses);
+      setAllowedCount(res.allowed_warehouses_count);
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Failed to load warehouses");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, [slug]);
+
+  const atLimit = warehouses.length >= allowedCount;
+
+  const handleSave = async (data: WarehouseInput & { id?: number }) => {
+    if (!data.id && atLimit) {
+      toast.error(`Subscription limit reached (${allowedCount} warehouses). Upgrade to add more.`);
+      return;
+    }
+    setSaving(true);
+    try {
+      if (data.id) {
+        await updateWarehouse(slug, data.id, data);
+        toast.success("Warehouse updated");
+      } else {
+        await createWarehouse(slug, data);
+        toast.success("Warehouse added");
+      }
+      setOpen(false);
+      setEditing(null);
+      load();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Operation failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (deleteId === null) return;
+    try {
+      await deleteWarehouse(slug, deleteId);
+      toast.success("Warehouse deleted");
+      setDeleteId(null);
+      load();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Delete failed");
+    }
+  };
+
+  const existingTypes = [...new Set(warehouses.map((w) => w.type))];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-base font-semibold text-cream">Your Warehouses</h3>
+          <p className="text-xs text-muted-foreground">
+            {loading ? "Loading..." : `${warehouses.length} of ${allowedCount} warehouses used`}
+          </p>
+        </div>
+        <Button
+          onClick={() => { setEditing(null); setOpen(true); }}
+          disabled={atLimit}
+          className="bg-navy text-cream hover:bg-navy/90"
+          title={atLimit ? `Upgrade to add more (limit: ${allowedCount})` : "Add a warehouse"}
+        >
+          <Plus className="size-4" /> Add warehouse
+        </Button>
+      </div>
+
+      {atLimit && !loading && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-300">
+          Subscription limit reached. You can manage existing warehouses or upgrade your plan.
+        </div>
+      )}
+
+      {loading ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3].map((i) => (
+            <GlassCard key={i}>
+              <div className="space-y-3">
+                <Skeleton className="h-5 w-32 bg-white/20" />
+                <Skeleton className="h-4 w-48 bg-white/20" />
+                <Skeleton className="h-4 w-24 bg-white/20" />
+              </div>
+            </GlassCard>
+          ))}
+        </div>
+      ) : error ? (
+        <GlassCard>
+          <div className="flex flex-col items-center gap-2 py-8 text-center">
+            <AlertTriangle className="size-8 text-red-400" />
+            <p className="text-sm text-red-400">{error}</p>
+            <Button variant="outline" onClick={load} className="mt-2">Retry</Button>
+          </div>
+        </GlassCard>
+      ) : warehouses.length === 0 ? (
+        <GlassCard><EmptyState icon={Warehouse} title="No warehouses yet" subtitle="Add your first warehouse to get started." /></GlassCard>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {warehouses.map((w, i) => {
+            const style = getTypeStyle(w.type);
+            const Icon = ICON_MAP[style.icon] ?? Package;
+            return (
+              <motion.div key={w.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
+                <GlassCard className="group h-full transition hover:-translate-y-0.5 hover:shadow-2xl">
+                  <div className="flex items-start justify-between">
+                    <div className="flex size-11 items-center justify-center rounded-xl" style={{ background: `${style.color}25` }}>
+                      <Icon className="size-5" style={{ color: style.color }} />
+                    </div>
+                    <Badge variant="secondary" className="text-[10px]">{w.type}</Badge>
+                  </div>
+                  <h4 className="mt-3 text-base font-semibold">{w.warehouse_name}</h4>
+                  <p className="mt-1 text-sm text-muted-foreground">{w.location}, {w.governorate}</p>
+                  <div className="mt-4 flex items-center justify-between border-t border-white/40 pt-3">
+                    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Activity className="size-3.5" /> {w.area} m&sup2; &middot; ${w.financial_budgets.toLocaleString()}
+                    </span>
+                    <div className="flex gap-1 opacity-0 transition group-hover:opacity-100">
+                      <Button size="sm" variant="ghost" onClick={() => { setEditing(w); setOpen(true); }}>
+                        <Pencil className="size-3.5" />
+                      </Button>
+                      <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setDeleteId(w.id)}>
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                </GlassCard>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
+
+      <WarehouseDialog
+        open={open}
+        onOpenChange={setOpen}
+        editing={editing}
+        onSave={handleSave}
+        saving={saving}
+        existingTypes={existingTypes}
+      />
+
+      <AlertDialog open={deleteId !== null} onOpenChange={(o) => !o && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete warehouse?</AlertDialogTitle>
+            <AlertDialogDescription>This will permanently remove this warehouse and its associated data.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+const WAREHOUSE_TYPE_OPTIONS = ["Cold Storage", "Dry Storage", "Hazardous", "Fulfillment Center"];
+const GOVERNORATE_OPTIONS = [
+  "Damascus", "Aleppo", "Homs", "Latakia", "Hama", "Tartus", "Idlib",
+  "Daraa", "Deir ez-Zor", "Al-Hasakah", "Al-Raqqa", "As-Suwayda", "Quneitra",
+];
+
+function WarehouseDialog({
+  open, onOpenChange, editing, onSave, saving, existingTypes,
+}: {
+  open: boolean; onOpenChange: (o: boolean) => void;
+  editing: BackendWarehouse | null; onSave: (d: WarehouseInput & { id?: number }) => void;
+  saving: boolean; existingTypes: string[];
+}) {
+  const allTypes = [...new Set([...WAREHOUSE_TYPE_OPTIONS, ...existingTypes])];
+  const [form, setForm] = useState<WarehouseInput & { id?: number }>({
+    warehouse_name: "", type: allTypes[0] ?? "Cold Storage",
+    location: "", governorate: GOVERNORATE_OPTIONS[0] ?? "",
+    area: 0, financial_budgets: 0,
+  });
+
+  useMemo(() => {
+    if (editing) {
+      setForm({
+        id: editing.id,
+        warehouse_name: editing.warehouse_name,
+        type: editing.type,
+        location: editing.location,
+        governorate: editing.governorate,
+        area: editing.area,
+        financial_budgets: editing.financial_budgets,
+      });
+    } else {
+      setForm({
+        warehouse_name: "", type: allTypes[0] ?? "Cold Storage",
+        location: "", governorate: GOVERNORATE_OPTIONS[0] ?? "",
+        area: 0, financial_budgets: 0,
+      });
+    }
+  }, [editing, existingTypes.join(",")]);
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.warehouse_name || !form.type || !form.location || !form.governorate || form.area <= 0) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+    onSave(form);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{editing ? "Edit warehouse" : "Add warehouse"}</DialogTitle>
+          <DialogDescription>
+            {editing ? "Update warehouse details." : "Fill in the details to create a new warehouse."}
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="grid gap-4 py-2">
+          <div className="grid gap-2">
+            <Label>Warehouse name *</Label>
+            <Input value={form.warehouse_name} onChange={(e) => setForm({ ...form, warehouse_name: e.target.value })} placeholder="e.g. Cold Storage A" required />
+          </div>
+          <div className="grid gap-2">
+            <Label>Type *</Label>
+            <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {allTypes.map((t) => (
+                  <SelectItem key={t} value={t}>{t}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label>Location *</Label>
+              <Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="e.g. Industrial Zone" required />
+            </div>
+            <div className="grid gap-2">
+              <Label>Governorate *</Label>
+              <Select value={form.governorate} onValueChange={(v) => setForm({ ...form, governorate: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {GOVERNORATE_OPTIONS.map((g) => (
+                    <SelectItem key={g} value={g}>{g}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label>Area (m&sup2;) *</Label>
+              <Input type="number" min={0} step={0.01} value={form.area} onChange={(e) => setForm({ ...form, area: Number(e.target.value) })} placeholder="e.g. 500" required />
+            </div>
+            <div className="grid gap-2">
+              <Label>Financial budget ($) *</Label>
+              <Input type="number" min={0} step={0.01} value={form.financial_budgets} onChange={(e) => setForm({ ...form, financial_budgets: Number(e.target.value) })} placeholder="e.g. 10000" required />
+            </div>
+          </div>
+          <DialogFooter className="mt-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button type="submit" disabled={saving} className="bg-navy text-cream hover:bg-navy/90">
+              {saving ? "Saving..." : editing ? "Save changes" : "Add warehouse"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* -------------------- Warehouse Types -------------------- */
+function WarehouseTypesSection({
   types, setTypes, managers,
 }: {
   types: WarehouseType[]; setTypes: React.Dispatch<React.SetStateAction<WarehouseType[]>>; managers: Manager[];

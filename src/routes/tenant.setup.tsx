@@ -4,6 +4,7 @@ import { Warehouse, User, Phone, AtSign, Lock, Eye, EyeOff, Calendar, Loader2 } 
 import { toast } from "sonner";
 import { z } from "zod";
 import { getCsrfCookie, setupTenantOwner, getStoredUser } from "@/lib/api";
+import { DashboardPage } from "./dashboard";
 
 export const Route = createFileRoute("/tenant/setup")({
   component: TenantSetup,
@@ -30,6 +31,7 @@ function TenantSetup() {
   const navigate = useNavigate();
   const { slug } = Route.useSearch();
   const user = getStoredUser();
+  const [done, setDone] = useState(false);
   const [form, setForm] = useState<FormData>({
     full_name: "",
     phone_number: "",
@@ -77,7 +79,7 @@ function TenantSetup() {
 
       toast.success(res.message || "Dashboard owner account created!");
       toast.success("Dashboard owner account created! Log in at /" + (slug || res.owner.tenant.url_slug) + "/login");
-      window.location.href = "/";
+      setDone(true);
     } catch (error: any) {
       if (error.response?.status === 422) {
         const serverErrors = error.response.data.errors;
@@ -119,6 +121,8 @@ function TenantSetup() {
   );
 
   const targetSlug = slug || user?.tenant?.url_slug;
+
+  if (done) return <DashboardPage />;
 
   return (
     <main className="min-h-screen bg-[#0f1b2d]">

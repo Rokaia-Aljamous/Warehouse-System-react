@@ -23,8 +23,8 @@ import {
 } from "lucide-react";
 import { SignUpForm } from "@/components/signup/SignUpForm";
 import { PendingScreen } from "@/components/signup/PendingScreen";
-import warehouseAisle from "@/assets/warehouse-aisle.jpg.asset.json";
-import warehouseTeam from "@/assets/warehouse-team.jpg.asset.json";
+import warehouseAisle from "@/assets/warehouse-aisle.webp";
+import warehouseTeam from "@/assets/warehouse-team.webp";
 import {
   api,
   getCsrfCookie,
@@ -58,7 +58,7 @@ export const Route = createFileRoute("/")({
 
 // Relax typing for NAV to allow extension without regenerating route tree here.
 const NAV: any = [
-  { to: "/manager", label: "Admin dashboard", icon: LayoutDashboard },
+  { to: "/dashboard", label: "Admin dashboard", icon: LayoutDashboard },
   { to: "/manager", label: "Manager portal", icon: UserCog },
   { to: "/supervisor/dashboard", label: "Supervisor", icon: Users },
   { to: "/", label: "Stockyard landing", icon: Warehouse },
@@ -136,17 +136,21 @@ function Index() {
           </Link>
 
           <nav className="hidden items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] p-1 lg:flex">
-            {NAV.map((n: any) => (
-              <Link
-                key={n.label}
-                to={n.to}
-                activeOptions={{ exact: true }}
-                className="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold text-[#f0ecdb]/75 transition hover:bg-white/10 hover:text-[#f0ecdb] [&.active]:bg-[#f3a523] [&.active]:text-[#1a2942]"
-              >
-                <n.icon className="size-3.5" />
-                {n.label}
-              </Link>
-            ))}
+            {NAV.map((n: any) => {
+              const params = n.to === "/dashboard" ? undefined : undefined;
+              return (
+                <Link
+                  key={n.label}
+                  to={n.to}
+                  params={params}
+                  activeOptions={{ exact: true }}
+                  className="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold text-[#f0ecdb]/75 transition hover:bg-white/10 hover:text-[#f0ecdb] [&.active]:bg-[#f3a523] [&.active]:text-[#1a2942]"
+                >
+                  <n.icon className="size-3.5" />
+                  {n.label}
+                </Link>
+              );
+            })}
           </nav>
 
           <div className="flex items-center gap-3">
@@ -294,7 +298,7 @@ function Index() {
           <div className="grid gap-5 md:grid-cols-2">
             <figure className="group overflow-hidden rounded-3xl border border-white/10 shadow-2xl">
               <img
-                src={warehouseAisle.url}
+                src={warehouseAisle}
                 alt="Forklift moving through a stocked warehouse aisle"
                 className="aspect-[4/3] w-full object-cover transition-transform duration-700 group-hover:scale-105"
               />
@@ -305,7 +309,7 @@ function Index() {
             </figure>
             <figure className="group overflow-hidden rounded-3xl border border-white/10 shadow-2xl">
               <img
-                src={warehouseTeam.url}
+                src={warehouseTeam}
                 alt="Warehouse staff scanning and labeling packages"
                 className="aspect-[4/3] w-full object-cover transition-transform duration-700 group-hover:scale-105"
               />
