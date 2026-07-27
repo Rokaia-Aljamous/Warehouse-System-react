@@ -44,6 +44,9 @@ const proxyRoutes: Record<string, ProxyOptions> = {
     },
   }),
   "/api": laravelProxy(),
+
+  // Dashboard routes (/{slug}/login, /{slug}/warehouses, etc.)
+  "^/([^/]+)/(login|logout|me|warehouses|products|shipments|force-password-change|forgot-password|reset-password|manager|inventory-movements)(/.*)?$": laravelProxy(),
 };
 
 // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).

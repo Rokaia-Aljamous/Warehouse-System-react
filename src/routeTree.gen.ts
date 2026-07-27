@@ -19,6 +19,7 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TenantSetupRouteImport } from './routes/tenant.setup'
 import { Route as SupervisorDashboardRouteImport } from './routes/supervisor.dashboard'
+import { Route as ManagerSlugRouteImport } from './routes/manager.$slug'
 import { Route as DashboardSlugRouteImport } from './routes/dashboard.$slug'
 import { Route as CheckoutSuccessRouteImport } from './routes/checkout.success'
 import { Route as CheckoutCancelRouteImport } from './routes/checkout.cancel'
@@ -73,6 +74,11 @@ const SupervisorDashboardRoute = SupervisorDashboardRouteImport.update({
   path: '/supervisor/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ManagerSlugRoute = ManagerSlugRouteImport.update({
+  id: '/$slug',
+  path: '/$slug',
+  getParentRoute: () => ManagerRoute,
+} as any)
 const DashboardSlugRoute = DashboardSlugRouteImport.update({
   id: '/$slug',
   path: '/$slug',
@@ -92,7 +98,7 @@ const CheckoutCancelRoute = CheckoutCancelRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRouteWithChildren
-  '/manager': typeof ManagerRoute
+  '/manager': typeof ManagerRouteWithChildren
   '/manager-login': typeof ManagerLoginRoute
   '/manager-register': typeof ManagerRegisterRoute
   '/signup': typeof SignupRoute
@@ -101,13 +107,14 @@ export interface FileRoutesByFullPath {
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
   '/dashboard/$slug': typeof DashboardSlugRoute
+  '/manager/$slug': typeof ManagerSlugRoute
   '/supervisor/dashboard': typeof SupervisorDashboardRoute
   '/tenant/setup': typeof TenantSetupRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRouteWithChildren
-  '/manager': typeof ManagerRoute
+  '/manager': typeof ManagerRouteWithChildren
   '/manager-login': typeof ManagerLoginRoute
   '/manager-register': typeof ManagerRegisterRoute
   '/signup': typeof SignupRoute
@@ -116,6 +123,7 @@ export interface FileRoutesByTo {
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
   '/dashboard/$slug': typeof DashboardSlugRoute
+  '/manager/$slug': typeof ManagerSlugRoute
   '/supervisor/dashboard': typeof SupervisorDashboardRoute
   '/tenant/setup': typeof TenantSetupRoute
 }
@@ -123,7 +131,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRouteWithChildren
-  '/manager': typeof ManagerRoute
+  '/manager': typeof ManagerRouteWithChildren
   '/manager-login': typeof ManagerLoginRoute
   '/manager-register': typeof ManagerRegisterRoute
   '/signup': typeof SignupRoute
@@ -132,6 +140,7 @@ export interface FileRoutesById {
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
   '/dashboard/$slug': typeof DashboardSlugRoute
+  '/manager/$slug': typeof ManagerSlugRoute
   '/supervisor/dashboard': typeof SupervisorDashboardRoute
   '/tenant/setup': typeof TenantSetupRoute
 }
@@ -149,6 +158,7 @@ export interface FileRouteTypes {
     | '/checkout/cancel'
     | '/checkout/success'
     | '/dashboard/$slug'
+    | '/manager/$slug'
     | '/supervisor/dashboard'
     | '/tenant/setup'
   fileRoutesByTo: FileRoutesByTo
@@ -164,6 +174,7 @@ export interface FileRouteTypes {
     | '/checkout/cancel'
     | '/checkout/success'
     | '/dashboard/$slug'
+    | '/manager/$slug'
     | '/supervisor/dashboard'
     | '/tenant/setup'
   id:
@@ -179,6 +190,7 @@ export interface FileRouteTypes {
     | '/checkout/cancel'
     | '/checkout/success'
     | '/dashboard/$slug'
+    | '/manager/$slug'
     | '/supervisor/dashboard'
     | '/tenant/setup'
   fileRoutesById: FileRoutesById
@@ -186,7 +198,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRouteWithChildren
-  ManagerRoute: typeof ManagerRoute
+  ManagerRoute: typeof ManagerRouteWithChildren
   ManagerLoginRoute: typeof ManagerLoginRoute
   ManagerRegisterRoute: typeof ManagerRegisterRoute
   SignupRoute: typeof SignupRoute
@@ -270,6 +282,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SupervisorDashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/manager/$slug': {
+      id: '/manager/$slug'
+      path: '/$slug'
+      fullPath: '/manager/$slug'
+      preLoaderRoute: typeof ManagerSlugRouteImport
+      parentRoute: typeof ManagerRoute
+    }
     '/dashboard/$slug': {
       id: '/dashboard/$slug'
       path: '/$slug'
@@ -306,10 +325,21 @@ const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
   DashboardRouteChildren,
 )
 
+interface ManagerRouteChildren {
+  ManagerSlugRoute: typeof ManagerSlugRoute
+}
+
+const ManagerRouteChildren: ManagerRouteChildren = {
+  ManagerSlugRoute: ManagerSlugRoute,
+}
+
+const ManagerRouteWithChildren =
+  ManagerRoute._addFileChildren(ManagerRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRouteWithChildren,
-  ManagerRoute: ManagerRoute,
+  ManagerRoute: ManagerRouteWithChildren,
   ManagerLoginRoute: ManagerLoginRoute,
   ManagerRegisterRoute: ManagerRegisterRoute,
   SignupRoute: SignupRoute,

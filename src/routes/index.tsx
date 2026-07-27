@@ -352,7 +352,7 @@ function Index() {
         </div>
 
         <div className="border-t border-white/5 py-6 text-center text-xs text-[#f0ecdb]/40">
-          © {new Date().getFullYear()} Stockyard · Built for operators who ship on time.
+          &copy; {new Date().getFullYear()} Stockyard &middot; Built for operators who ship on time.
         </div>
       </section>
 

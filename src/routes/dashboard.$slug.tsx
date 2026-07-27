@@ -437,17 +437,17 @@ function TenantWarehousesSection({ slug, managers }: { slug: string; managers: M
                     </div>
                     <Badge variant="secondary" className="text-[10px]">{w.type}</Badge>
                   </div>
-                  <h4 className="mt-3 text-base font-semibold">{w.warehouse_name}</h4>
-                  <p className="mt-1 text-sm text-muted-foreground">{w.location}, {w.governorate}</p>
+                  <h4 className="mt-3 text-base font-bold">{w.warehouse_name}</h4>
+                  <p className="mt-1 text-sm font-semibold text-[#1a2942]/80">{w.location}, {w.governorate}</p>
                   <div className="mt-4 flex items-center justify-between border-t border-white/40 pt-3">
-                    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#1a2942]/80">
                       <Activity className="size-3.5" /> {w.area} m&sup2; &middot; ${w.financial_budgets.toLocaleString()}
                     </span>
                     <div className="flex gap-1 opacity-0 transition group-hover:opacity-100">
-                      <Button size="sm" variant="ghost" onClick={() => { setEditing(w); setOpen(true); }}>
+                      <Button size="sm" variant="ghost" className="text-navy hover:text-navy/80 hover:bg-white/60" onClick={() => { setEditing(w); setOpen(true); }}>
                         <Pencil className="size-3.5" />
                       </Button>
-                      <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setDeleteId(w.id)}>
+                      <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => setDeleteId(w.id)}>
                         <Trash2 className="size-3.5" />
                       </Button>
                     </div>

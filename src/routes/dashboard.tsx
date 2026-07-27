@@ -5,7 +5,7 @@ import {
   Search, Bell, Menu, Plus, Pencil, Trash2, ChevronLeft, ChevronRight,
   Snowflake, Package, Flame, Truck, AlertTriangle, TrendingUp, Activity,
   CreditCard, ArrowUpRight, ArrowDownRight, CheckCircle2, Boxes,
-  PackagePlus, Send, Save, CalendarIcon,
+  PackagePlus, Send, Save, CalendarIcon, Loader2, LogIn, LogOut, User,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
@@ -13,6 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { motion, AnimatePresence } from "framer-motion";
+import Barcode from "react-barcode";
 import { toast } from "sonner";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -48,10 +49,21 @@ import { ProfilePictureUpload } from "@/components/ProfilePictureUpload";
 import { getProfilePic, subscribeProfilePic } from "@/lib/profile-storage";
 import { subscriptionStore, type SubscriptionRequest } from "@/lib/subscription-data";
 import { cn } from "@/lib/utils";
-import { getStoredUser } from "@/lib/api";
+import {
+  getStoredUser, setStoredUser, clearStoredUser,
+  getCsrfCookie, loginDashboard, logoutDashboard,
+} from "@/lib/api";
 import {
   fetchWarehouses, createWarehouse, updateWarehouse, deleteWarehouse,
-  getTypeStyle, type Warehouse as BackendWarehouse, type WarehouseInput,
+  fetchDeleteWarehouseInfo, type DeleteWarehouseInfo,
+  fetchProducts, createProduct, updateProduct, deleteProduct,
+  fetchShipments, receiveShipment,
+  fetchEmployees, createEmployee, updateEmployee, deleteEmployee, logoutEmployee,
+  getTypeStyle,
+  type Warehouse as BackendWarehouse, type WarehouseInput,
+  type Product, type ProductInput,
+  type Shipment, type ShipmentStatus,
+  type Employee, type EmployeeInput,
 } from "@/lib/dashboard-api";
 
 export const Route = createFileRoute("/dashboard")({
@@ -64,17 +76,16 @@ export const Route = createFileRoute("/dashboard")({
   }),
 });
 
-type SectionId = "dashboard" | "managers" | "warehouses" | "analytics" | "wallet" | "subscriptions" | "add-product" | "request-shipment" | "settings";
+type SectionId = "dashboard" | "managers" | "warehouses" | "products" | "shipments" | "analytics" | "wallet" | "settings";
 
 const NAV: { id: SectionId; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "managers", label: "Managers", icon: Users },
   { id: "warehouses", label: "Warehouses", icon: Warehouse },
+  { id: "products", label: "Products", icon: Package },
+  { id: "shipments", label: "Shipments", icon: Truck },
   { id: "analytics", label: "Analytics", icon: BarChart3 },
   { id: "wallet", label: "Wallet", icon: Wallet },
-  { id: "subscriptions", label: "Subscription requests", icon: CreditCard },
-  { id: "add-product", label: "Add Product", icon: PackagePlus },
-  { id: "request-shipment", label: "Request Shipment", icon: Send },
   { id: "settings", label: "Settings", icon: SettingsIcon },
 ];
 
@@ -88,12 +99,128 @@ export function DashboardPage() {
   const [managers, setManagers] = useState<Manager[]>(initialManagers);
   const [types, setTypes] = useState<WarehouseType[]>(initialWarehouseTypes);
   const [avatar, setAvatar] = useState<string | null>(null);
+  const [slug, setSlug] = useState<string | null>(getStoredUser()?.tenant?.url_slug ?? null);
+  const storedUser = getStoredUser();
+  const userInitials = storedUser?.full_name
+    ? storedUser.full_name.split(" ").map((s: string) => s[0]).join("").toUpperCase().slice(0, 2)
+    : "?";
+  const [loginSlug, setLoginSlug] = useState("");
+  const [loginPw, setLoginPw] = useState("");
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [logoutLoading, setLogoutLoading] = useState(false);
+
+  const handleLogout = async () => {
+    if (!slug) return;
+    setLogoutLoading(true);
+    try {
+      await logoutDashboard(slug);
+    } catch { /* ignore server error, still clear local */ }
+    clearStoredUser();
+    setSlug(null);
+    setLogoutLoading(false);
+  };
 
   useEffect(() => {
     setAvatar(getProfilePic("admin"));
     return subscribeProfilePic("admin", setAvatar);
   }, []);
 
+  if (!slug) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#0f1b2d] px-4">
+        <div className="w-full max-w-md">
+          <div className="mb-6 text-center">
+            <div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-xl bg-[#f3a523] shadow-lg">
+              <Warehouse className="size-6 text-[#1a2942]" />
+            </div>
+            <h1 className="text-2xl font-bold text-[#f0ecdb]">Stockyard</h1>
+            <p className="mt-1 text-sm text-[#f0ecdb]/60">Log in to your dashboard</p>
+          </div>
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (!loginSlug.trim() || !loginPw.trim()) {
+                toast.error("Slug and password are required");
+                return;
+              }
+              setLoginLoading(true);
+              try {
+                await getCsrfCookie();
+                const res = await loginDashboard(loginSlug.trim(), loginSlug.trim(), loginPw);
+                setStoredUser({
+                  id: res.dashboard_user.id,
+                  full_name: res.dashboard_user.full_name,
+                  email: res.dashboard_user.full_name.toLowerCase().replace(/\s+/g, ".") + "@demo.io",
+                  birthday: null,
+                  tenant: {
+                    id: res.dashboard_user.tenant.id,
+                    user_id: res.dashboard_user.tenant.user_id,
+                    subscription_plan_id: res.dashboard_user.tenant.subscription_plan_id,
+                    company_name: res.dashboard_user.tenant.company_name,
+                    warehouses_count: res.dashboard_user.tenant.warehouses_count,
+                    url_slug: res.dashboard_user.tenant.url_slug,
+                    status: res.dashboard_user.tenant.status,
+                    subscription_start_date: res.dashboard_user.tenant.subscription_start_date ?? "",
+                    subscription_end_date: res.dashboard_user.tenant.subscription_end_date ?? "",
+                    subscription_plan: {
+                      id: res.dashboard_user.tenant.subscription_plan?.id ?? 0,
+                      name: res.dashboard_user.tenant.subscription_plan?.name ?? "",
+                      duration_days: res.dashboard_user.tenant.subscription_plan?.duration_days ?? 0,
+                      price_per_warehouse: res.dashboard_user.tenant.subscription_plan?.price_per_warehouse ?? "0",
+                      is_active: res.dashboard_user.tenant.subscription_plan?.is_active ?? true,
+                    },
+                  },
+                });
+                setSlug(res.dashboard_user.tenant.url_slug);
+                toast.success(`Welcome, ${res.dashboard_user.full_name}`);
+              } catch (err: any) {
+                const msg = err.response?.data?.message
+                  || err.response?.data?.errors?.[Object.keys(err.response?.data?.errors ?? {})[0]]?.[0]
+                  || "Login failed. Check your credentials.";
+                toast.error(msg);
+              } finally {
+                setLoginLoading(false);
+              }
+            }}
+            className="space-y-4 rounded-2xl bg-[#f0ecdb] p-6 shadow-xl"
+          >
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-[#1a2942]">Tenant Slug</label>
+              <input
+                value={loginSlug}
+                onChange={(e) => setLoginSlug(e.target.value)}
+                placeholder="e.g. roro"
+                required
+                className="w-full rounded-xl border border-[#1a2942]/20 bg-white px-4 py-2.5 text-sm text-[#1a2942] outline-none transition focus:border-[#f3a523]"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-[#1a2942]">Password</label>
+              <input
+                type="password"
+                value={loginPw}
+                onChange={(e) => setLoginPw(e.target.value)}
+                placeholder="Your password"
+                required
+                className="w-full rounded-xl border border-[#1a2942]/20 bg-white px-4 py-2.5 text-sm text-[#1a2942] outline-none transition focus:border-[#f3a523]"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loginLoading}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a2942] py-2.5 text-sm font-semibold text-[#f0ecdb] transition hover:bg-[#26384c] disabled:opacity-60"
+            >
+              {loginLoading ? (
+                <><Loader2 className="size-4 animate-spin" /> Connecting…</>
+              ) : (
+                <><LogIn className="size-4" /> Enter dashboard</>
+              )}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen w-full">
@@ -149,15 +276,26 @@ export function DashboardPage() {
           })}
         </nav>
 
-        <div className="border-t border-white/10 p-4 text-xs text-cream/60">
-          {!collapsed ? (
-            <div>
-              <p className="font-semibold text-cream">Pro plan</p>
-              <p>Unlimited warehouses</p>
+        <div className="border-t border-white/10 p-3">
+          {!collapsed && storedUser && (
+            <div className="mb-2 px-1">
+              <p className="truncate text-xs font-semibold text-cream">{storedUser.full_name}</p>
+              <p className="truncate text-[10px] text-cream/50">{storedUser.tenant?.company_name ?? ""}</p>
             </div>
-          ) : (
-            <CheckCircle2 className="size-4 text-[oklch(0.78_0.16_75)]" />
           )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={handleLogout}
+                disabled={logoutLoading}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-cream/70 transition hover:bg-white/10 hover:text-red-300 disabled:opacity-50"
+              >
+                <LogOut className="size-4 shrink-0" />
+                {!collapsed && <span>{logoutLoading ? "Logging out…" : "Log out"}</span>}
+              </button>
+            </TooltipTrigger>
+            {collapsed && <TooltipContent side="right">Log out</TooltipContent>}
+          </Tooltip>
         </div>
       </aside>
 
@@ -190,9 +328,9 @@ export function DashboardPage() {
             </Tooltip>
             <div className="flex items-center gap-2 rounded-full border border-white/15 bg-white/5 py-1 pl-1 pr-3">
               <div className="flex size-7 items-center justify-center overflow-hidden rounded-full bg-[oklch(0.78_0.16_75)] text-xs font-bold text-navy">
-                {avatar ? <img src={avatar} alt="me" className="h-full w-full object-cover" /> : "AC"}
+                {avatar ? <img src={avatar} alt="me" className="h-full w-full object-cover" /> : userInitials}
               </div>
-              <span className="hidden text-xs font-semibold sm:inline">Amelia C.</span>
+              <span className="hidden text-xs font-semibold sm:inline">{storedUser?.full_name ?? "Owner"}</span>
             </div>
           </div>
         </header>
@@ -207,18 +345,17 @@ export function DashboardPage() {
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.25 }}
             >
-              {section === "dashboard" && <Overview managers={managers} types={types} />}
+              {section === "dashboard" && <Overview slug={slug} />}
               {section === "managers" && (
-                <ManagersSection managers={managers} setManagers={setManagers} types={types} />
+                <ManagersSection slug={slug} managers={managers} setManagers={setManagers} types={types} />
               )}
               {section === "warehouses" && (
-                <WarehousesSection types={types} setTypes={setTypes} managers={managers} />
+                <WarehousesSection types={types} setTypes={setTypes} managers={managers} slug={slug} />
               )}
-              {section === "analytics" && <AnalyticsSection types={types} managers={managers} />}
+              {section === "products" && <ProductsSection slug={slug} />}
+              {section === "shipments" && <ShipmentsSection slug={slug} />}
+              {section === "analytics" && <AnalyticsSection slug={slug} />}
               {section === "wallet" && <WalletSection />}
-              {section === "subscriptions" && <SubscriptionRequestsSection />}
-              {section === "add-product" && <AddProductSection types={types} />}
-              {section === "request-shipment" && <RequestShipmentSection types={types} />}
               {section === "settings" && <SettingsSection />}
             </motion.div>
           </AnimatePresence>
@@ -231,17 +368,41 @@ export function DashboardPage() {
 /* -------------------- Glass card -------------------- */
 function GlassCard({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={cn("glass-light rounded-2xl p-5 shadow-xl", className)}>{children}</div>
+    <div className={cn("glass-light rounded-2xl p-5 shadow-xl text-[#1a2942]", className)}>{children}</div>
   );
 }
 
 /* -------------------- Overview -------------------- */
-function Overview({ managers, types }: { managers: Manager[]; types: WarehouseType[] }) {
+function Overview({ slug }: { slug: string | null }) {
+  const [data, setData] = useState<{ warehouses: number; products: number; shipments: number; employees: number } | null>(null);
+
+  useEffect(() => {
+    if (!slug) return;
+    Promise.all([
+      fetchWarehouses(slug).catch(() => ({ warehouses: [], allowed_warehouses_count: 0, current_warehouses_count: 0 })),
+      fetchProducts(slug).catch(() => ({ products: [] })),
+      fetchShipments(slug).catch(() => ({ shipments: [] })),
+    ]).then(([wRes, pRes, sRes]) => {
+      const employees = new Set<number>();
+      for (const w of wRes.warehouses) {
+        fetchEmployees(slug, w.id).then((eRes) => {
+          eRes.employees.forEach((e) => employees.add(e.id));
+        }).catch(() => {});
+      }
+      setData({
+        warehouses: wRes.warehouses.length,
+        products: pRes.products.length,
+        shipments: sRes.shipments.length,
+        employees: 0,
+      });
+    });
+  }, [slug]);
+
   const stats = [
-    { label: "Total inventory", value: "48,210", icon: Boxes, trend: "+4.2%" },
-    { label: "Active managers", value: managers.filter((m) => m.status === "active").length.toString(), icon: Users, trend: "+1" },
-    { label: "Monthly shipments", value: "2,184", icon: Truck, trend: "+8.1%" },
-    { label: "Capacity used", value: "72%", icon: Activity, trend: "+3%" },
+    { label: "Warehouses", value: data ? data.warehouses.toString() : "—", icon: Warehouse, trend: "active" },
+    { label: "Products", value: data ? data.products.toString() : "—", icon: Package, trend: "in stock" },
+    { label: "Shipments", value: data ? data.shipments.toString() : "—", icon: Truck, trend: "this month" },
+    { label: "Employees", value: data ? (data.employees || "—").toString() : "—", icon: Users, trend: "on staff" },
   ];
   return (
     <div className="space-y-6">
@@ -250,10 +411,10 @@ function Overview({ managers, types }: { managers: Manager[]; types: WarehouseTy
           <motion.div key={s.label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
             <GlassCard className="transition hover:-translate-y-0.5 hover:shadow-2xl">
               <div className="flex items-center justify-between">
-                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{s.label}</p>
+                <p className="text-xs font-medium uppercase tracking-wider text-[#1a2942]/70">{s.label}</p>
                 <s.icon className="size-4 text-[oklch(0.74_0.02_252)]" />
               </div>
-              <p className="mt-3 text-3xl font-bold text-foreground">{s.value}</p>
+              <p className="mt-3 text-3xl font-bold text-[#1a2942]">{s.value}</p>
               <p className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-emerald-600">
                 <TrendingUp className="size-3" /> {s.trend}
               </p>
@@ -267,31 +428,42 @@ function Overview({ managers, types }: { managers: Manager[]; types: WarehouseTy
           <div className="mb-4 flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold">Inventory trend</h3>
-              <p className="text-xs text-muted-foreground">Last 30 days</p>
+              <p className="text-xs text-[#1a2942]/70">Last 30 days (demo)</p>
             </div>
           </div>
           <ChartArea />
         </GlassCard>
 
         <GlassCard>
-          <h3 className="mb-4 text-sm font-semibold">Warehouse types</h3>
+          <h3 className="mb-4 text-sm font-semibold">Quick summary</h3>
           <div className="space-y-3">
-            {types.map((t) => {
-              const count = managers.filter((m) => m.warehouseId === t.id).length;
-              const Icon = ICON_MAP[t.icon] ?? Package;
-              return (
-                <div key={t.id} className="flex items-center gap-3 rounded-xl border border-white/40 bg-white/40 p-3 transition hover:bg-white/60">
-                  <div className="flex size-9 items-center justify-center rounded-lg" style={{ background: `${t.color}20` }}>
-                    <Icon className="size-4" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold">{t.name}</p>
-                    <p className="text-xs text-muted-foreground">{count} manager{count === 1 ? "" : "s"}</p>
-                  </div>
-                  <Badge variant="secondary" className="text-[10px]">{t.status}</Badge>
-                </div>
-              );
-            })}
+            <div className="flex items-center gap-3 rounded-xl border border-white/40 bg-white/40 p-3 transition hover:bg-white/60">
+              <div className="flex size-9 items-center justify-center rounded-lg bg-[#6366f1]/20">
+                <Warehouse className="size-4 text-[#6366f1]" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold">Total warehouses</p>
+                <p className="text-xs text-[#1a2942]/70">{data ? data.warehouses : "—"}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 rounded-xl border border-white/40 bg-white/40 p-3 transition hover:bg-white/60">
+              <div className="flex size-9 items-center justify-center rounded-lg bg-[#10B981]/20">
+                <Package className="size-4 text-[#10B981]" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold">Total products</p>
+                <p className="text-xs text-[#1a2942]/70">{data ? data.products : "—"}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 rounded-xl border border-white/40 bg-white/40 p-3 transition hover:bg-white/60">
+              <div className="flex size-9 items-center justify-center rounded-lg bg-[#F59E0B]/20">
+                <Truck className="size-4 text-[#F59E0B]" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold">Total shipments</p>
+                <p className="text-xs text-[#1a2942]/70">{data ? data.shipments : "—"}</p>
+              </div>
+            </div>
           </div>
         </GlassCard>
       </div>
@@ -302,7 +474,7 @@ function Overview({ managers, types }: { managers: Manager[]; types: WarehouseTy
           {recentActivity.map((a) => (
             <li key={a.id} className="flex items-center justify-between py-3 text-sm">
               <span>{a.text}</span>
-              <span className="text-xs text-muted-foreground">{a.time}</span>
+              <span className="text-xs text-[#1a2942]/70">{a.time}</span>
             </li>
           ))}
         </ul>
@@ -313,10 +485,40 @@ function Overview({ managers, types }: { managers: Manager[]; types: WarehouseTy
 
 /* -------------------- Managers (CRUD) -------------------- */
 function ManagersSection({
-  managers, setManagers, types,
+  slug, managers, setManagers, types,
 }: {
-  managers: Manager[]; setManagers: React.Dispatch<React.SetStateAction<Manager[]>>; types: WarehouseType[];
+  slug?: string | null; managers: Manager[]; setManagers: React.Dispatch<React.SetStateAction<Manager[]>>; types: WarehouseType[];
 }) {
+  useEffect(() => {
+    if (!slug) return;
+    const load = async () => {
+      try {
+        const wRes = await fetchWarehouses(slug);
+        const all: Manager[] = [];
+        for (const w of wRes.warehouses) {
+          const eRes = await fetchEmployees(slug, w.id);
+          for (const emp of eRes.employees) {
+            if (emp.role !== "manager" && emp.role !== "warehouse_secretary") continue;
+            all.push({
+              id: `emp_${emp.id}`,
+              whmId: emp.system_user.user_name,
+              name: emp.system_user.full_name,
+              age: 0,
+              password: "password",
+              warehouseId: w.id.toString(),
+              status: emp.status === "available" ? "active" : "inactive",
+              isTempPassword: emp.system_user.must_change_password,
+              lastPasswordChange: "—",
+              role: "Manager" as const,
+              email: emp.system_user.user_name + "@warehouse.io",
+            });
+          }
+        }
+        if (all.length > 0) setManagers(all);
+      } catch { /* ignore */ }
+    };
+    load();
+  }, [slug]);
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 5;
@@ -391,7 +593,7 @@ function ManagersSection({
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative w-full sm:max-w-xs">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#1a2942]/70" />
           <Input
             value={query}
             onChange={(e) => { setQuery(e.target.value); setPage(1); }}
@@ -447,9 +649,27 @@ function ManagersSection({
                     <TableCell>
                       <Badge variant={m.status === "active" ? "default" : "secondary"} className={cn(m.status === "active" ? "bg-emerald-500/20 text-emerald-700 hover:bg-emerald-500/20" : "")}>{m.status}</Badge>
                     </TableCell>
-                    <TableCell className="hidden text-muted-foreground md:table-cell">{m.lastPasswordChange}</TableCell>
+                    <TableCell className="hidden text-[#1a2942]/70 md:table-cell">{m.lastPasswordChange}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button size="sm" variant="ghost" onClick={async () => {
+                              const empId = parseInt(m.id.replace("emp_", ""), 10);
+                              const whId = parseInt(m.warehouseId, 10);
+                              if (!slug || !empId || !whId) return;
+                              try {
+                                await logoutEmployee(slug, whId, empId);
+                                toast.success(`${m.name} logged out`);
+                              } catch (err: any) {
+                                toast.error(err.response?.data?.message || "Logout failed");
+                              }
+                            }}>
+                              <LogOut className="size-3.5 text-sky-600" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Log out this manager</TooltipContent>
+                        </Tooltip>
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button size="sm" variant="ghost" onClick={() => { setResetId(m.id); setResetPw(""); }}>
@@ -473,7 +693,7 @@ function ManagersSection({
           </Table>
         )}
         {filtered.length > 0 && (
-          <div className="flex items-center justify-between border-t border-white/40 px-4 py-3 text-xs text-muted-foreground">
+          <div className="flex items-center justify-between border-t border-white/40 px-4 py-3 text-xs text-[#1a2942]/70">
             <span>Page {page} of {totalPages} • {filtered.length} total</span>
             <div className="flex gap-1">
               <Button size="sm" variant="outline" disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
@@ -617,7 +837,7 @@ function ManagerDialog({
             <div className="grid gap-2">
               <Label>Temporary password</Label>
               <Input type="text" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="min 6 characters" required />
-              <p className="text-xs text-muted-foreground">Manager will be required to change this on first login.</p>
+              <p className="text-xs text-[#1a2942]/70">Manager will be required to change this on first login.</p>
             </div>
           )}
           <div className="grid gap-2">
@@ -644,12 +864,10 @@ function ManagerDialog({
 
 /* -------------------- Warehouses -------------------- */
 function WarehousesSection({
-  types, setTypes, managers,
+  types, setTypes, managers, slug,
 }: {
-  types: WarehouseType[]; setTypes: React.Dispatch<React.SetStateAction<WarehouseType[]>>; managers: Manager[];
+  types: WarehouseType[]; setTypes: React.Dispatch<React.SetStateAction<WarehouseType[]>>; managers: Manager[]; slug?: string | null;
 }) {
-  const user = getStoredUser();
-  const slug = user?.tenant?.url_slug;
   const hasBackend = !!slug;
 
   if (!hasBackend) {
@@ -666,6 +884,9 @@ function WarehouseManager({ slug }: { slug: string }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<BackendWarehouse | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [deleteChecking, setDeleteChecking] = useState(false);
+  const [deleteDeleting, setDeleteDeleting] = useState(false);
+  const [deleteBlocked, setDeleteBlocked] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [allowedCount, setAllowedCount] = useState(0);
 
@@ -711,18 +932,6 @@ function WarehouseManager({ slug }: { slug: string }) {
     }
   };
 
-  const handleDelete = async () => {
-    if (deleteId === null) return;
-    try {
-      await deleteWarehouse(slug, deleteId);
-      toast.success("Warehouse deleted");
-      setDeleteId(null);
-      load();
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "Delete failed");
-    }
-  };
-
   const existingTypes = [...new Set(warehouses.map((w) => w.type))];
 
   return (
@@ -730,7 +939,7 @@ function WarehouseManager({ slug }: { slug: string }) {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-base font-semibold text-cream">Your Warehouses</h3>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-[#1a2942]/70">
             {loading ? "Loading..." : `${warehouses.length} of ${allowedCount} warehouses used`}
           </p>
         </div>
@@ -777,6 +986,7 @@ function WarehouseManager({ slug }: { slug: string }) {
           {warehouses.map((w, i) => {
             const style = getTypeStyle(w.type);
             const Icon = ICON_MAP[style.icon] ?? Package;
+            const manager = w.employees?.find(e => e.status === 'active');
             return (
               <motion.div key={w.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
                 <GlassCard className="group h-full transition hover:-translate-y-0.5 hover:shadow-2xl">
@@ -787,16 +997,53 @@ function WarehouseManager({ slug }: { slug: string }) {
                     <Badge variant="secondary" className="text-[10px]">{w.type}</Badge>
                   </div>
                   <h4 className="mt-3 text-base font-semibold">{w.warehouse_name}</h4>
-                  <p className="mt-1 text-sm text-muted-foreground">{w.location}, {w.governorate}</p>
-                  <div className="mt-4 flex items-center justify-between border-t border-white/40 pt-3">
-                    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <p className="mt-1 text-sm text-[#1a2942]/70">{w.location}, {w.governorate}</p>
+
+                  {manager && (
+                    <div className="mt-2 flex items-center gap-1.5 text-xs text-[#1a2942]/80">
+                      <User className="size-3.5" />
+                      <span>{manager.system_user?.full_name ?? "Unknown"}</span>
+                    </div>
+                  )}
+
+                  {(w.products && w.products.length > 0) && (
+                    <div className="mt-2 space-y-1">
+                      {w.products.slice(0, 4).map((p) => (
+                        <div key={p.id} className="flex items-center justify-between text-xs text-[#1a2942]/80">
+                          <span className="truncate">{p.product_name}</span>
+                          <span className="ml-2 shrink-0 font-medium">{p.pivot.quantity} units</span>
+                        </div>
+                      ))}
+                      {w.products.length > 4 && (
+                        <p className="text-[10px] text-[#1a2942]/50">+{w.products.length - 4} more</p>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="mt-3 flex items-center justify-between border-t border-white/40 pt-3">
+                    <span className="inline-flex items-center gap-1.5 text-xs text-[#1a2942]/70">
                       <Activity className="size-3.5" /> {w.area} m&sup2; &middot; ${w.financial_budgets.toLocaleString()}
                     </span>
                     <div className="flex gap-1 opacity-0 transition group-hover:opacity-100">
-                      <Button size="sm" variant="ghost" onClick={() => { setEditing(w); setOpen(true); }}>
+                      <Button size="sm" variant="ghost" className="text-navy hover:text-navy/80 hover:bg-white/60" onClick={() => { setEditing(w); setOpen(true); }}>
                         <Pencil className="size-3.5" />
                       </Button>
-                      <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setDeleteId(w.id)}>
+                      <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700 hover:bg-red-50" onClick={async () => {
+                        setDeleteChecking(true);
+                        setDeleteBlocked(null);
+                        try {
+                          const info = await fetchDeleteWarehouseInfo(slug, w.id);
+                          if (info.employees_count > 0 || info.products_count > 0) {
+                            setDeleteBlocked(`Cannot delete: ${info.employees_count} employee(s) and ${info.products_count} product(s) assigned. Remove them first.`);
+                          } else {
+                            setDeleteId(w.id);
+                          }
+                        } catch {
+                          setDeleteBlocked("Failed to check warehouse status.");
+                        } finally {
+                          setDeleteChecking(false);
+                        }
+                      }}>
                         <Trash2 className="size-3.5" />
                       </Button>
                     </div>
@@ -817,17 +1064,46 @@ function WarehouseManager({ slug }: { slug: string }) {
         existingTypes={existingTypes}
       />
 
-      <AlertDialog open={deleteId !== null} onOpenChange={(o) => !o && setDeleteId(null)}>
+      <AlertDialog open={deleteId !== null} onOpenChange={(o) => { if (!o && !deleteDeleting) setDeleteId(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete warehouse?</AlertDialogTitle>
-            <AlertDialogDescription>This will permanently remove this warehouse and its associated data.</AlertDialogDescription>
+            <AlertDialogDescription>This will permanently remove this warehouse and its data.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">
-              Delete
+            <AlertDialogCancel disabled={deleteDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleteDeleting}
+              className="bg-destructive hover:bg-destructive/90"
+              onClick={async () => {
+                if (deleteId === null) return;
+                setDeleteDeleting(true);
+                try {
+                  await deleteWarehouse(slug, deleteId);
+                  toast.success("Warehouse deleted");
+                  setDeleteId(null);
+                  load();
+                } catch (err: any) {
+                  toast.error(err.response?.data?.message || "Delete failed");
+                } finally {
+                  setDeleteDeleting(false);
+                }
+              }}
+            >
+              {deleteDeleting ? "Deleting..." : "Delete"}
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={deleteBlocked !== null} onOpenChange={(o) => { if (!o) setDeleteBlocked(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cannot delete warehouse</AlertDialogTitle>
+            <AlertDialogDescription>{deleteBlocked}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteBlocked(null)}>OK</AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -852,7 +1128,7 @@ function WarehouseDialog({
   const [form, setForm] = useState<WarehouseInput & { id?: number }>({
     warehouse_name: "", type: allTypes[0] ?? "Cold Storage",
     location: "", governorate: GOVERNORATE_OPTIONS[0] ?? "",
-    area: 0, financial_budgets: 0,
+    area: 0, financial_budgets: 0, description: "",
   });
 
   useMemo(() => {
@@ -865,12 +1141,13 @@ function WarehouseDialog({
         governorate: editing.governorate,
         area: editing.area,
         financial_budgets: editing.financial_budgets,
+        description: editing.description ?? "",
       });
     } else {
       setForm({
         warehouse_name: "", type: allTypes[0] ?? "Cold Storage",
         location: "", governorate: GOVERNORATE_OPTIONS[0] ?? "",
-        area: 0, financial_budgets: 0,
+        area: 0, financial_budgets: 0, description: "",
       });
     }
   }, [editing, existingTypes.join(",")]);
@@ -936,6 +1213,15 @@ function WarehouseDialog({
               <Input type="number" min={0} step={0.01} value={form.financial_budgets} onChange={(e) => setForm({ ...form, financial_budgets: Number(e.target.value) })} placeholder="e.g. 10000" required />
             </div>
           </div>
+          <div className="grid gap-2">
+            <Label>Description</Label>
+            <textarea
+              value={form.description ?? ""}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              placeholder="Optional notes about this warehouse..."
+              className="flex min-h-[80px] w-full rounded-xl border border-[#1a2942]/20 bg-white px-3 py-2 text-sm placeholder:text-[#1a2942]/40 focus:outline-none focus:ring-2 focus:ring-[#f3a523]"
+            />
+          </div>
           <DialogFooter className="mt-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
             <Button type="submit" disabled={saving} className="bg-navy text-cream hover:bg-navy/90">
@@ -996,9 +1282,9 @@ function WarehouseTypesSection({
                     <Badge variant="secondary" className="text-[10px]">{t.status}</Badge>
                   </div>
                   <h4 className="mt-3 text-base font-semibold">{t.name}</h4>
-                  <p className="mt-1 text-sm text-muted-foreground">{t.description}</p>
+                  <p className="mt-1 text-sm text-[#1a2942]/70">{t.description}</p>
                   <div className="mt-4 flex items-center justify-between border-t border-white/40 pt-3">
-                    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1.5 text-xs text-[#1a2942]/70">
                       <Users className="size-3.5" /> {count} manager{count === 1 ? "" : "s"}
                     </span>
                     <div className="flex gap-1 opacity-0 transition group-hover:opacity-100">
@@ -1111,7 +1397,9 @@ function WarehouseTypeDialog({
 }
 
 /* -------------------- Analytics -------------------- */
-function AnalyticsSection({ types, managers }: { types: WarehouseType[]; managers: Manager[] }) {
+function AnalyticsSection({ slug }: { slug?: string | null }) {
+  const [types] = useState<WarehouseType[]>(initialWarehouseTypes);
+  const [managers] = useState<Manager[]>(initialManagers);
   const [selected, setSelected] = useState(types[0]?.id ?? "");
   const wh = types.find((t) => t.id === selected);
   const assigned = managers.filter((m) => m.warehouseId === selected).length;
@@ -1145,11 +1433,11 @@ function AnalyticsSection({ types, managers }: { types: WarehouseType[]; manager
         ].map((s) => (
           <GlassCard key={s.label}>
             <div className="flex items-center justify-between">
-              <p className="text-xs uppercase tracking-wider text-muted-foreground">{s.label}</p>
+              <p className="text-xs uppercase tracking-wider text-[#1a2942]/70">{s.label}</p>
               <s.icon className="size-4 text-[oklch(0.74_0.02_252)]" />
             </div>
             <p className="mt-2 text-2xl font-bold">{s.value}</p>
-            <p className="text-xs text-muted-foreground">{wh?.name}</p>
+            <p className="text-xs text-[#1a2942]/70">{wh?.name}</p>
           </GlassCard>
         ))}
       </div>
@@ -1213,7 +1501,7 @@ function AnalyticsSection({ types, managers }: { types: WarehouseType[]; manager
           {recentActivity.map((a) => (
             <li key={a.id} className="flex items-center justify-between py-3 text-sm">
               <span>{a.text}</span>
-              <span className="text-xs text-muted-foreground">{a.time}</span>
+              <span className="text-xs text-[#1a2942]/70">{a.time}</span>
             </li>
           ))}
         </ul>
@@ -1226,7 +1514,7 @@ function Metric({ label, value, raw, inverted }: { label: string; value: number;
   return (
     <div>
       <div className="mb-1 flex justify-between text-xs">
-        <span className="text-muted-foreground">{label}</span>
+        <span className="text-[#1a2942]/70">{label}</span>
         <span className="font-semibold">{raw ?? `${value}%`}</span>
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-white/40">
@@ -1269,9 +1557,9 @@ function WalletSection() {
         <GlassCard className="lg:col-span-2 relative overflow-hidden">
           <div className="absolute -right-20 -top-20 size-64 rounded-full bg-[oklch(0.78_0.16_75)]/30 blur-3xl" />
           <div className="relative">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">Available balance</p>
+            <p className="text-xs uppercase tracking-wider text-[#1a2942]/70">Available balance</p>
             <p className="mt-2 text-4xl font-bold">$24,820.45</p>
-            <p className="mt-1 text-xs text-muted-foreground">Updated just now</p>
+            <p className="mt-1 text-xs text-[#1a2942]/70">Updated just now</p>
             <div className="mt-6 flex flex-wrap gap-2">
               <Button className="bg-navy text-cream hover:bg-navy/90"><Plus className="size-4" /> Top up</Button>
               <Button variant="outline"><CreditCard className="size-4" /> Manage cards</Button>
@@ -1280,10 +1568,10 @@ function WalletSection() {
           </div>
         </GlassCard>
         <GlassCard>
-          <p className="text-xs uppercase tracking-wider text-muted-foreground">This month</p>
+          <p className="text-xs uppercase tracking-wider text-[#1a2942]/70">This month</p>
           <div className="mt-2 space-y-3 text-sm">
-            <div className="flex justify-between"><span className="text-muted-foreground">Income</span><span className="font-semibold text-emerald-600">+ $7,090</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Spending</span><span className="font-semibold text-rose-600">− $2,369</span></div>
+            <div className="flex justify-between"><span className="text-[#1a2942]/70">Income</span><span className="font-semibold text-emerald-600">+ $7,090</span></div>
+            <div className="flex justify-between"><span className="text-[#1a2942]/70">Spending</span><span className="font-semibold text-rose-600">− $2,369</span></div>
             <div className="flex justify-between border-t border-white/40 pt-2"><span>Net</span><span className="font-bold">+ $4,721</span></div>
           </div>
         </GlassCard>
@@ -1305,7 +1593,7 @@ function WalletSection() {
           <TableBody>
             {walletTransactions.map((t) => (
               <TableRow key={t.id} className="border-white/40">
-                <TableCell className="text-muted-foreground">{t.date}</TableCell>
+                <TableCell className="text-[#1a2942]/70">{t.date}</TableCell>
                 <TableCell className="font-medium">{t.description}</TableCell>
                 <TableCell className="text-right">
                   <span className={cn("inline-flex items-center gap-1 font-semibold", t.amount > 0 ? "text-emerald-600" : "text-rose-600")}>
@@ -1328,14 +1616,14 @@ function SettingsSection() {
     <div className="grid gap-4 lg:grid-cols-2">
       <GlassCard>
         <h4 className="text-sm font-semibold">Profile picture</h4>
-        <p className="mb-4 text-xs text-muted-foreground">Shown in the header and across the app.</p>
+        <p className="mb-4 text-xs text-[#1a2942]/70">Shown in the header and across the app.</p>
         <div className="rounded-xl bg-navy/90 p-4">
           <ProfilePictureUpload role="admin" fallback="A" />
         </div>
       </GlassCard>
       <GlassCard>
         <h4 className="text-sm font-semibold">Account</h4>
-        <p className="mb-4 text-xs text-muted-foreground">Update your personal info.</p>
+        <p className="mb-4 text-xs text-[#1a2942]/70">Update your personal info.</p>
         <div className="space-y-3">
           <div className="grid gap-2"><Label>Full name</Label><Input defaultValue="Amelia Carter" /></div>
           <div className="grid gap-2"><Label>Email</Label><Input defaultValue="amelia@stockyard.io" /></div>
@@ -1344,7 +1632,7 @@ function SettingsSection() {
       </GlassCard>
       <GlassCard className="lg:col-span-2">
         <h4 className="text-sm font-semibold">Notifications</h4>
-        <p className="mb-4 text-xs text-muted-foreground">Control what you hear about.</p>
+        <p className="mb-4 text-xs text-[#1a2942]/70">Control what you hear about.</p>
         <div className="grid gap-3 text-sm sm:grid-cols-2">
           {["New shipments", "Manager updates", "Low inventory alerts", "Wallet activity"].map((n) => (
             <label key={n} className="flex items-center justify-between rounded-xl border border-white/40 bg-white/40 px-4 py-3">
@@ -1394,14 +1682,14 @@ function SubscriptionRequestsSection() {
           </TableHeader>
           <TableBody>
             {subs.length === 0 && (
-              <TableRow><TableCell colSpan={6} className="py-8 text-center text-muted-foreground">No requests yet.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={6} className="py-8 text-center text-[#1a2942]/70">No requests yet.</TableCell></TableRow>
             )}
             {subs.map((s) => (
               <TableRow key={s.id} className="border-white/40">
                 <TableCell className="font-medium">{s.companyName}</TableCell>
                 <TableCell>{s.warehouses}</TableCell>
                 <TableCell className="font-mono text-xs">{s.slok}</TableCell>
-                <TableCell className="text-muted-foreground">{s.requestDate}</TableCell>
+                <TableCell className="text-[#1a2942]/70">{s.requestDate}</TableCell>
                 <TableCell><Badge variant="outline" className={cn("capitalize", badge(s.status))}>{s.status}</Badge></TableCell>
                 <TableCell className="text-right">
                   {s.status === "pending" && (
@@ -1427,234 +1715,391 @@ function EmptyState({ icon: Icon, title, subtitle }: { icon: React.ComponentType
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
       <div className="flex size-14 items-center justify-center rounded-2xl bg-white/40">
-        <Icon className="size-6 text-muted-foreground" />
+        <Icon className="size-6 text-[#1a2942]/70" />
       </div>
       <div>
         <p className="font-semibold">{title}</p>
-        <p className="text-sm text-muted-foreground">{subtitle}</p>
+        <p className="text-sm text-[#1a2942]/70">{subtitle}</p>
       </div>
     </div>
   );
 }
 
-// Suppress unused import warnings for components included for future use
-void Skeleton; void DialogTrigger;
-
-/* -------------------- Add Product -------------------- */
-function AddProductSection({ types }: { types: WarehouseType[] }) {
-  const [name, setName] = useState("");
-  const [sku, setSku] = useState("");
-  const [category, setCategory] = useState("");
-  const [description, setDescription] = useState("");
-  const [qty, setQty] = useState<number | "">("");
-  const [storage, setStorage] = useState("");
+/* -------------------- Products -------------------- */
+function ProductsSection({ slug }: { slug?: string | null }) {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Product | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const reset = () => {
-    setName(""); setSku(""); setCategory(""); setDescription(""); setQty(""); setStorage("");
+  const load = async () => {
+    if (!slug) return;
+    setLoading(true);
+    try {
+      const res = await fetchProducts(slug);
+      setProducts(res.products);
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
   };
 
-  const onSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name || !sku || !category || !storage || qty === "") {
-      toast.error("Please fill in all required fields");
-      return;
-    }
+  useEffect(() => { load(); }, [slug]);
+
+  const filtered = query.trim()
+    ? products.filter((p) =>
+        p.name.toLowerCase().includes(query.toLowerCase()) ||
+        p.brand.toLowerCase().includes(query.toLowerCase()) ||
+        p.type.toLowerCase().includes(query.toLowerCase())
+      )
+    : products;
+
+  const handleSave = async (data: ProductInput & { id?: number }) => {
+    if (!slug) return;
     setSaving(true);
-    setTimeout(() => {
-      toast.success(`Product card saved · ${name}`);
+    try {
+      if (data.id) {
+        await updateProduct(slug, data.id, data);
+        toast.success("Product updated");
+      } else {
+        await createProduct(slug, data);
+        toast.success("Product added");
+      }
+      setOpen(false);
+      setEditing(null);
+      load();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Operation failed");
+    } finally {
       setSaving(false);
-      reset();
-    }, 600);
+    }
   };
 
-  const labelCls = "text-sm font-semibold text-[#1D2D44]";
-  const inputCls =
-    "bg-white border-navy/25 text-[#1D2D44] placeholder:text-gray-400 placeholder:opacity-80 focus-visible:ring-[#1D2D44]/40";
-  const selectCls =
-    "bg-white border-navy/25 text-[#1D2D44] data-[placeholder]:text-gray-400 focus:ring-[#1D2D44]/40";
+  if (!slug) {
+    return <GlassCard><EmptyState icon={Package} title="Connect to a tenant" subtitle="Log in with a tenant slug to view products." /></GlassCard>;
+  }
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <GlassCard>
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold text-navy">Add Product</h2>
-          <p className="mt-1 text-sm text-navy/70">Create a new product card in the catalogue.</p>
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-cream/80">{products.length} products in catalogue.</p>
+          <Button onClick={() => { setEditing(null); setOpen(true); }} className="bg-navy text-cream hover:bg-navy/90">
+            <Plus className="size-4" /> Add product
+          </Button>
         </div>
+        <div className="relative w-full sm:max-w-xs">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-cream/50" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search products..."
+            className="h-9 w-full rounded-full border border-white/15 bg-white/5 pl-9 pr-3 text-sm text-cream placeholder:text-cream/40 outline-none transition focus:border-[oklch(0.78_0.16_75)]/60"
+          />
+        </div>
+      </div>
 
-        <form onSubmit={onSubmit} className="grid gap-5 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="p-name" className={labelCls}>Product Name</Label>
-            <Input id="p-name" className={inputCls} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Premium Olive Oil 1L" />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="p-sku" className={labelCls}>SKU / Serial Number</Label>
-            <Input id="p-sku" className={inputCls} value={sku} onChange={(e) => setSku(e.target.value)} placeholder="e.g. SKU-00219" />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="p-category" className={labelCls}>Category</Label>
-            <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger id="p-category" className={selectCls}><SelectValue placeholder="Select category" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="electronics">Electronics</SelectItem>
-                <SelectItem value="food">Food & Beverage</SelectItem>
-                <SelectItem value="chemical">Chemical</SelectItem>
-                <SelectItem value="textiles">Textiles</SelectItem>
-                <SelectItem value="pharmaceuticals">Pharmaceuticals</SelectItem>
-                <SelectItem value="machinery">Machinery & Tools</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="p-qty" className={labelCls}>Initial Stock Quantity</Label>
-            <Input id="p-qty" className={inputCls} type="number" min={0} value={qty} onChange={(e) => setQty(e.target.value === "" ? "" : Number(e.target.value))} placeholder="0" />
-          </div>
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label htmlFor="p-storage" className={labelCls}>Storage Type Requirement</Label>
-            <Select value={storage} onValueChange={setStorage}>
-              <SelectTrigger id="p-storage" className={selectCls}><SelectValue placeholder="Select storage type" /></SelectTrigger>
-              <SelectContent>
-                {types.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label htmlFor="p-desc" className={labelCls}>Product Description & Notes</Label>
-            <Textarea id="p-desc" className={inputCls} value={description} onChange={(e) => setDescription(e.target.value)} rows={4} placeholder="Details, dimensions, handling notes..." />
-          </div>
-          <div className="sm:col-span-2 flex justify-end pt-2">
-            <Button type="submit" disabled={saving} className="bg-[oklch(0.78_0.16_75)] text-navy hover:bg-[oklch(0.82_0.16_75)] font-semibold">
-              <Save className="size-4" /> {saving ? "Saving..." : "Save Product Card"}
-            </Button>
-          </div>
-        </form>
-      </GlassCard>
+      {loading ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3].map((i) => (
+            <GlassCard key={i}>
+              <Skeleton className="h-5 w-32 bg-white/20" />
+              <Skeleton className="mt-2 h-4 w-48 bg-white/20" />
+              <Skeleton className="mt-2 h-4 w-24 bg-white/20" />
+            </GlassCard>
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
+        <GlassCard><EmptyState icon={Package} title="No products found" subtitle={query ? "Try a different search term." : "No products in this tenant yet."} /></GlassCard>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {filtered.map((p) => (
+            <motion.div key={p.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+              <GlassCard className="group transition hover:-translate-y-0.5 hover:shadow-2xl">
+                <div className="flex items-start justify-between">
+                  <div className="flex size-11 items-center justify-center rounded-xl bg-[#6366f1]/20">
+                    <Package className="size-5 text-[#6366f1]" />
+                  </div>
+                  <Badge variant="secondary" className="text-[10px]">{p.type}</Badge>
+                </div>
+                <h4 className="mt-3 text-base font-semibold">{p.name}</h4>
+                <p className="mt-1 text-sm text-[#1a2942]/70">{p.brand}</p>
+                {p.piece_barcode && (
+                  <div className="mt-2 flex justify-center">
+                    <Barcode value={p.piece_barcode} width={1.2} height={30} fontSize={10} margin={0} background="transparent" />
+                  </div>
+                )}
+                <div className="mt-4 flex items-center justify-between border-t border-white/40 pt-3 text-xs">
+                  <span>${p.selling_price} / unit</span>
+                  <div className="flex items-center gap-1 opacity-0 transition group-hover:opacity-100">
+                    <button onClick={() => { setEditing(p); setOpen(true); }} className="text-navy hover:text-navy/80">
+                      <Pencil className="size-3.5" />
+                    </button>
+                    <button onClick={async () => {
+                      if (!slug) return;
+                      try {
+                        await deleteProduct(slug, p.id);
+                        toast.success("Product deleted");
+                        load();
+                      } catch (err: any) {
+                        toast.error(err.response?.data?.message || "Delete failed");
+                      }
+                    }} className="text-red-600 hover:text-red-700">
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </div>
+                  <span className="text-[#1a2942]/70">{p.units_per_packing} per pack</span>
+                </div>
+              </GlassCard>
+            </motion.div>
+          ))}
+        </div>
+      )}
+
+      <ProductDialog
+        open={open}
+        onOpenChange={setOpen}
+        editing={editing}
+        onSave={handleSave}
+        saving={saving}
+      />
     </div>
   );
 }
 
-/* -------------------- Request Shipment -------------------- */
-function RequestShipmentSection({ types }: { types: WarehouseType[] }) {
-  const [factory, setFactory] = useState("");
-  const [destination, setDestination] = useState("");
-  const [product, setProduct] = useState("");
-  const [qty, setQty] = useState<number | "">("");
-  const [priority, setPriority] = useState("medium");
-  const [date, setDate] = useState<Date | undefined>(undefined);
-  const [submitting, setSubmitting] = useState(false);
+/* -------------------- Shipments -------------------- */
+function ShipmentsSection({ slug }: { slug?: string | null }) {
+  const [shipments, setShipments] = useState<Shipment[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const factories = ["Damascus Main Factory", "Aleppo Industrial Plant", "Homs Processing Line", "Latakia Port Facility"];
+  const load = async () => {
+    if (!slug) return;
+    setLoading(true);
+    try {
+      const res = await fetchShipments(slug);
+      setShipments(res.shipments);
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
+  };
 
-  const onSubmit = (e: React.FormEvent) => {
+  useEffect(() => { load(); }, [slug]);
+
+  const handleReceive = async (id: number) => {
+    if (!slug) return;
+    try {
+      await receiveShipment(slug, id);
+      toast.success("Shipment received");
+      load();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Failed to receive shipment");
+    }
+  };
+
+  const statusBadge = (s: ShipmentStatus) => {
+    const map: Record<ShipmentStatus, string> = {
+      pending: "bg-amber-500/15 text-amber-700 border-amber-300",
+      in_transit: "bg-sky-500/15 text-sky-700 border-sky-300",
+      received: "bg-emerald-500/15 text-emerald-700 border-emerald-300",
+    };
+    return map[s] ?? "bg-gray-500/15 text-gray-700";
+  };
+
+  if (!slug) {
+    return <GlassCard><EmptyState icon={Truck} title="Connect to a tenant" subtitle="Log in with a tenant slug to view shipments." /></GlassCard>;
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-cream/80">{shipments.length} shipments found.</p>
+
+      {loading ? (
+        <GlassCard><Skeleton className="h-40 w-full bg-white/20" /></GlassCard>
+      ) : shipments.length === 0 ? (
+        <GlassCard><EmptyState icon={Truck} title="No shipments yet" subtitle="Shipments will appear here once created." /></GlassCard>
+      ) : (
+        <GlassCard className="overflow-hidden p-0">
+          <Table>
+            <TableHeader>
+              <TableRow className="border-white/40 hover:bg-transparent">
+                <TableHead>ID</TableHead>
+                <TableHead>Factory</TableHead>
+                <TableHead>Warehouse</TableHead>
+                <TableHead>Total</TableHead>
+                <TableHead>Arrival</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {shipments.map((s) => (
+                <TableRow key={s.id} className="border-white/40">
+                  <TableCell className="font-mono text-xs">#{s.id}</TableCell>
+                  <TableCell className="font-medium">{s.factory_name}</TableCell>
+                  <TableCell className="text-[#1a2942]/70">{s.warehouse?.warehouse_name ?? "—"}</TableCell>
+                  <TableCell>${Number(s.total_price).toLocaleString()}</TableCell>
+                  <TableCell>{s.arrival_date ? format(new Date(s.arrival_date), "MMM dd") : "—"}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className={cn("text-[10px]", statusBadge(s.status))}>
+                      {s.status_label}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {s.can_receive ? (
+                      <Button size="sm" onClick={() => handleReceive(s.id)} className="bg-navy text-cream hover:bg-navy/90">
+                        <CheckCircle2 className="size-3.5" /> Receive
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-[#1a2942]/70">—</span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </GlassCard>
+      )}
+    </div>
+  );
+}
+
+/* -------------------- Product Dialog -------------------- */
+function ProductDialog({
+  open, onOpenChange, editing, onSave, saving,
+}: {
+  open: boolean; onOpenChange: (o: boolean) => void;
+  editing: Product | null; onSave: (d: ProductInput & { id?: number }) => void;
+  saving: boolean;
+}) {
+  const [form, setForm] = useState<ProductInput & { id?: number }>({
+    name: "", brand: "", type: "",
+    piece_barcode: "", parcel_barcode: "",
+    units_per_packing: 1,
+    current_purchase_price: 0, selling_price: 0,
+    parcel_length: 0, parcel_width: 0, parcel_height: 0,
+  });
+
+  const toBarcode = (name: string, parcel = false) => {
+    const cleaned = name.toUpperCase().replace(/[^A-Z0-9-]/g, "").replace(/\s+/g, "-");
+    if (!cleaned) return "";
+    const suffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+    return cleaned + (parcel ? "-PARCEL-" : "-") + suffix;
+  };
+
+  useMemo(() => {
+    if (editing) {
+      setForm({
+        id: editing.id,
+        name: editing.name,
+        brand: editing.brand,
+        type: editing.type,
+        piece_barcode: editing.piece_barcode ?? "",
+        parcel_barcode: editing.parcel_barcode ?? "",
+        units_per_packing: editing.units_per_packing,
+        current_purchase_price: editing.current_purchase_price,
+        selling_price: editing.selling_price,
+        parcel_length: editing.parcel_length,
+        parcel_width: editing.parcel_width,
+        parcel_height: editing.parcel_height,
+      });
+    } else {
+      setForm({
+        name: "", brand: "", type: "",
+        piece_barcode: "", parcel_barcode: "",
+        units_per_packing: 1,
+        current_purchase_price: 0, selling_price: 0,
+        parcel_length: 0, parcel_width: 0, parcel_height: 0,
+      });
+    }
+  }, [editing]);
+
+  const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!factory || !destination || !product || qty === "" || !date) {
-      toast.error("Please complete all fields");
+    if (!form.name || !form.brand || !form.type) {
+      toast.error("Please fill in name, brand, and type");
       return;
     }
-    setSubmitting(true);
-    setTimeout(() => {
-      toast.success(`Shipment request created · ${product} → ${types.find(t => t.id === destination)?.name}`);
-      setSubmitting(false);
-      setFactory(""); setDestination(""); setProduct(""); setQty(""); setPriority("medium"); setDate(undefined);
-    }, 600);
+    if (!form.piece_barcode) {
+      toast.error("Piece barcode is required");
+      return;
+    }
+    onSave(form);
   };
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <GlassCard>
-        <div className="mb-5 flex items-start gap-3">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-navy/10 text-navy">
-            <Truck className="size-5" />
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{editing ? "Edit product" : "Add product"}</DialogTitle>
+          <DialogDescription>
+            {editing ? "Update product details." : "Fill in the details to create a new product."}
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="grid gap-4 py-2">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label>Name *</Label>
+              <Input value={form.name} onChange={(e) => {
+                const name = e.target.value;
+                setForm({ ...form, name, piece_barcode: editing ? form.piece_barcode : toBarcode(name), parcel_barcode: editing ? form.parcel_barcode : toBarcode(name, true) });
+              }} placeholder="Product name" required />
+            </div>
+            <div className="grid gap-2">
+              <Label>Brand *</Label>
+              <Input value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })} placeholder="Brand name" required />
+            </div>
           </div>
-          <div>
-            <h2 className="text-lg font-semibold">Request Shipment</h2>
-            <p className="text-xs text-muted-foreground">طلب شحنة — Internal request to move stock from a factory to a warehouse.</p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label>Type *</Label>
+              <Input value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} placeholder="e.g. Electronics" required />
+            </div>
+            <div className="grid gap-2">
+              <Label>Units per packing *</Label>
+              <Input type="number" min={1} value={form.units_per_packing} onChange={(e) => setForm({ ...form, units_per_packing: Number(e.target.value) })} />
+            </div>
           </div>
-        </div>
-
-        <form onSubmit={onSubmit} className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label>Source Factory</Label>
-            <Select value={factory} onValueChange={setFactory}>
-              <SelectTrigger><SelectValue placeholder="Select factory" /></SelectTrigger>
-              <SelectContent>
-                {factories.map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}
-              </SelectContent>
-            </Select>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label>Piece barcode</Label>
+              <Input value={form.piece_barcode} readOnly placeholder="Auto-generated from name" className="bg-gray-100 text-gray-500 cursor-not-allowed" />
+            </div>
+            <div className="grid gap-2">
+              <Label>Parcel barcode</Label>
+              <Input value={form.parcel_barcode} readOnly placeholder="Auto-generated from name" className="bg-gray-100 text-gray-500 cursor-not-allowed" />
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <Label>Destination Warehouse</Label>
-            <Select value={destination} onValueChange={setDestination}>
-              <SelectTrigger><SelectValue placeholder="Select warehouse" /></SelectTrigger>
-              <SelectContent>
-                {types.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label>Purchase price ($) *</Label>
+              <Input type="number" min={0} step={0.01} value={form.current_purchase_price} onChange={(e) => setForm({ ...form, current_purchase_price: Number(e.target.value) })} />
+            </div>
+            <div className="grid gap-2">
+              <Label>Selling price ($) *</Label>
+              <Input type="number" min={0} step={0.01} value={form.selling_price} onChange={(e) => setForm({ ...form, selling_price: Number(e.target.value) })} />
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="s-product">Product</Label>
-            <Input id="s-product" value={product} onChange={(e) => setProduct(e.target.value)} placeholder="Type product name..." list="product-suggestions" />
-            <datalist id="product-suggestions">
-              <option value="Premium Olive Oil 1L" />
-              <option value="Cotton T-Shirts Pack" />
-              <option value="Industrial Cleaner 5L" />
-              <option value="LED Smart Bulbs" />
-            </datalist>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-2">
+              <Label>Parcel length (cm)</Label>
+              <Input type="number" min={0} step={0.1} value={form.parcel_length} onChange={(e) => setForm({ ...form, parcel_length: Number(e.target.value) })} />
+            </div>
+            <div className="grid gap-2">
+              <Label>Parcel width (cm)</Label>
+              <Input type="number" min={0} step={0.1} value={form.parcel_width} onChange={(e) => setForm({ ...form, parcel_width: Number(e.target.value) })} />
+            </div>
+            <div className="grid gap-2">
+              <Label>Parcel height (cm)</Label>
+              <Input type="number" min={0} step={0.1} value={form.parcel_height} onChange={(e) => setForm({ ...form, parcel_height: Number(e.target.value) })} />
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="s-qty">Quantity Requested</Label>
-            <Input id="s-qty" type="number" min={1} value={qty} onChange={(e) => setQty(e.target.value === "" ? "" : Number(e.target.value))} placeholder="0" />
-          </div>
-          <div className="space-y-2 sm:col-span-2">
-            <Label>Priority Level</Label>
-            <RadioGroup value={priority} onValueChange={setPriority} className="flex gap-2">
-              {[
-                { v: "low", l: "Low" },
-                { v: "medium", l: "Medium" },
-                { v: "high", l: "High" },
-              ].map((p) => (
-                <label
-                  key={p.v}
-                  className={cn(
-                    "flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-medium transition",
-                    priority === p.v
-                      ? "border-navy bg-navy text-cream"
-                      : "border-white/40 bg-white/40 text-foreground hover:bg-white/60",
-                  )}
-                >
-                  <RadioGroupItem value={p.v} className="sr-only" />
-                  {p.l}
-                </label>
-              ))}
-            </RadioGroup>
-          </div>
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label>Expected Delivery Date</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  type="button"
-                  className={cn("w-full justify-start text-left font-normal", !date && "text-muted-foreground")}
-                >
-                  <CalendarIcon className="size-4" />
-                  {date ? format(date, "PPP") : <span>Pick a date</span>}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar mode="single" selected={date} onSelect={setDate} initialFocus className={cn("p-3 pointer-events-auto")} />
-              </PopoverContent>
-            </Popover>
-          </div>
-          <div className="sm:col-span-2 flex justify-end pt-2">
-            <Button type="submit" disabled={submitting} className="bg-navy text-cream hover:bg-navy/90 font-semibold">
-              <Truck className="size-4" /> {submitting ? "Submitting..." : "Create Shipment Request"}
+          <DialogFooter className="mt-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button type="submit" disabled={saving} className="bg-navy text-cream hover:bg-navy/90">
+              {saving ? "Saving..." : editing ? "Save changes" : "Add product"}
             </Button>
-          </div>
+          </DialogFooter>
         </form>
-      </GlassCard>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

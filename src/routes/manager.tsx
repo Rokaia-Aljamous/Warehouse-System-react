@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, Outlet, useRouterState } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -72,6 +72,145 @@ const NAV: { id: SectionId; label: string; icon: React.ComponentType<{ className
   { id: "settings", label: "Settings", icon: SettingsIcon },
 ];
 
+function ManagerLayout() {
+  const routerState = useRouterState();
+  const isSlugRoute = routerState.matches.some(m => m.routeId === '/$slug' || m.routeId === '/manager/$slug');
+  if (isSlugRoute) return <ManagerSlugShell />;
+  return <ManagerApp />;
+}
+
+function ManagerSlugShell() {
+  const navigate = useNavigate();
+  const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [avatar, setAvatar] = useState<string | null>(null);
+  const [section, setSection] = useState<SectionId>("overview");
+
+  useEffect(() => {
+    setAvatar(getProfilePic("manager"));
+    return subscribeProfilePic("manager", setAvatar);
+  }, []);
+
+  const sessionRaw = typeof window !== "undefined" ? localStorage.getItem("stockyard.manager") : null;
+  const session = sessionRaw ? JSON.parse(sessionRaw) : null;
+
+  const logout = () => {
+    localStorage.removeItem("stockyard.manager");
+    navigate({ to: "/manager-login" });
+  };
+
+  const sidebar = (
+    <aside
+      className={cn(
+        "flex h-full flex-col border-r border-white/10 bg-navy-light text-cream backdrop-blur-xl transition-all duration-300",
+        collapsed ? "w-[72px]" : "w-64",
+      )}
+      style={{ boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)" }}
+    >
+      <div className="flex items-center gap-2 px-4 py-5">
+        <div className="grid size-8 place-items-center rounded-xl bg-accent/30 text-accent-foreground">
+          <WarehouseIcon className="h-4 w-4" />
+        </div>
+        {!collapsed && <span className="text-base font-semibold tracking-tight">Stockyard</span>}
+      </div>
+      <nav className="flex-1 space-y-1 px-2">
+        {NAV.map((item) => {
+          const Icon = item.icon;
+          const active = section === item.id;
+          return (
+            <button
+              key={item.id}
+              onClick={() => { setSection(item.id); setMobileOpen(false); }}
+              className={cn(
+                "group/nav flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all",
+                active
+                  ? "text-cream shadow-inner"
+                  : "text-cream/75 hover:text-cream hover:translate-x-0.5",
+              )}
+              style={{
+                backgroundColor: active
+                  ? "rgba(167,179,195,0.20)"
+                  : undefined,
+              }}
+              onMouseEnter={(e) => { if (!active) e.currentTarget.style.backgroundColor = "rgba(167,179,195,0.15)"; }}
+              onMouseLeave={(e) => { if (!active) e.currentTarget.style.backgroundColor = ""; }}
+            >
+              <Icon className={cn("h-4 w-4 shrink-0", active ? "text-accent" : "text-[#A7B3C3]")} />
+              {!collapsed && <span>{item.label}</span>}
+            </button>
+          );
+        })}
+      </nav>
+      <div className="border-t border-white/10 p-3">
+        <div className={cn("flex items-center gap-3 rounded-xl bg-white/5 p-2", collapsed && "justify-center")}>
+          <div className="size-9 overflow-hidden rounded-full bg-accent/30 ring-1 ring-white/20">
+            {avatar ? (
+              <img src={avatar} alt="me" className="h-full w-full object-cover" />
+            ) : (
+              <div className="grid h-full w-full place-items-center text-xs font-bold text-cream">
+                {session?.full_name?.[0] ?? "M"}
+              </div>
+            )}
+          </div>
+          {!collapsed && (
+            <div className="min-w-0 text-xs leading-tight">
+              <p className="truncate font-semibold text-cream">{session?.full_name ?? "Manager"}</p>
+              <p className="truncate text-cream/60">{session?.user_name ?? ""}</p>
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="space-y-2 p-3 pt-0">
+        <Button
+          variant="ghost"
+          className="w-full justify-start text-cream/80 hover:bg-white/10 hover:text-cream"
+          onClick={logout}
+        >
+          <LogOut className="h-4 w-4" />
+          {!collapsed && <span>Sign out</span>}
+        </Button>
+        <button
+          onClick={() => setCollapsed((c) => !c)}
+          className="hidden md:flex w-full items-center justify-center rounded-lg border border-white/10 py-2 text-cream/70 hover:bg-white/10"
+        >
+          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+        </button>
+      </div>
+    </aside>
+  );
+
+  return (
+    <div className="flex min-h-screen w-full">
+      <div className="fixed inset-y-0 left-0 z-30 hidden md:block">{sidebar}</div>
+      <div className={cn("flex-1 transition-all", collapsed ? "md:pl-[72px]" : "md:pl-64")}>
+        <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-white/10 bg-navy/70 px-4 py-3 backdrop-blur md:px-6">
+          <button onClick={() => setMobileOpen(true)} className="rounded-md p-2 text-cream md:hidden hover:bg-cream/10">
+            <Menu className="h-5 w-5" />
+          </button>
+          <div className="flex flex-1 items-center gap-3">
+            <div className="hidden md:block">
+              <p className="text-xs uppercase tracking-wider text-cream/60">Warehouse</p>
+              <p className="text-sm font-semibold text-cream">Manager Dashboard</p>
+            </div>
+            <div className="ml-auto flex items-center gap-2 rounded-xl bg-white/5 px-3 py-1.5 text-cream">
+              <div className="grid h-7 w-7 place-items-center overflow-hidden rounded-full bg-accent text-foreground text-xs font-semibold">
+                {avatar ? <img src={avatar} alt="me" className="h-full w-full object-cover" /> : (session?.full_name?.[0] ?? "M")}
+              </div>
+              <div className="hidden text-xs leading-tight sm:block">
+                <p className="font-medium">{session?.full_name ?? "Manager"}</p>
+                <p className="text-cream/60">Manager</p>
+              </div>
+            </div>
+          </div>
+        </header>
+        <div className="px-4 py-6 md:px-8 md:py-8">
+          <Outlet />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ManagerApp() {
   const navigate = useNavigate();
   const [section, setSection] = useState<SectionId>("overview");
@@ -97,9 +236,9 @@ function ManagerApp() {
   useEffect(() => {
     const raw = typeof window !== "undefined" ? localStorage.getItem("stockyard.manager") : null;
     if (raw) {
-      const s = JSON.parse(raw) as Session;
-      setUser(s);
-      if (s.isFirstLogin) setFirstLoginOpen(true);
+      const parsed = JSON.parse(raw);
+      setUser({ whmId: parsed.whmId ?? parsed.id?.toString?.() ?? "WHM-000", name: parsed.name ?? parsed.full_name });
+      if (parsed.isFirstLogin) setFirstLoginOpen(true);
     } else {
       setUser({ whmId: "WHM-000", name: "Avery Lin" });
     }
@@ -1249,7 +1388,7 @@ function ReportsSection() {
     setTimeout(() => {
       setGenerating(false);
       setPreview(true);
-      setHistory((h) => [{ id: `RPT-${Math.floor(20 + Math.random() * 80)}`, type, date: to, format }, ...h]);
+      setHistory((h) => [{ id: `RPT-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, type, date: to, format }, ...h]);
       toast.success(`${type} ready (${format})`);
     }, 900);
   };
@@ -1386,7 +1525,7 @@ function SettingsSection({ user, whmId }: { user: { name: string; whmId: string 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <GlassCard className="p-5">
           <h3 className="mb-4 text-sm font-semibold text-cream">Profile picture</h3>
-          <ProfilePictureUpload role="manager" fallback={user.name[0]} />
+          <ProfilePictureUpload role="manager" fallback={user.name?.[0] ?? "M"} />
         </GlassCard>
 
         <GlassCard className="p-5">
