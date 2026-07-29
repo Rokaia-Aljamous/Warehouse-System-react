@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Warehouse, User, Phone, AtSign, Lock, Eye, EyeOff, Calendar, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -28,6 +29,7 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>;
 
 function TenantSetup() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { slug } = Route.useSearch();
   const user = getStoredUser();
@@ -77,8 +79,8 @@ function TenantSetup() {
         password_confirmation: form.confirm,
       });
 
-      toast.success(res.message || "Dashboard owner account created!");
-      toast.success("Dashboard owner account created! Log in at /" + (slug || res.owner.tenant.url_slug) + "/login");
+      toast.success(res.message || t("tenant.setup.success"));
+      toast.success(t("tenant.setup.success") + " Log in at /" + (slug || res.owner.tenant.url_slug) + "/login");
       setDone(true);
     } catch (error: any) {
       if (error.response?.status === 422) {
@@ -131,24 +133,24 @@ function TenantSetup() {
           <div className="flex size-9 items-center justify-center rounded-xl bg-[#f3a523] shadow-lg shadow-[#f3a523]/30">
             <Warehouse className="size-5 text-[#1a2942]" />
           </div>
-          <span className="text-lg font-bold tracking-tight text-[#f0ecdb]">Stockyard</span>
+          <span className="text-lg font-bold tracking-tight text-[#f0ecdb]">{t("app.name")}</span>
         </div>
       </header>
 
       <div className="mx-auto max-w-lg px-4 py-12">
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold text-[#f0ecdb]">Set up your dashboard</h1>
+          <h1 className="text-2xl font-bold text-[#f0ecdb]">{t("tenant.setup.title")}</h1>
           <p className="mt-2 text-sm text-[#f0ecdb]/60">
-            Create an admin account to manage <span className="font-semibold text-[#f3a523]">{targetSlug || "your company"}</span>
+            {t("tenant.setup.desc")} <span className="font-semibold text-[#f3a523]">{targetSlug || t("tenant.setup.company")}</span>
           </p>
         </div>
 
         <form onSubmit={onSubmit} className="rounded-3xl bg-[#f0ecdb] p-6 sm:p-8 shadow-2xl space-y-4">
-          {renderField("full_name", "Full name", { placeholder: "Jane Doe", icon: User })}
-          {renderField("phone_number", "Phone number", { placeholder: "+1 234 567 890", icon: Phone })}
-          {renderField("user_name", "Username", { placeholder: "jane_admin", icon: AtSign })}
+          {renderField("full_name", t("tenant.setup.name"), { placeholder: "Jane Doe", icon: User })}
+          {renderField("phone_number", t("tenant.setup.phone"), { placeholder: "+1 234 567 890", icon: Phone })}
+          {renderField("user_name", t("tenant.setup.username"), { placeholder: "jane_admin", icon: AtSign })}
           {renderField("birthday", "Birthdate (optional)", { placeholder: "YYYY-MM-DD", icon: Calendar })}
-          {renderField("password", "Password", {
+          {renderField("password", t("tenant.setup.password"), {
             type: showPwd ? "text" : "password",
             placeholder: "At least 8 characters",
             icon: Lock,
@@ -158,7 +160,7 @@ function TenantSetup() {
               </button>
             ),
           })}
-          {renderField("confirm", "Confirm password", {
+          {renderField("confirm", t("tenant.setup.confirm_password"), {
             type: showConfirm ? "text" : "password",
             placeholder: "Repeat password",
             icon: Lock,
@@ -174,7 +176,7 @@ function TenantSetup() {
             disabled={loading}
             className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a2942] py-3 font-semibold text-[#f0ecdb] shadow-lg transition hover:bg-[#26384c] disabled:opacity-60"
           >
-            {loading ? <><Loader2 className="size-4 animate-spin" /> Creating account…</> : "Create dashboard account"}
+            {loading ? <><Loader2 className="size-4 animate-spin" /> {t("tenant.setup.setting_up")}</> : t("tenant.setup.submit")}
           </button>
         </form>
       </div>

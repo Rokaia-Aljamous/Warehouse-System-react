@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { z } from "zod";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import {
   User, Mail, Lock, Calendar, Eye, EyeOff, Loader2, HelpCircle, ArrowRight,
 } from "lucide-react";
@@ -115,6 +116,7 @@ function Field({ id, label, type = "text", placeholder, icon: Icon, tooltip, val
 }
 
 export function SignUpForm({ onSubmitted }: Props) {
+  const { t } = useTranslation();
   const [form, setForm] = useState<FormState>(initial);
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
   const [showPwd, setShowPwd] = useState(false);
@@ -214,14 +216,14 @@ export function SignUpForm({ onSubmitted }: Props) {
       style={{ animationDelay: "120ms" }}
     >
       <div className="mb-5">
-        <h2 className="text-2xl font-bold text-[oklch(0.28_0.04_252)]">Request Access</h2>
+        <h2 className="text-2xl font-bold text-[oklch(0.28_0.04_252)]">{t("signup.title")}</h2>
 
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field id="name" label="Full name" placeholder="Jane Doe" icon={User}
+        <Field id="name" label={t("signup.name")} placeholder="Jane Doe" icon={User}
           value={form.name} error={errors.name} onChange={(v) => set("name", v)} delay={140} />
-        <Field id="email" label="Work email" type="email" placeholder="jane@company.com" icon={Mail}
+        <Field id="email" label={t("signup.email")} type="email" placeholder="jane@company.com" icon={Mail}
           value={form.email} error={errors.email} onChange={(v) => set("email", v)} delay={180}
           tooltip="Use your company email — admins use this to contact you." />
   {/* Phone field removed per design */}
@@ -229,7 +231,7 @@ export function SignUpForm({ onSubmitted }: Props) {
           inputMode="numeric"
           value={form.birthdate} error={errors.birthdate} onChange={onBirthdate} delay={260}
           tooltip="You must be at least 18 years old to register." />
-        <Field id="password" label="Password" type={showPwd ? "text" : "password"} placeholder="At least 8 characters"
+        <Field id="password" label={t("signup.password")} type={showPwd ? "text" : "password"} placeholder="At least 8 characters"
           icon={Lock} value={form.password} error={errors.password} onChange={(v) => set("password", v)} delay={300}
           tooltip="Use 8+ characters with a mix of letters and numbers."
           rightSlot={
@@ -237,7 +239,7 @@ export function SignUpForm({ onSubmitted }: Props) {
               {showPwd ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
             </button>
           } />
-        <Field id="confirm" label="Confirm password" type={showConfirm ? "text" : "password"} placeholder="Repeat password"
+        <Field id="confirm" label={t("signup.confirm_password")} type={showConfirm ? "text" : "password"} placeholder="Repeat password"
           icon={Lock} value={form.confirm} error={errors.confirm} onChange={(v) => set("confirm", v)} delay={340}
           rightSlot={
             <button type="button" onClick={() => setShowConfirm((s) => !s)} className="mr-3 text-[oklch(0.45_0.03_252)] hover:text-[oklch(0.28_0.04_252)]" aria-label="Toggle confirm password">
@@ -269,11 +271,11 @@ export function SignUpForm({ onSubmitted }: Props) {
       >
         {loading ? (
           <>
-            <Loader2 className="size-5 animate-spin" /> Submitting request…
+            <Loader2 className="size-5 animate-spin" /> {t("signup.creating")}
           </>
         ) : (
           <>
-            Submit for approval <ArrowRight className="size-4" />
+            {t("signup.submit")} <ArrowRight className="size-4" />
           </>
         )}
       </Button>

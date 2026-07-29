@@ -50,6 +50,8 @@ import { ProfilePictureUpload } from "@/components/ProfilePictureUpload";
 import { SubscriptionForm } from "@/components/SubscriptionForm";
 import { getProfilePic, subscribeProfilePic } from "@/lib/profile-storage";
 import { subscriptionStore, type SubscriptionRequest } from "@/lib/subscription-data";
+import { LanguageToggle } from "@/components/LanguageToggle";
+import { useTranslation } from "react-i18next";
 
 export const Route = createFileRoute("/manager")({
   component: ManagerApp,
@@ -61,15 +63,15 @@ type SectionId =
   | "statistics" | "reports" | "wallet" | "settings";
 
 const NAV: { id: SectionId; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { id: "overview", label: "Overview", icon: LayoutDashboard },
-  { id: "workers", label: "Workers", icon: Users },
-  { id: "inventory", label: "Inventory", icon: Boxes },
-  { id: "orders", label: "Orders", icon: ClipboardList },
-  { id: "transfers", label: "Transfers", icon: ArrowLeftRight },
-  { id: "statistics", label: "Statistics", icon: BarChart3 },
-  { id: "reports", label: "Reports", icon: FileText },
-  { id: "wallet", label: "Wallet", icon: WalletIcon },
-  { id: "settings", label: "Settings", icon: SettingsIcon },
+  { id: "overview", label: "sidebar.dashboard", icon: LayoutDashboard },
+  { id: "workers", label: "sidebar.workers", icon: Users },
+  { id: "inventory", label: "sidebar.inventory", icon: Boxes },
+  { id: "orders", label: "sidebar.orders", icon: ClipboardList },
+  { id: "transfers", label: "sidebar.transfers", icon: ArrowLeftRight },
+  { id: "statistics", label: "sidebar.statistics", icon: BarChart3 },
+  { id: "reports", label: "sidebar.reports", icon: FileText },
+  { id: "wallet", label: "sidebar.wallet", icon: WalletIcon },
+  { id: "settings", label: "sidebar.settings", icon: SettingsIcon },
 ];
 
 function ManagerLayout() {
@@ -80,6 +82,7 @@ function ManagerLayout() {
 }
 
 function ManagerSlugShell() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -111,7 +114,7 @@ function ManagerSlugShell() {
         <div className="grid size-8 place-items-center rounded-xl bg-accent/30 text-accent-foreground">
           <WarehouseIcon className="h-4 w-4" />
         </div>
-        {!collapsed && <span className="text-base font-semibold tracking-tight">Stockyard</span>}
+        {!collapsed && <span className="text-base font-semibold tracking-tight">{t("app.name")}</span>}
       </div>
       <nav className="flex-1 space-y-1 px-2">
         {NAV.map((item) => {
@@ -136,7 +139,7 @@ function ManagerSlugShell() {
               onMouseLeave={(e) => { if (!active) e.currentTarget.style.backgroundColor = ""; }}
             >
               <Icon className={cn("h-4 w-4 shrink-0", active ? "text-accent" : "text-[#A7B3C3]")} />
-              {!collapsed && <span>{item.label}</span>}
+              {!collapsed && <span>{t(item.label)}</span>}
             </button>
           );
         })}
@@ -161,13 +164,14 @@ function ManagerSlugShell() {
         </div>
       </div>
       <div className="space-y-2 p-3 pt-0">
+        <LanguageToggle collapsed={collapsed} />
         <Button
           variant="ghost"
           className="w-full justify-start text-cream/80 hover:bg-white/10 hover:text-cream"
           onClick={logout}
         >
           <LogOut className="h-4 w-4" />
-          {!collapsed && <span>Sign out</span>}
+          {!collapsed && <span>{t("settings.sign_out")}</span>}
         </Button>
         <button
           onClick={() => setCollapsed((c) => !c)}
@@ -189,8 +193,8 @@ function ManagerSlugShell() {
           </button>
           <div className="flex flex-1 items-center gap-3">
             <div className="hidden md:block">
-              <p className="text-xs uppercase tracking-wider text-cream/60">Warehouse</p>
-              <p className="text-sm font-semibold text-cream">Manager Dashboard</p>
+              <p className="text-xs uppercase tracking-wider text-cream/60">{t("warehouse.name")}</p>
+              <p className="text-sm font-semibold text-cream">{t("manager.login.title")}</p>
             </div>
             <div className="ml-auto flex items-center gap-2 rounded-xl bg-white/5 px-3 py-1.5 text-cream">
               <div className="grid h-7 w-7 place-items-center overflow-hidden rounded-full bg-accent text-foreground text-xs font-semibold">
@@ -328,6 +332,7 @@ function ManagerApp() {
       </div>
 
       <div className="space-y-2 p-3 pt-0">
+        <LanguageToggle collapsed={collapsed} />
         <Button
           variant="ghost"
           className="w-full justify-start text-cream/80 hover:bg-white/10 hover:text-cream"

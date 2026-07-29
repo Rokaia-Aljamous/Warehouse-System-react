@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { X, CheckCircle2, Loader2, LogIn, Wallet, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "@tanstack/react-router";
+import { useTranslation } from "react-i18next";
 import {
   getCsrfCookie,
   fetchSubscriptionPlans,
@@ -20,6 +21,7 @@ export function SubscriptionModal({
   onClose: () => void;
   onSuccess: (slug: string) => void;
 }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const user = getStoredUser();
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
@@ -192,7 +194,7 @@ export function SubscriptionModal({
                 }}
                 className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#1a2942] px-5 py-2.5 text-sm font-semibold text-[#f0ecdb] transition hover:bg-[#26384c]"
               >
-                Try again
+                {t("common.try_again")}
               </button>
             </div>
           )}

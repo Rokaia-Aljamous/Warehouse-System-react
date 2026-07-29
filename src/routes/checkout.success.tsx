@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   CheckCircle2,
   XCircle,
@@ -81,6 +82,7 @@ function SummaryRow({ icon: Icon, label, value }: { icon: React.ElementType; lab
 }
 
 function CheckoutSuccess() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { token } = Route.useSearch();
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
@@ -115,7 +117,7 @@ function CheckoutSuccess() {
           <div className="flex size-9 items-center justify-center rounded-xl bg-[#f3a523] shadow-lg shadow-[#f3a523]/30">
             <Warehouse className="size-5 text-[#1a2942]" />
           </div>
-          <span className="text-lg font-bold tracking-tight text-[#f0ecdb]">Stockyard</span>
+          <span className="text-lg font-bold tracking-tight text-[#f0ecdb]">{t("app.name")}</span>
         </div>
       </header>
 
@@ -146,8 +148,8 @@ function CheckoutSuccess() {
               <div className="mx-auto mb-4 flex size-20 items-center justify-center rounded-full bg-emerald-100 shadow-lg shadow-emerald-500/20">
                 <CheckCircle2 className="size-10 text-emerald-600" />
               </div>
-              <h2 className="text-2xl font-bold text-[#1a2942]">Payment Successful!</h2>
-              <p className="mt-1.5 text-sm text-[#1a2942]/60">{message || "Your subscription is now active."}</p>
+              <h2 className="text-2xl font-bold text-[#1a2942]">{t("checkout.success.title")}</h2>
+              <p className="mt-1.5 text-sm text-[#1a2942]/60">{message || t("checkout.success.desc")}</p>
             </div>
 
             <div className="mx-0 my-6 border-t border-[#1a2942]/10" />
@@ -224,13 +226,13 @@ function CheckoutSuccess() {
                 onClick={() => navigate({ to: "/" })}
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a2942] py-3 font-semibold text-[#f0ecdb] shadow-lg transition hover:bg-[#26384c]"
               >
-                Back to plans
+                {t("common.go_home")}
               </button>
               <button
                 onClick={() => window.location.reload()}
                 className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-[#1a2942]/20 bg-transparent py-3 font-semibold text-[#1a2942] transition hover:bg-[#1a2942]/5"
               >
-                Try again
+                {t("common.try_again")}
               </button>
             </div>
           </div>

@@ -1,5 +1,6 @@
 import { createFileRoute, useParams, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
   LayoutDashboard, Users, Boxes, ClipboardList, BarChart3, FileText, LogOut, Loader2, Plus, Trash2,
@@ -73,6 +74,7 @@ function GlassCard({ children, className }: { children: React.ReactNode; classNa
 }
 
 function ManagerDashboard() {
+  const { t } = useTranslation();
   const { slug } = useParams({ from: "/manager/$slug" });
   const navigate = useNavigate();
   const [section, setSection] = useState<SectionId>("overview");
@@ -888,6 +890,7 @@ const MANAGER_REPORTS = [
 ] as const;
 
 function ReportsSection({ slug }: { slug: string }) {
+  const { t } = useTranslation();
   const [busy, setBusy] = useState<string | null>(null);
 
   const baseUrl = (import.meta.env.VITE_API_BASE?.replace(/\/+$/, "") || "");
@@ -922,7 +925,7 @@ function ReportsSection({ slug }: { slug: string }) {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-lg font-bold text-[#1a2942]">Reports</h2>
+      <h2 className="text-lg font-bold text-[#1a2942]">{t("report.title")}</h2>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {MANAGER_REPORTS.map((r) => (
           <GlassCard key={r.key} className="transition hover:-translate-y-0.5 hover:shadow-2xl">
@@ -931,9 +934,9 @@ function ReportsSection({ slug }: { slug: string }) {
               <FileText className="size-4 text-muted-foreground" />
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              {r.key === "orders" && "Customer orders, totals, and statuses."}
-              {r.key === "returns" && "Product returns with reasons and items."}
-              {r.key === "tasks" && "Worker tasks, types, and assignments."}
+              {r.key === "orders" && t("report.orders.desc")}
+              {r.key === "returns" && t("report.returns.desc")}
+              {r.key === "tasks" && t("report.tasks.desc")}
             </p>
             <div className="mt-4 flex gap-2">
               <Button
@@ -944,7 +947,7 @@ function ReportsSection({ slug }: { slug: string }) {
                 disabled={busy === `${r.key}-excel`}
               >
                 <Download className="mr-1 size-3.5" />
-                {busy === `${r.key}-excel` ? "..." : "Excel"}
+                {busy === `${r.key}-excel` ? t("report.downloading") : t("report.excel")}
               </Button>
               <Button
                 size="sm"
@@ -953,7 +956,7 @@ function ReportsSection({ slug }: { slug: string }) {
                 onClick={() => openPdf(r.key)}
               >
                 <Download className="mr-1 size-3.5" />
-                {busy === `${r.key}-pdf` ? "..." : "PDF"}
+                {busy === `${r.key}-pdf` ? t("report.downloading") : t("report.pdf")}
               </Button>
             </div>
           </GlassCard>
@@ -965,24 +968,25 @@ function ReportsSection({ slug }: { slug: string }) {
 
 /* ===== Settings ===== */
 function SettingsSection({ session, onLogout, slug }: { session: any; onLogout: () => void; slug: string }) {
+  const { t } = useTranslation();
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-bold text-[#1a2942]">Settings</h2>
+      <h2 className="text-lg font-bold text-[#1a2942]">{t("settings.title")}</h2>
       <GlassCard>
-        <h3 className="font-semibold text-[#1a2942] mb-4">Profile</h3>
+        <h3 className="font-semibold text-[#1a2942] mb-4">{t("settings.profile")}</h3>
         <div className="space-y-2 text-sm text-[#1a2942]/80">
-          <p><strong>Name:</strong> {session?.full_name}</p>
-          <p><strong>Username:</strong> {session?.user_name}</p>
-          <p><strong>Role:</strong> {session?.role?.replace("_", " ")}</p>
-          <p><strong>Company:</strong> {session?.tenant?.company_name}</p>
-          <p><strong>Slug:</strong> {slug}</p>
-          <p><strong>Warehouse ID:</strong> {session?.warehouse_id}</p>
+          <p><strong>{t("settings.name")}:</strong> {session?.full_name}</p>
+          <p><strong>{t("settings.username")}:</strong> {session?.user_name}</p>
+          <p><strong>{t("settings.role")}:</strong> {session?.role?.replace("_", " ")}</p>
+          <p><strong>{t("settings.company")}:</strong> {session?.tenant?.company_name}</p>
+          <p><strong>{t("settings.slug")}:</strong> {slug}</p>
+          <p><strong>{t("settings.warehouse_id")}:</strong> {session?.warehouse_id}</p>
         </div>
       </GlassCard>
       <GlassCard>
-        <h3 className="font-semibold text-[#1a2942] mb-4">Account</h3>
+        <h3 className="font-semibold text-[#1a2942] mb-4">{t("settings.account")}</h3>
         <Button variant="destructive" onClick={onLogout}>
-          <LogOut className="size-4 mr-1" /> Sign Out
+          <LogOut className="size-4 mr-1" /> {t("settings.sign_out")}
         </Button>
       </GlassCard>
     </div>

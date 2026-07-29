@@ -7,12 +7,16 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
+import { Suspense } from "react";
+import { useTranslation } from "react-i18next";
 
 import appCss from "../styles.css?url";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
+import "@/lib/i18n";
 
 function NotFoundComponent() {
+  const { t } = useTranslation();
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
@@ -26,7 +30,7 @@ function NotFoundComponent() {
             to="/"
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            Go home
+            {t("common.go_home")}
           </Link>
         </div>
       </div>
@@ -35,6 +39,7 @@ function NotFoundComponent() {
 }
 
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+  const { t } = useTranslation();
   console.error(error);
   const router = useRouter();
 
@@ -55,13 +60,13 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
             }}
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            Try again
+            {t("common.try_again")}
           </button>
           <a
             href="/"
             className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
           >
-            Go home
+            {t("common.go_home")}
           </a>
         </div>
       </div>
@@ -97,8 +102,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 });
 
 function RootShell({ children }: { children: React.ReactNode }) {
+  const { i18n } = useTranslation();
   return (
-    <html lang="en">
+    <html lang={i18n.language} dir={i18n.language === "ar" ? "rtl" : "ltr"}>
       <head>
         <HeadContent />
       </head>
@@ -116,7 +122,9 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider delayDuration={200}>
-        <Outlet />
+        <Suspense fallback={null}>
+          <Outlet />
+        </Suspense>
         <Toaster richColors position="top-center" />
       </TooltipProvider>
     </QueryClientProvider>
