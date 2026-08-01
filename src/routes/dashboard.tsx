@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   LayoutDashboard, Users, Warehouse, BarChart3, Wallet, Settings as SettingsIcon,
   Search, Bell, Menu, Plus, Pencil, Trash2, ChevronLeft, ChevronRight,
   Snowflake, Package, Flame, Truck, AlertTriangle, TrendingUp, Activity,
   CreditCard, ArrowUpRight, ArrowDownRight, CheckCircle2, Boxes,
-  PackagePlus, Send, Save, CalendarIcon, Loader2, LogIn, LogOut, User,
+  PackagePlus, Send, Save, CalendarIcon, Loader2, LogIn, LogOut, User, Globe,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
@@ -49,6 +50,7 @@ import { ProfilePictureUpload } from "@/components/ProfilePictureUpload";
 import { getProfilePic, subscribeProfilePic } from "@/lib/profile-storage";
 import { subscriptionStore, type SubscriptionRequest } from "@/lib/subscription-data";
 import { cn } from "@/lib/utils";
+import { LanguageToggle } from "@/components/LanguageToggle";
 import {
   getStoredUser, setStoredUser, clearStoredUser,
   getCsrfCookie, loginDashboard, logoutDashboard,
@@ -78,15 +80,15 @@ export const Route = createFileRoute("/dashboard")({
 
 type SectionId = "dashboard" | "managers" | "warehouses" | "products" | "shipments" | "analytics" | "wallet" | "settings";
 
-const NAV: { id: SectionId; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { id: "managers", label: "Managers", icon: Users },
-  { id: "warehouses", label: "Warehouses", icon: Warehouse },
-  { id: "products", label: "Products", icon: Package },
-  { id: "shipments", label: "Shipments", icon: Truck },
-  { id: "analytics", label: "Analytics", icon: BarChart3 },
-  { id: "wallet", label: "Wallet", icon: Wallet },
-  { id: "settings", label: "Settings", icon: SettingsIcon },
+const NAV: { id: SectionId; labelKey: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { id: "dashboard", labelKey: "sidebar.dashboard", icon: LayoutDashboard },
+  { id: "managers", labelKey: "sidebar.employees", icon: Users },
+  { id: "warehouses", labelKey: "sidebar.warehouses", icon: Warehouse },
+  { id: "products", labelKey: "sidebar.products", icon: Package },
+  { id: "shipments", labelKey: "sidebar.shipments", icon: Truck },
+  { id: "analytics", labelKey: "feature.analytics", icon: BarChart3 },
+  { id: "wallet", labelKey: "Wallet", icon: Wallet },
+  { id: "settings", labelKey: "sidebar.settings", icon: SettingsIcon },
 ];
 
 const ICON_MAP: Record<string, React.ComponentType<React.SVGProps<SVGSVGElement>>> = {
@@ -94,6 +96,7 @@ const ICON_MAP: Record<string, React.ComponentType<React.SVGProps<SVGSVGElement>
 };
 
 export function DashboardPage() {
+  const { t } = useTranslation();
   const [section, setSection] = useState<SectionId>("dashboard");
   const [collapsed, setCollapsed] = useState(false);
   const [managers, setManagers] = useState<Manager[]>(initialManagers);
@@ -134,14 +137,14 @@ export function DashboardPage() {
             <div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-xl bg-[#f3a523] shadow-lg">
               <Warehouse className="size-6 text-[#1a2942]" />
             </div>
-            <h1 className="text-2xl font-bold text-[#f0ecdb]">Stockyard</h1>
-            <p className="mt-1 text-sm text-[#f0ecdb]/60">Log in to your dashboard</p>
+            <h1 className="text-2xl font-bold text-[#f0ecdb]">{t("app.name")}</h1>
+            <p className="mt-1 text-sm text-[#f0ecdb]/60">{t("manager.login.subtitle")}</p>
           </div>
           <form
             onSubmit={async (e) => {
               e.preventDefault();
               if (!loginSlug.trim() || !loginPw.trim()) {
-                toast.error("Slug and password are required");
+                toast.error(t("manager.login.slug_required"));
                 return;
               }
               setLoginLoading(true);
@@ -173,7 +176,7 @@ export function DashboardPage() {
                   },
                 });
                 setSlug(res.dashboard_user.tenant.url_slug);
-                toast.success(`Welcome, ${res.dashboard_user.full_name}`);
+                toast.success(t("manager.login.welcome", { name: res.dashboard_user.full_name }));
               } catch (err: any) {
                 const msg = err.response?.data?.message
                   || err.response?.data?.errors?.[Object.keys(err.response?.data?.errors ?? {})[0]]?.[0]
@@ -275,13 +278,13 @@ export function DashboardPage() {
                     )}
                   >
                     <Icon className={cn("size-4 shrink-0 transition", active && "text-[oklch(0.85_0.16_75)]")} />
-                    {!collapsed && <span>{item.label}</span>}
+                    {!collapsed && <span>{t(item.labelKey)}</span>}
                     {!collapsed && item.id === "warehouses" && (
                       <span className="ml-auto inline-flex size-2 animate-pulse rounded-full bg-[oklch(0.78_0.16_75)]" />
                     )}
                   </button>
                 </TooltipTrigger>
-                {collapsed && <TooltipContent side="right">{item.label}</TooltipContent>}
+                {collapsed && <TooltipContent side="right">{t(item.labelKey)}</TooltipContent>}
               </Tooltip>
             );
           })}
@@ -294,6 +297,7 @@ export function DashboardPage() {
               <p className="truncate text-[10px] text-cream/50">{storedUser.tenant?.company_name ?? ""}</p>
             </div>
           )}
+          <LanguageToggle collapsed={collapsed} />
           <Tooltip>
             <TooltipTrigger asChild>
               <button
@@ -318,9 +322,10 @@ export function DashboardPage() {
             <Menu className="size-5" />
           </button>
           <h1 className="text-base font-semibold capitalize md:text-lg">
-            {NAV.find((n) => n.id === section)?.label}
+            {t(NAV.find((n) => n.id === section)?.labelKey ?? "")}
           </h1>
           <div className="ml-auto flex items-center gap-2 md:gap-3">
+            <LanguageToggle variant="header" />
             <div className="relative hidden md:block">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-cream/50" />
               <input
