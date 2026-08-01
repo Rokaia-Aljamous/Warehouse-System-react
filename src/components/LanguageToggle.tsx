@@ -2,16 +2,42 @@ import { useTranslation } from "react-i18next";
 import { Globe } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-export function LanguageToggle({ collapsed }: { collapsed?: boolean }) {
+export function LanguageToggle({
+  collapsed,
+  variant = "sidebar",
+}: {
+  collapsed?: boolean;
+  variant?: "sidebar" | "header";
+}) {
   const { i18n } = useTranslation();
 
   const toggle = () => {
     const next = i18n.language.startsWith("ar") ? "en" : "ar";
     i18n.changeLanguage(next);
+    localStorage.setItem("i18nextLng", next);
     document.documentElement.dir = next === "ar" ? "rtl" : "ltr";
   };
 
-  const label = i18n.language.startsWith("ar") ? "English" : "العربية";
+  const isAr = i18n.language.startsWith("ar");
+  const label = isAr ? "English" : "العربية";
+
+  if (variant === "header") {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            onClick={toggle}
+            className="flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-cream transition hover:bg-white/10"
+            aria-label={label}
+          >
+            <Globe className="size-4" />
+            <span className="hidden sm:inline">{label}</span>
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">{label}</TooltipContent>
+      </Tooltip>
+    );
+  }
 
   return (
     <Tooltip>

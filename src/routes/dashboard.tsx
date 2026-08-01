@@ -314,6 +314,7 @@ export function DashboardPage() {
             {t(NAV.find((n) => n.id === section)?.labelKey ?? "")}
           </h1>
           <div className="ml-auto flex items-center gap-2 md:gap-3">
+            <LanguageToggle variant="header" />
             <div className="relative hidden md:block">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-cream/50" />
               <input
