@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2, LogIn, Warehouse, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,25 @@ function ManagerLogin() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const stored = localStorage.getItem(SESSION_KEY);
+    if (!stored) return;
+    try {
+      const parsed = JSON.parse(stored);
+      if (parsed.tenant?.url_slug) {
+        fetchMe(parsed.tenant.url_slug).then((me) => {
+          if (me.role === "manager") {
+            navigate({ to: `/manager/${parsed.tenant.url_slug}`, replace: true });
+          }
+        }).catch(() => {
+          localStorage.removeItem(SESSION_KEY);
+        });
+      }
+    } catch {
+      localStorage.removeItem(SESSION_KEY);
+    }
+  }, [navigate]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,7 +74,6 @@ function ManagerLogin() {
       toast.success(`Welcome, ${res.dashboard_user.full_name}`);
       navigate({ to: `/manager/${slug.trim()}` });
     } catch (err: any) {
-      /* 409 = already authenticated — try to recover session info */
       if (err.response?.status === 409) {
         try {
           const me = await fetchMe(slug.trim());
@@ -79,7 +97,27 @@ function ManagerLogin() {
           navigate({ to: `/manager/${slug.trim()}` });
           return;
         } catch {
-          toast.error("Session belongs to a different tenant. Open DevTools → Application → Cookies → delete stockyard_session & XSRF-TOKEN, then reload.");
+          await getCsrfCookie();
+          const res = await loginManager(slug.trim(), userName.trim(), password);
+          if (res.dashboard_user.role !== "manager") {
+            toast.error("This account does not have manager access");
+            setLoading(false);
+            return;
+          }
+          localStorage.setItem(SESSION_KEY, JSON.stringify({
+            id: res.dashboard_user.id,
+            full_name: res.dashboard_user.full_name,
+            role: res.dashboard_user.role,
+            owner_id: res.dashboard_user.owner_id,
+            employee_id: res.dashboard_user.employee_id,
+            warehouse_id: res.dashboard_user.warehouse_id,
+            tenant: res.dashboard_user.tenant,
+            user_name: res.dashboard_user.user_name,
+            must_change_password: res.dashboard_user.must_change_password,
+          }));
+          toast.success(`Welcome, ${res.dashboard_user.full_name}`);
+          navigate({ to: `/manager/${slug.trim()}` });
+          return;
         }
       }
       const msg = err.response?.data?.message

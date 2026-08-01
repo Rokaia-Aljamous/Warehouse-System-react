@@ -74,7 +74,7 @@ const NAV: { id: SectionId; label: string; icon: React.ComponentType<{ className
 
 function ManagerLayout() {
   const routerState = useRouterState();
-  const isSlugRoute = routerState.matches.some(m => m.routeId === '/$slug' || m.routeId === '/manager/$slug');
+  const isSlugRoute = routerState.matches.some(m => m.routeId === '/dashboard/$slug' || m.routeId === '/manager/$slug');
   if (isSlugRoute) return <ManagerSlugShell />;
   return <ManagerApp />;
 }
@@ -707,7 +707,7 @@ function WorkersSection({ workers, setWorkers }: { workers: Worker[]; setWorkers
           </Select>
           <div className="flex items-center gap-2">
             <Button size="sm" variant="secondary" disabled={!selected.size} onClick={() => bulkSet("active")}>Activate</Button>
-            <Button size="sm" variant="outline" disabled={!selected.size} onClick={() => bulkSet("suspended")}>Deactivate</Button>
+            <Button  className="text-[#1D2D44]"size="sm" variant="outline" disabled={!selected.size} onClick={() => bulkSet("suspended")}>Deactivate</Button>
           </div>
         </div>
 
@@ -785,12 +785,15 @@ function WorkersSection({ workers, setWorkers }: { workers: Worker[]; setWorkers
       <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete worker?</AlertDialogTitle>
+            <AlertDialogTitle className="text-[#1D2D44]">Delete worker?</AlertDialogTitle>
             <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => deleteId && remove(deleteId)}>Delete</AlertDialogAction>
+<AlertDialogCancel 
+  className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#d99415] hover:text-[#1D2D44] border border-[#1D2D44]/20"
+>
+  Cancel
+</AlertDialogCancel>            <AlertDialogAction onClick={() => deleteId && remove(deleteId)}>Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -828,28 +831,60 @@ function AddWorkerDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add worker</DialogTitle>
+          <DialogTitle className="text-[#1D2D44]">Add worker</DialogTitle>
           <DialogDescription>Worker ID will be generated automatically.</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
-          <div className="space-y-2"><Label>Full name</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-          <div className="space-y-2"><Label>Email</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
-          <div className="space-y-2"><Label>Phone</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
           <div className="space-y-2">
-            <Label>Section</Label>
-            <Select value={form.section} onValueChange={(v) => setForm({ ...form, section: v as WorkerSection })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Receiving">Receiving</SelectItem>
-                <SelectItem value="Picking">Picking</SelectItem>
-                <SelectItem value="Packing">Packing</SelectItem>
-                <SelectItem value="Shipping">Shipping</SelectItem>
-              </SelectContent>
-            </Select>
+    <Label className="text-[#1D2D44]">Full name</Label>
+    <Input 
+      value={form.name} 
+      onChange={(e) => setForm({ ...form, name: e.target.value })} 
+      className="text-[#1D2D44] placeholder:text-[#1D2D44]/50" 
+    />
+  </div>
+
+  <div className="space-y-2">
+    <Label className="text-[#1D2D44]">Email</Label>
+    <Input 
+      type="email" 
+      value={form.email} 
+      onChange={(e) => setForm({ ...form, email: e.target.value })} 
+      className="text-[#1D2D44] placeholder:text-[#1D2D44]/50" 
+    />
+  </div>
+
+  <div className="space-y-2">
+    <Label className="text-[#1D2D44]">Phone</Label>
+    <Input 
+      value={form.phone} 
+      onChange={(e) => setForm({ ...form, phone: e.target.value })} 
+      className="text-[#1D2D44] placeholder:text-[#1D2D44]/50" 
+    />
+  </div>
+          <div className="space-y-2">
+           <Label className="text-[#1D2D44]">Section</Label>
+  <Select value={form.section} onValueChange={(v) => setForm({ ...form, section: v as WorkerSection })}>
+    <SelectTrigger className="text-[#1D2D44] placeholder:text-[#1D2D44]/50">
+      <SelectValue />
+    </SelectTrigger>
+    <SelectContent>
+      <SelectItem value="Receiving">Receiving</SelectItem>
+      <SelectItem value="Picking">Picking</SelectItem>
+      <SelectItem value="Packing">Packing</SelectItem>
+      <SelectItem value="Shipping">Shipping</SelectItem>
+    </SelectContent>
+  </Select>
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button 
+  type="button" 
+  onClick={() => onOpenChange(false)} 
+  className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#f2a618] border border-[#1D2D44]/20"
+>
+  Cancel
+</Button>
           <Button onClick={submit}>Add worker</Button>
         </DialogFooter>
       </DialogContent>
@@ -918,9 +953,14 @@ function InventorySection({ products, setProducts }: { products: Product[]; setP
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button size="sm" variant="outline" className="border-white/20 text-cream hover:bg-white/10" onClick={() => { setEditing(p); setDelta(0); }}>
-                        Update stock
-                      </Button>
+                      <Button 
+  size="sm" 
+  variant="outline" 
+  className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#d99415] hover:text-[#1D2D44] border border-[#1D2D44]/20" 
+  onClick={() => { setEditing(p); setDelta(0); }}
+>
+  Update stock
+</Button>
                     </TableCell>
                   </TableRow>
                 );
@@ -953,17 +993,27 @@ function InventorySection({ products, setProducts }: { products: Product[]; setP
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Update stock — {editing?.sku}</DialogTitle>
-            <DialogDescription>Current quantity: {editing?.quantity}</DialogDescription>
+            <DialogTitle className="text-[#1D2D44]">Update stock — {editing?.sku}</DialogTitle>
+            <DialogDescription className="text-[#1D2D44]">Current quantity: {editing?.quantity}</DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label>Adjustment (+/-)</Label>
-            <Input type="number" value={delta} onChange={(e) => setDelta(parseInt(e.target.value || "0", 10))} />
+            <Label className="text-[#1D2D44]">Adjustment (+/-)</Label>
+  <Input 
+    type="number" 
+    value={delta } 
+    onChange={(e) => setDelta(e.target.value === "" ? 0 : parseInt(e.target.value, 10))} 
+    className="text-[#1D2D44] focus:text-[#1D2D44] focus-visible:text-[#1D2D44] placeholder:text-[#1D2D44]/50"/>
             <p className="text-xs text-muted-foreground">New quantity: {(editing?.quantity ?? 0) + delta}</p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
-            <Button onClick={apply}>Apply</Button>
+<Button 
+  type="button"
+  variant="outline" 
+  onClick={() => setEditing(null)}
+  className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#d99415] hover:text-[#1D2D44] border border-[#1D2D44]/20"
+>
+  Cancel
+</Button>            <Button onClick={apply}>Apply</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1033,8 +1083,14 @@ function OrdersSection({ orders, setOrders, workers }: { orders: Order[]; setOrd
                           {ORDER_TABS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                         </SelectContent>
                       </Select>
-                      <Button size="sm" variant="outline" className="border-white/20 text-cream hover:bg-white/10" onClick={() => setOpenOrder(o)}>Details</Button>
-                      <Button size="sm" variant="ghost" className="text-rose-300 hover:bg-rose-500/10" onClick={() => setCancelId(o.id)}>Cancel</Button>
+<Button 
+  size="sm" 
+  variant="outline" 
+  className="bg-[#eeebdd] text-[#1D2D44] hover:bg-[#eeebff] hover:text-[#1D2D44] border border-[#1D2D44]/20" 
+  onClick={() => setOpenOrder(o)}
+>
+  Details
+</Button>                      <Button size="sm" variant="ghost" className="text-rose-300 hover:bg-rose-500/10" onClick={() => setCancelId(o.id)}>Cancel</Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -1048,25 +1104,54 @@ function OrdersSection({ orders, setOrders, workers }: { orders: Order[]; setOrd
       <Dialog open={!!openOrder} onOpenChange={(o) => !o && setOpenOrder(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Order {openOrder?.id}</DialogTitle>
+            <DialogTitle className="text-[#1D2D44]">Order {openOrder?.id}</DialogTitle>
             <DialogDescription>Created {openOrder?.createdAt}</DialogDescription>
           </DialogHeader>
           {openOrder && (
             <div className="space-y-3 text-sm">
-              <div className="flex justify-between"><span className="text-muted-foreground">Customer</span><span className="font-medium">{openOrder.customer}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Items</span><span>{openOrder.items} ({openOrder.qty} units)</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Total</span><span className="font-semibold">${openOrder.total.toLocaleString()}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Status</span><Badge>{openOrder.status}</Badge></div>
+             <div className="flex justify-between">
+    <span className="text-[#1D2D44] font-medium">Customer</span>
+    <span className="font-semibold text-[#1D2D44]">{openOrder.customer}</span>
+  </div>
+
+  <div className="flex justify-between">
+    <span className="text-[#1D2D44] font-medium">Items</span>
+    <span className="text-[#1D2D44]">{openOrder.items} ({openOrder.qty} units)</span>
+  </div>
+
+  <div className="flex justify-between">
+    <span className="text-[#1D2D44] font-medium">Total</span>
+    <span className="font-bold text-[#1D2D44]">${openOrder.total.toLocaleString()}</span>
+  </div>
+
+  <div className="flex justify-between items-center">
+    <span className="text-[#1D2D44] font-medium">Status</span>
+    <Badge className="bg-[#1D2D44] text-[#eeebdd] hover:bg-[#1D2D44]/90">
+      {openOrder.status}
+    </Badge>
+  </div>
               <div className="space-y-2 pt-2">
-                <Label>Assign to worker</Label>
-                <Select value={openOrder.assignedTo} onValueChange={(v) => { assign(openOrder.id, v); setOpenOrder({ ...openOrder, assignedTo: v }); }}>
-                  <SelectTrigger><SelectValue placeholder="Select worker" /></SelectTrigger>
-                  <SelectContent>
-                    {workers.filter((w) => w.status === "active").map((w) => (
-                      <SelectItem key={w.id} value={w.workerId}>{w.name} ({w.workerId})</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label className="text-[#1D2D44]">Assign to worker</Label>
+               <Select 
+    value={openOrder.assignedTo} 
+    onValueChange={(v) => { assign(openOrder.id, v); setOpenOrder({ ...openOrder, assignedTo: v }); }}
+  >
+    <SelectTrigger className="text-[#1D2D44] border-[#1D2D44]/20 bg-transparent focus:ring-[#1D2D44]">
+      <SelectValue placeholder="Select worker" className="text-[#1D2D44] placeholder:text-[#1D2D44]/50" />
+    </SelectTrigger>
+    
+    <SelectContent className="bg-[#eeebdd] text-[#1D2D44] border-[#1D2D44]/20">
+      {workers.filter((w) => w.status === "active").map((w) => (
+        <SelectItem 
+          key={w.id} 
+          value={w.workerId}
+          className="text-[#1D2D44] focus:bg-[#f2a618] focus:text-[#1D2D44] cursor-pointer"
+        >
+          {w.name} ({w.workerId})
+        </SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
               </div>
             </div>
           )}
@@ -1076,12 +1161,14 @@ function OrdersSection({ orders, setOrders, workers }: { orders: Order[]; setOrd
       <AlertDialog open={!!cancelId} onOpenChange={(o) => !o && setCancelId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Cancel order?</AlertDialogTitle>
+            <AlertDialogTitle className="text-[#1D2D44]">Cancel order?</AlertDialogTitle>
             <AlertDialogDescription>This will mark the order as Cancelled.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Keep</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { if (cancelId) updateStatus(cancelId, "Cancelled"); setCancelId(null); }}>
+          <AlertDialogCancel 
+             className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#d99415] hover:text-[#1D2D44] border border-[#1D2D44]/20">Keep
+          </AlertDialogCancel>   
+         <AlertDialogAction onClick={() => { if (cancelId) updateStatus(cancelId, "Cancelled"); setCancelId(null); }}>
               Cancel order
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -1176,8 +1263,14 @@ function TransferList({
             {canAct && t.status === "Pending Approval" && (
               <div className="mt-3 flex gap-2">
                 <Button size="sm" onClick={() => onSet(t.id, "Approved")}>Approve</Button>
-                <Button size="sm" variant="outline" className="border-white/20 text-cream hover:bg-white/10" onClick={() => onSet(t.id, "Rejected")}>Reject</Button>
-              </div>
+<Button 
+  size="sm" 
+  variant="outline" 
+  className="bg-white/10 text-[#1D2D44] border-white/30 hover:bg-white/20 hover:text-[#1D2D44]" 
+  onClick={() => onSet(t.id, "Rejected")}
+>
+  Reject
+</Button>              </div>
             )}
           </div>
         ))}
@@ -1218,51 +1311,96 @@ function NewTransferDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>New transfer request</DialogTitle>
+          <DialogTitle className="text-[#1D2D44]">New transfer request</DialogTitle>
           <DialogDescription>Place a large order to another warehouse.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-2 sm:col-span-2">
-            <Label>Source warehouse</Label>
-            <Select value={form.source} onValueChange={(v) => setForm({ ...form, source: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {otherWarehouses.map((w) => <SelectItem key={w.id} value={w.name}>{w.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Product</Label>
-            <Select value={form.product} onValueChange={(v) => setForm({ ...form, product: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {products.map((p) => <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Quantity</Label>
-            <Input type="number" value={form.qty} onChange={(e) => setForm({ ...form, qty: parseInt(e.target.value || "0", 10) })} />
-          </div>
-          <div className="space-y-2 sm:col-span-2">
-            <Label>Priority</Label>
-            <Select value={form.priority} onValueChange={(v) => setForm({ ...form, priority: v as Transfer["priority"] })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="High">High</SelectItem>
-                <SelectItem value="Medium">Medium</SelectItem>
-                <SelectItem value="Low">Low</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2 sm:col-span-2">
-            <Label>Internal notes</Label>
-            <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={submit} disabled={loading}>
+            <Label className="text-[#1D2D44]">Source warehouse</Label>
+    <Select value={form.source} onValueChange={(v) => setForm({ ...form, source: v })}>
+      <SelectTrigger className="text-[#1D2D44] border-[#1D2D44]/20 bg-transparent focus:ring-[#1D2D44]">
+        <SelectValue className="text-[#1D2D44] placeholder:text-[#1D2D44]/50" />
+      </SelectTrigger>
+      <SelectContent className="bg-[#eeebdd] text-[#1D2D44] border-[#1D2D44]/20">
+        {otherWarehouses.map((w) => (
+          <SelectItem 
+            key={w.id} 
+            value={w.name} 
+            className="text-[#1D2D44] focus:bg-[#f2a618] focus:text-[#1D2D44] cursor-pointer"
+          >
+            {w.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  </div>
+
+  {/* Product */}
+  <div className="space-y-2">
+    <Label className="text-[#1D2D44]">Product</Label>
+    <Select value={form.product} onValueChange={(v) => setForm({ ...form, product: v })}>
+      <SelectTrigger className="text-[#1D2D44] border-[#1D2D44]/20 bg-transparent focus:ring-[#1D2D44]">
+        <SelectValue className="text-[#1D2D44] placeholder:text-[#1D2D44]/50" />
+      </SelectTrigger>
+      <SelectContent className="bg-[#eeebdd] text-[#1D2D44] border-[#1D2D44]/20">
+        {products.map((p) => (
+          <SelectItem 
+            key={p.id} 
+            value={p.name} 
+            className="text-[#1D2D44] focus:bg-[#f2a618] focus:text-[#1D2D44] cursor-pointer"
+          >
+            {p.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  </div>
+
+  {/* Quantity */}
+  <div className="space-y-2">
+    <Label className="text-[#1D2D44]">Quantity</Label>
+    <Input 
+      type="number" 
+      value={form.qty} 
+      onChange={(e) => setForm({ ...form, qty: parseInt(e.target.value || "0", 10) })} 
+      className="text-[#1D2D44] focus:text-[#1D2D44] focus-visible:text-[#1D2D44] border-[#1D2D44]/20"
+    />
+  </div>
+
+  {/* Priority */}
+  <div className="space-y-2 sm:col-span-2">
+    <Label className="text-[#1D2D44]">Priority</Label>
+    <Select value={form.priority} onValueChange={(v) => setForm({ ...form, priority: v as Transfer["priority"] })}>
+      <SelectTrigger className="text-[#1D2D44] border-[#1D2D44]/20 bg-transparent focus:ring-[#1D2D44]">
+        <SelectValue className="text-[#1D2D44] placeholder:text-[#1D2D44]/50" />
+      </SelectTrigger>
+      <SelectContent className="bg-[#eeebdd] text-[#1D2D44] border-[#1D2D44]/20">
+        <SelectItem value="High" className="text-[#1D2D44] focus:bg-[#f2a618] focus:text-[#1D2D44] cursor-pointer">High</SelectItem>
+        <SelectItem value="Medium" className="text-[#1D2D44] focus:bg-[#f2a618] focus:text-[#1D2D44] cursor-pointer">Medium</SelectItem>
+        <SelectItem value="Low" className="text-[#1D2D44] focus:bg-[#f2a618] focus:text-[#1D2D44] cursor-pointer">Low</SelectItem>
+      </SelectContent>
+    </Select>
+  </div>
+
+  {/* Internal notes */}
+  <div className="space-y-2 sm:col-span-2">
+    <Label className="text-[#1D2D44]">Internal notes</Label>
+    <Textarea 
+      value={form.notes} 
+      onChange={(e) => setForm({ ...form, notes: e.target.value })} 
+      rows={3} 
+      className="text-[#1D2D44] focus:text-[#1D2D44] focus-visible:text-[#1D2D44] border-[#1D2D44]/20 placeholder:text-[#1D2D44]/50"
+    />
+  </div>
+</div>
+<DialogFooter>
+  <Button 
+  variant="outline" 
+  className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#d99415] hover:text-[#1D2D44] border border-[#1D2D44]/20" 
+  onClick={() => onOpenChange(false)}
+>
+  Cancel
+</Button>          <Button onClick={submit} disabled={loading}>
             {loading && <Loader2 className="h-4 w-4 animate-spin" />}
             Submit request
           </Button>
@@ -1438,9 +1576,13 @@ function ReportsSection() {
               {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
               Generate report
             </Button>
-            <Button variant="outline" className="border-white/20 text-cream hover:bg-white/10" onClick={() => toast.success("Schedule saved (demo)")}>
-              Schedule weekly
-            </Button>
+           <Button 
+  variant="outline" 
+  className="border-[#eeebdd]/30 bg-[#1D2D44]/20 text-[#eeebdd] hover:bg-[#1D2D44]/40 hover:text-[#eeebdd]" 
+  onClick={() => toast.success("Schedule saved (demo)")}
+>
+  Schedule weekly
+</Button>
           </div>
         </GlassCard>
 
@@ -1466,21 +1608,36 @@ function ReportsSection() {
       <Dialog open={preview} onOpenChange={setPreview}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{type} preview</DialogTitle>
+            <DialogTitle className="text-[#1D2D44]">{type} preview</DialogTitle>
             <DialogDescription>{from} → {to} · {format}</DialogDescription>
           </DialogHeader>
           <div className="rounded-xl bg-muted p-6 text-sm">
-            <h4 className="mb-2 font-semibold">{CURRENT_WAREHOUSE.name}</h4>
+            <h4  className="mb-2 font-semibold text-[#1D2D44]">{CURRENT_WAREHOUSE.name}</h4>
             <p className="text-muted-foreground">This is a demo preview of the {type.toLowerCase()} for the selected period. In production this would render the full report.</p>
             <div className="mt-4 grid grid-cols-3 gap-3 text-xs">
-              <div className="rounded-lg bg-background p-3"><p className="text-muted-foreground">Records</p><p className="text-lg font-semibold">312</p></div>
-              <div className="rounded-lg bg-background p-3"><p className="text-muted-foreground">Total volume</p><p className="text-lg font-semibold">8,420</p></div>
-              <div className="rounded-lg bg-background p-3"><p className="text-muted-foreground">Net change</p><p className="text-lg font-semibold">+12.4%</p></div>
-            </div>
+              <div className="rounded-lg bg-[#eeebdd] p-3 border border-[#1D2D44]/15">
+  <p className="text-xs font-medium text-[#1D2D44]/70">Records</p>
+  <p className="text-lg font-semibold text-[#1D2D44]">312</p>
+</div>
+
+<div className="rounded-lg bg-[#eeebdd] p-3 border border-[#1D2D44]/15">
+  <p className="text-xs font-medium text-[#1D2D44]/70">Total volume</p>
+  <p className="text-lg font-semibold text-[#1D2D44]">8,420</p>
+</div>
+
+<div className="rounded-lg bg-[#eeebdd] p-3 border border-[#1D2D44]/15">
+  <p className="text-xs font-medium text-[#1D2D44]/70">Net change</p>
+  <p className="text-lg font-semibold text-[#1D2D44]">+12.4%</p>
+</div>            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPreview(false)}>Close</Button>
-            <Button onClick={() => { toast.success("Download started"); setPreview(false); }}><Download className="h-4 w-4" /> Download</Button>
+<Button 
+  variant="outline" 
+  className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#d99415] hover:text-[#1D2D44] border border-[#1D2D44]/20" 
+  onClick={() => setPreview(false)}
+>
+  Close
+</Button>            <Button onClick={() => { toast.success("Download started"); setPreview(false); }}><Download className="h-4 w-4" /> Download</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1524,9 +1681,11 @@ function SettingsSection({ user, whmId }: { user: { name: string; whmId: string 
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <GlassCard className="p-5">
-          <h3 className="mb-4 text-sm font-semibold text-cream">Profile picture</h3>
-          <ProfilePictureUpload role="manager" fallback={user.name?.[0] ?? "M"} />
-        </GlassCard>
+  <h3 className="mb-4 text-sm font-semibold text-[#eeebdd]">Profile picture</h3>
+  <div className="text-[#eeebdd] [&_p]:text-[#eeebdd] [&_span]:text-[#eeebdd] [&_button]:bg-[#f2a618] [&_button]:text-[#1D2D44] [&_button]:hover:bg-[#f2a618]/90">
+    <ProfilePictureUpload role="manager" fallback={user.name?.[0] ?? "M"} />
+  </div>
+</GlassCard>
 
         <GlassCard className="p-5">
           <h3 className="mb-4 text-sm font-semibold text-cream">Profile</h3>
@@ -1619,8 +1778,22 @@ function WalletSection({ user }: { user: { name: string; whmId: string } }) {
             <p className="mt-2 text-4xl font-bold text-cream">$1,240.00</p>
             <p className="mt-1 text-xs text-cream/60">Demo wallet</p>
             <div className="mt-5 flex flex-wrap gap-2">
-              <Button variant="outline"><CreditCard className="size-4" /> Manage cards</Button>
-              <Button variant="outline" onClick={() => setTab("subs")}><WalletIcon className="size-4" /> Subscriptions</Button>
+             <Button 
+  variant="outline" 
+  className="bg-[#f2a618] text-[#1D2D44] border-[#1D2D44]/20 hover:bg-[#1D2D44] hover:text-[#eeebdd] flex items-center gap-2"
+>
+  <CreditCard className="size-4 text-current" /> 
+  Manage cards
+</Button>
+
+<Button 
+  variant="outline" 
+  className="bg-[#eeebdd] text-[#1D2D44] border-[#1D2D44]/20 hover:bg-[#1D2D44] hover:text-[#eeebdd] flex items-center gap-2" 
+  onClick={() => setTab("subs")}
+>
+  <WalletIcon className="size-4 text-current" /> 
+  Subscriptions
+</Button>
             </div>
           </GlassCard>
           <GlassCard className="p-5">

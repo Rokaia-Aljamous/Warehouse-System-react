@@ -51,8 +51,11 @@ export const Route = createFileRoute("/")({
         name: "description",
         content:
           "Unified warehouse management: inventory, dispatch, analytics and an integrated payment wallet for modern logistics teams.",
+          
       },
+      <link rel="icon" type="image/svg+xml" href="/logo?v=2" />
     ],
+    
   }),
 });
 
@@ -849,6 +852,14 @@ function LoginOverlay({
     requestAnimationFrame(() => setOpen(true));
   }, []);
 
+  useEffect(() => {
+    if (loggedIn) {
+      verifyStoredUser().then((valid) => {
+        if (valid) onLoginSuccess();
+      });
+    }
+  }, []);
+
   const close = () => {
     setOpen(false);
     setTimeout(onClose, 400);
@@ -877,7 +888,29 @@ function LoginOverlay({
         const msg = data?.message || "";
         const user = data?.user || data;
 
-        if (error.response.status === 419) {
+        if (error.response.status === 409) {
+          try {
+            await getCsrfCookie();
+            const endpoint = adminMode ? "/platform-admin/login" : "/login";
+            const res = await api.post(endpoint, { email, password });
+            const admin = adminMode ? res.data?.admin : null;
+            const recoveredUser = adminMode ? (admin ? { ...admin, is_admin: true } : null) : (res.data?.user || res.data);
+            if (recoveredUser && recoveredUser.id) {
+              setStoredUser(recoveredUser);
+              toast.success(res.data?.message || "Welcome back!");
+              onLoginSuccess();
+              return;
+            }
+          } catch {
+            if (user && user.id) {
+              setStoredUser(user);
+              toast.success("Logged in.");
+              onLoginSuccess();
+              return;
+            }
+          }
+          toast.error(msg || `Session issue — try clearing cookies.`);
+        } else if (error.response.status === 419) {
           toast.error("Session expired. Please refresh and try again.");
         } else if (error.response.status >= 500 && user && user.id) {
           setStoredUser(user);

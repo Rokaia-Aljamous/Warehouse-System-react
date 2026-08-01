@@ -106,6 +106,7 @@ export function DashboardPage() {
     : "?";
   const [loginSlug, setLoginSlug] = useState("");
   const [loginPw, setLoginPw] = useState("");
+  const [loginUsername, setLoginUsername] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
 
@@ -146,8 +147,8 @@ export function DashboardPage() {
               setLoginLoading(true);
               try {
                 await getCsrfCookie();
-                const res = await loginDashboard(loginSlug.trim(), loginSlug.trim(), loginPw);
-                setStoredUser({
+               const res = await loginDashboard(loginSlug.trim(), loginUsername.trim(), loginPw);          
+          setStoredUser({
                   id: res.dashboard_user.id,
                   full_name: res.dashboard_user.full_name,
                   email: res.dashboard_user.full_name.toLowerCase().replace(/\s+/g, ".") + "@demo.io",
@@ -193,6 +194,16 @@ export function DashboardPage() {
                 required
                 className="w-full rounded-xl border border-[#1a2942]/20 bg-white px-4 py-2.5 text-sm text-[#1a2942] outline-none transition focus:border-[#f3a523]"
               />
+              <div className="space-y-1.5">
+  <label className="text-sm font-medium text-[#1a2942]">Username</label>
+  <input
+    value={loginUsername}
+    onChange={(e) => setLoginUsername(e.target.value)}
+    placeholder="e.g. jane_admin"
+    required
+    className="w-full rounded-xl border border-[#1a2942]/20 bg-white px-4 py-2.5 text-sm text-[#1a2942] outline-none transition focus:border-[#f3a523]"
+  />
+</div>
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-[#1a2942]">Password</label>
@@ -806,33 +817,50 @@ function ManagerDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{editing ? "Edit manager" : "Add warehouse manager"}</DialogTitle>
+          <DialogTitle className="text-[#1D2D44]">{editing ? "Edit manager" : "Add warehouse manager"}</DialogTitle>
           <DialogDescription>
             {editing ? "Update manager details. Use force reset to change the password." : "An ID (WHM-XXX) is generated automatically. The manager logs in with their Name + temporary password."}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="grid gap-4 py-2">
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label>Name (username)</Label>
-              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Ahmed" required />
-            </div>
-            <div className="grid gap-2">
-              <Label>Age</Label>
-              <Input type="number" min={18} max={70} value={form.age} onChange={(e) => setForm({ ...form, age: Number(e.target.value) })} required />
-            </div>
+           <div className="grid gap-2">
+    <Label className="text-[#1D2D44]">Name (username)</Label>
+    <Input 
+      value={form.name} 
+      onChange={(e) => setForm({ ...form, name: e.target.value })} 
+      placeholder="Ahmed" 
+      required 
+      className="text-[#1D2D44] placeholder:text-[#1D2D44]/50 focus:text-[#1D2D44]"
+    />
+  </div>
+
+  <div className="grid gap-2">
+    <Label className="text-[#1D2D44]">Age</Label>
+    <Input 
+      type="number" 
+      min={18} 
+      max={70} 
+      value={form.age} 
+      onChange={(e) => setForm({ ...form, age: Number(e.target.value) })} 
+      required 
+      className="text-[#1D2D44] placeholder:text-[#1D2D44]/50 focus:text-[#1D2D44]"
+    />
+  </div>
           </div>
-          <div className="grid gap-2">
-            <Label>Assign to warehouse</Label>
-            <Select value={form.warehouseId} onValueChange={(v) => setForm({ ...form, warehouseId: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {types.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+         <div className="grid gap-2">
+  <Label className="text-[#1D2D44]">Assign to warehouse</Label>
+  <Select value={form.warehouseId} onValueChange={(v) => setForm({ ...form, warehouseId: v })}>
+    <SelectTrigger className="text-[#1D2D44] placeholder:text-[#1D2D44]/50">
+      <SelectValue />
+    </SelectTrigger>
+    <SelectContent>
+      {types.map((t) => (
+        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+      ))}
+    </SelectContent>
+  </Select>
+</div>
           {!editing && (
             <div className="grid gap-2">
               <Label>Temporary password</Label>
@@ -841,17 +869,25 @@ function ManagerDialog({
             </div>
           )}
           <div className="grid gap-2">
-            <Label>Status</Label>
-            <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as Manager["status"] })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="inactive">Inactive</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+  <Label className="text-[#1D2D44]">Status</Label>
+  <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as Manager["status"] })}>
+    <SelectTrigger className="text-[#1D2D44] placeholder:text-[#1D2D44]/50">
+      <SelectValue />
+    </SelectTrigger>
+    <SelectContent>
+      <SelectItem value="active">Active</SelectItem>
+      <SelectItem value="inactive">Inactive</SelectItem>
+    </SelectContent>
+  </Select>
+</div>
           <DialogFooter className="mt-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button 
+    type="button" 
+    onClick={() => onOpenChange(false)} 
+    className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#E2DDD3] border border-[#1D2D44]/20"
+  >
+    Cancel
+  </Button>
             <Button type="submit" disabled={loading} className="bg-navy text-cream hover:bg-navy/90">
               {loading ? "Saving..." : editing ? "Save changes" : "Add manager"}
             </Button>
@@ -2029,75 +2065,146 @@ function ProductDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{editing ? "Edit product" : "Add product"}</DialogTitle>
+          <DialogTitle className="text-[#1D2D44]">{editing ? "Edit product" : "Add product"}</DialogTitle>
           <DialogDescription>
             {editing ? "Update product details." : "Fill in the details to create a new product."}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="grid gap-4 py-2">
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label>Name *</Label>
-              <Input value={form.name} onChange={(e) => {
-                const name = e.target.value;
-                setForm({ ...form, name, piece_barcode: editing ? form.piece_barcode : toBarcode(name), parcel_barcode: editing ? form.parcel_barcode : toBarcode(name, true) });
-              }} placeholder="Product name" required />
-            </div>
-            <div className="grid gap-2">
-              <Label>Brand *</Label>
-              <Input value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })} placeholder="Brand name" required />
-            </div>
+           <div className="grid gap-2">
+  <Label className="text-[#1D2D44]">Name *</Label>
+  <Input 
+    value={form.name} 
+    onChange={(e) => {
+      const name = e.target.value;
+      setForm({ 
+        ...form, 
+        name, 
+        piece_barcode: editing ? form.piece_barcode : toBarcode(name), 
+        parcel_barcode: editing ? form.parcel_barcode : toBarcode(name, true) 
+      });
+    }} 
+    placeholder="Product name" 
+    required 
+    className="text-[#1D2D44] placeholder:text-[#1D2D44]/50 focus:text-[#1D2D44]"
+  />
+</div> <div className="grid gap-2">
+  <Label className="text-[#1D2D44]">Brand *</Label>
+  <Input 
+    value={form.brand} 
+    onChange={(e) => setForm({ ...form, brand: e.target.value })} 
+    placeholder="Brand name" 
+    required 
+    className="text-[#1D2D44] placeholder:text-[#1D2D44]/50 focus:text-[#1D2D44]"
+  />
+</div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-              <Label>Type *</Label>
-              <Input value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} placeholder="e.g. Electronics" required />
-            </div>
+    <Label className="text-[#1D2D44]">Type *</Label>
+    <Input 
+      value={form.type} 
+      onChange={(e) => setForm({ ...form, type: e.target.value })} 
+      placeholder="e.g. Electronics" 
+      required 
+      className="text-[#1D2D44] placeholder:text-[#1D2D44]/50 focus:text-[#1D2D44]"
+    />
+  </div>
             <div className="grid gap-2">
-              <Label>Units per packing *</Label>
-              <Input type="number" min={1} value={form.units_per_packing} onChange={(e) => setForm({ ...form, units_per_packing: Number(e.target.value) })} />
-            </div>
+    <Label className="text-[#1D2D44]">Units per packing *</Label>
+    <Input 
+      type="number" 
+      min={1} 
+      value={form.units_per_packing} 
+      onChange={(e) => setForm({ ...form, units_per_packing: Number(e.target.value) })} 
+      className="text-[#1D2D44] placeholder:text-[#1D2D44]/50 focus:text-[#1D2D44]"
+    />
+  </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-              <Label>Piece barcode</Label>
+              <Label className="text-[#1D2D44]">Piece barcode</Label>
               <Input value={form.piece_barcode} readOnly placeholder="Auto-generated from name" className="bg-gray-100 text-gray-500 cursor-not-allowed" />
             </div>
             <div className="grid gap-2">
-              <Label>Parcel barcode</Label>
+              <Label className="text-[#1D2D44]">Parcel barcode</Label>
               <Input value={form.parcel_barcode} readOnly placeholder="Auto-generated from name" className="bg-gray-100 text-gray-500 cursor-not-allowed" />
             </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-              <Label>Purchase price ($) *</Label>
-              <Input type="number" min={0} step={0.01} value={form.current_purchase_price} onChange={(e) => setForm({ ...form, current_purchase_price: Number(e.target.value) })} />
-            </div>
-            <div className="grid gap-2">
-              <Label>Selling price ($) *</Label>
-              <Input type="number" min={0} step={0.01} value={form.selling_price} onChange={(e) => setForm({ ...form, selling_price: Number(e.target.value) })} />
-            </div>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div className="grid gap-2">
-              <Label>Parcel length (cm)</Label>
-              <Input type="number" min={0} step={0.1} value={form.parcel_length} onChange={(e) => setForm({ ...form, parcel_length: Number(e.target.value) })} />
-            </div>
-            <div className="grid gap-2">
-              <Label>Parcel width (cm)</Label>
-              <Input type="number" min={0} step={0.1} value={form.parcel_width} onChange={(e) => setForm({ ...form, parcel_width: Number(e.target.value) })} />
-            </div>
-            <div className="grid gap-2">
-              <Label>Parcel height (cm)</Label>
-              <Input type="number" min={0} step={0.1} value={form.parcel_height} onChange={(e) => setForm({ ...form, parcel_height: Number(e.target.value) })} />
-            </div>
+    <Label className="text-[#1D2D44]">Purchase price ($) *</Label>
+    <Input 
+      type="number" 
+      min={0} 
+      step={0.01} 
+      value={form.current_purchase_price} 
+      onChange={(e) => setForm({ ...form, current_purchase_price: Number(e.target.value) })} 
+      className="text-[#1D2D44] placeholder:text-[#1D2D44]/50 focus:text-[#1D2D44]"
+    />
+  </div>
+  <div className="grid gap-2">
+    <Label className="text-[#1D2D44]">Selling price ($) *</Label>
+    <Input 
+      type="number" 
+      min={0} 
+      step={0.01} 
+      value={form.selling_price} 
+      onChange={(e) => setForm({ ...form, selling_price: Number(e.target.value) })} 
+      className="text-[#1D2D44] placeholder:text-[#1D2D44]/50 focus:text-[#1D2D44]"
+    />
+  </div>
+</div>
+
+{/* Dimension Fields */}
+<div className="grid gap-4 sm:grid-cols-3">
+  <div className="grid gap-2">
+    <Label className="text-[#1D2D44]">Parcel length (cm)</Label>
+    <Input 
+      type="number" 
+      min={0} 
+      step={0.1} 
+      value={form.parcel_length} 
+      onChange={(e) => setForm({ ...form, parcel_length: Number(e.target.value) })} 
+      className="text-[#1D2D44] placeholder:text-[#1D2D44]/50 focus:text-[#1D2D44]"
+    />
+  </div>
+  <div className="grid gap-2">
+    <Label className="text-[#1D2D44]">Parcel width (cm)</Label>
+    <Input 
+      type="number" 
+      min={0} 
+      step={0.1} 
+      value={form.parcel_width} 
+      onChange={(e) => setForm({ ...form, parcel_width: Number(e.target.value) })} 
+      className="text-[#1D2D44] placeholder:text-[#1D2D44]/50 focus:text-[#1D2D44]"
+    />
+  </div>
+  <div className="grid gap-2">
+    <Label className="text-[#1D2D44]">Parcel height (cm)</Label>
+    <Input 
+      type="number" 
+      min={0} 
+      step={0.1} 
+      value={form.parcel_height} 
+      onChange={(e) => setForm({ ...form, parcel_height: Number(e.target.value) })} 
+      className="text-[#1D2D44] placeholder:text-[#1D2D44]/50 focus:text-[#1D2D44]"
+    />
+  </div>
           </div>
           <DialogFooter className="mt-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button type="submit" disabled={saving} className="bg-navy text-cream hover:bg-navy/90">
-              {saving ? "Saving..." : editing ? "Save changes" : "Add product"}
-            </Button>
-          </DialogFooter>
+  <Button 
+    type="button" 
+    onClick={() => onOpenChange(false)} 
+    className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#E2DDD3] border border-[#1D2D44]/20"
+  >
+    Cancel
+  </Button>
+  <Button type="submit" disabled={saving} className="bg-navy text-cream hover:bg-navy/90">
+    {saving ? "Saving..." : editing ? "Save changes" : "Add product"}
+  </Button>
+</DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

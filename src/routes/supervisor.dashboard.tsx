@@ -385,7 +385,7 @@ function IncomingOrders({ orders, setOrders }: { orders: COrder[]; setOrders: Re
       <AlertDialog open={!!confirm} onOpenChange={(o) => !o && setConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{confirm?.action === "approve" ? "Approve order?" : "Reject order?"}</AlertDialogTitle>
+            <AlertDialogTitle className="text-[#1D2D44]">{confirm?.action === "approve" ? "Approve order?" : "Reject order?"}</AlertDialogTitle>
             <AlertDialogDescription>
               {confirm?.action === "approve"
                 ? "It will move to Order Preparation."
@@ -393,7 +393,7 @@ function IncomingOrders({ orders, setOrders }: { orders: COrder[]; setOrders: Re
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel className="bg-[#f2a618] text-[#1D2D44] border border-[#1D2D44]/20 hover:bg-[#f2a618]/90 hover:text-[#1D2D44]">Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={apply}>Confirm</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -572,21 +572,43 @@ function Receiving({
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Log shipment</DialogTitle>
+            <DialogTitle className="text-[#1D2D44]">Log shipment</DialogTitle>
             <DialogDescription>Record an incoming shipment from a supplier.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-2">
-              <Label>Supplier</Label>
-              <Input value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} placeholder="e.g. Nordic Goods" />
-            </div>
-            <div className="space-y-2">
-              <Label>Item count</Label>
-              <Input type="number" min={1} value={form.items} onChange={(e) => setForm({ ...form, items: Number(e.target.value) })} />
-            </div>
+             <Label className="text-[#eeebdd]">Supplier</Label>
+  <Input 
+    value={form.supplier} 
+    onChange={(e) => setForm({ ...form, supplier: e.target.value })} 
+    placeholder="e.g. Nordic Goods" 
+    className="bg-[#eeebdd] text-[#1D2D44] placeholder:text-[#1D2D44]/60 border-[#1D2D44]/30 focus:border-[#f2a618]"
+  />
+</div>
+
+<div className="space-y-2">
+  <Label className="text-[#eeebdd]">Item count</Label>
+  <Input 
+    type="number" 
+    min={1} 
+    value={form.items} 
+    onChange={(e) => setForm({ ...form, items: Number(e.target.value) })} 
+    className="bg-[#eeebdd] text-[#1D2D44] border-[#1D2D44]/30 focus:border-[#f2a618]"
+  />
+</div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+         <Button 
+  type="button" 
+  variant="outline" 
+  onClick={() => {
+    setQc(null);
+    setOpen(false); 
+  }}
+  className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#d99415] hover:text-[#1D2D44] border border-[#1D2D44]/20"
+>
+  Cancel
+</Button>
             <Button onClick={addShipment}>Save</Button>
           </DialogFooter>
         </DialogContent>
@@ -600,7 +622,10 @@ function Receiving({
           </DialogHeader>
           <Textarea value={qc?.note ?? ""} onChange={(e) => setQc(qc ? { ...qc, note: e.target.value } : null)} placeholder="All pallets intact, seals verified…" />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setQc(null)}>Cancel</Button>
+            <Button 
+  variant="outline" 
+  onClick={() => setQc(null)}
+  className="bg-[#f2a618] text-[#1D2D44] border-[#1D2D44] hover:bg-[#1D2D44] hover:text-[#f2a618]">Cancel</Button>
             <Button onClick={confirmReceive}><CheckCircle2 className="size-4" /> Confirm receipt</Button>
           </DialogFooter>
         </DialogContent>
@@ -717,26 +742,63 @@ function DriversSection({
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editing ? "Edit driver" : "Add driver"}</DialogTitle>
+            <DialogTitle className="text-[#1D2D44]">{editing ? "Edit driver" : "Add driver"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
-            <div className="space-y-2"><Label>Name</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-            <div className="space-y-2"><Label>Phone</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
-            <div className="space-y-2"><Label>Vehicle</Label><Input value={form.vehicle} onChange={(e) => setForm({ ...form, vehicle: e.target.value })} /></div>
             <div className="space-y-2">
-              <Label>Status</Label>
-              <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as Driver["status"] })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="available">Available</SelectItem>
-                  <SelectItem value="on_delivery">On delivery</SelectItem>
-                  <SelectItem value="off_duty">Off duty</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+    <Label className="text-[#1D2D44]">Name</Label>
+    <Input 
+      value={form.name} 
+      onChange={(e) => setForm({ ...form, name: e.target.value })} 
+      className="bg-[#eeebdd] text-[#1D2D44] placeholder:text-[#1D2D44]/60 border-[#1D2D44]/30 focus:border-[#f2a618]"
+    />
+  </div>
+
+  {/* Phone Field */}
+  <div className="space-y-2">
+    <Label className="text-[#1D2D44]">Phone</Label>
+    <Input 
+      value={form.phone} 
+      onChange={(e) => setForm({ ...form, phone: e.target.value })} 
+      className="bg-[#eeebdd] text-[#1D2D44] placeholder:text-[#1D2D44]/60 border-[#1D2D44]/30 focus:border-[#f2a618]"
+    />
+  </div>
+
+  {/* Vehicle Field */}
+  <div className="space-y-2">
+    <Label className="text-[#1D2D44]">Vehicle</Label>
+    <Input 
+      value={form.vehicle} 
+      onChange={(e) => setForm({ ...form, vehicle: e.target.value })} 
+      className="bg-[#eeebdd] text-[#1D2D44] placeholder:text-[#1D2D44]/60 border-[#1D2D44]/30 focus:border-[#f2a618]"
+    />
+  </div>
+
+  {/* Status Select Field */}
+  <div className="space-y-2">
+    <Label className="text-[#1D2D44]">Status</Label>
+    <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as Driver["status"] })}>
+      <SelectTrigger className="bg-[#eeebdd] text-[#1D2D44] border-[#1D2D44]/30 focus:ring-[#f2a618]">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent className="bg-[#eeebdd] border-[#1D2D44]/20 text-[#1D2D44]">
+        <SelectItem value="available" className="focus:bg-[#f2a618]/20 focus:text-[#1D2D44] cursor-pointer">Available</SelectItem>
+        <SelectItem value="on_delivery" className="focus:bg-[#f2a618]/20 focus:text-[#1D2D44] cursor-pointer">On delivery</SelectItem>
+        <SelectItem value="off_duty" className="focus:bg-[#f2a618]/20 focus:text-[#1D2D44] cursor-pointer">Off duty</SelectItem>
+      </SelectContent>
+    </Select>
+  </div>
+</div>
+
+<DialogFooter className="mt-4">
+  <Button 
+    type="button" 
+    variant="outline" 
+    onClick={() => setOpen(false)}
+    className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#d99415] hover:text-[#1D2D44] border border-[#1D2D44]/20"
+  >
+    Cancel
+  </Button>
             <Button onClick={save}>Save</Button>
           </DialogFooter>
         </DialogContent>
@@ -745,12 +807,12 @@ function DriversSection({
       <AlertDialog open={!!delTarget} onOpenChange={(o) => !o && setDelTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove driver?</AlertDialogTitle>
+            <AlertDialogTitle className="text-[#1D2D44]">Remove driver?</AlertDialogTitle>
             <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={del}>Delete</AlertDialogAction>
+<AlertDialogCancel 
+  className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#d99415] hover:text-[#1D2D44] border border-[#1D2D44]/20">Cancel</AlertDialogCancel>            <AlertDialogAction onClick={del}>Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -758,20 +820,27 @@ function DriversSection({
       <Dialog open={!!assignFor} onOpenChange={(o) => !o && setAssignFor(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Assign driver to {assignFor}</DialogTitle>
+            <DialogTitle className="text-[#1D2D44]">Assign driver to {assignFor}</DialogTitle>
             <DialogDescription>Only available drivers are shown.</DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            {drivers.filter(d => d.status === "available").map(d => (
-              <button key={d.id}
-                onClick={() => assignFor && assignDriver(assignFor, d.id)}
-                className="flex w-full items-center justify-between rounded-xl border bg-background/40 p-3 hover:bg-background/70 transition">
-                <div className="text-left">
-                  <p className="font-medium">{d.name} <span className="text-xs text-muted-foreground">({d.id})</span></p>
-                  <p className="text-xs text-muted-foreground">{d.vehicle} · {d.phone}</p>
-                </div>
-                <Truck className="size-4" />
-              </button>
+  {drivers.filter(d => d.status === "available").map(d => (
+    <button 
+      key={d.id}
+      type="button"
+      onClick={() => assignFor && assignDriver(assignFor, d.id)}
+      className="flex w-full items-center justify-between rounded-xl border border-[#1D2D44]/20 bg-[#eeebdd] p-3 hover:bg-[#e4e0cd] transition"
+    >
+      <div className="text-left">
+        <p className="font-semibold text-[#1D2D44]">
+          {d.name} <span className="text-xs text-[#1D2D44]/75 font-normal">({d.id})</span>
+        </p>
+        <p className="text-xs text-[#1D2D44]/80 font-medium">
+          {d.vehicle} · {d.phone}
+        </p>
+      </div>
+      <Truck className="size-4 text-[#1D2D44]" />
+    </button>
             ))}
             {drivers.filter(d => d.status === "available").length === 0 && (
               <p className="text-center text-sm text-muted-foreground">No drivers available.</p>
@@ -935,23 +1004,42 @@ function WorkersSection({
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Add worker</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="text-[#1D2D44]">Add worker</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
-            <div className="space-y-2"><Label>Name</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-            <div className="space-y-2">
-              <Label>Section</Label>
-              <Select value={form.section} onValueChange={(v) => setForm({ ...form, section: v as WorkerSection })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Preparation">Preparation</SelectItem>
-                  <SelectItem value="Receiving">Receiving</SelectItem>
-                  <SelectItem value="Returns">Returns</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+           <div className="space-y-2">
+    <Label className="text-[#1D2D44]">Name</Label>
+    <Input 
+      value={form.name} 
+      onChange={(e) => setForm({ ...form, name: e.target.value })} 
+      className="bg-[#eeebdd] text-[#1D2D44] placeholder:text-[#1D2D44]/60 border-[#1D2D44]/30 focus:border-[#f2a618]"
+    />
+  </div>
+
+  {/* Section Select Field */}
+  <div className="space-y-2">
+    <Label className="text-[#1D2D44]">Section</Label>
+    <Select value={form.section} onValueChange={(v) => setForm({ ...form, section: v as WorkerSection })}>
+      <SelectTrigger className="bg-[#eeebdd] text-[#1D2D44] border-[#1D2D44]/30 focus:ring-[#f2a618]">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent className="bg-[#eeebdd] border-[#1D2D44]/20 text-[#1D2D44]">
+        <SelectItem value="Preparation" className="focus:bg-[#f2a618]/20 focus:text-[#1D2D44] cursor-pointer">Preparation</SelectItem>
+        <SelectItem value="Receiving" className="focus:bg-[#f2a618]/20 focus:text-[#1D2D44] cursor-pointer">Receiving</SelectItem>
+        <SelectItem value="Returns" className="focus:bg-[#f2a618]/20 focus:text-[#1D2D44] cursor-pointer">Returns</SelectItem>
+      </SelectContent>
+    </Select>
+  </div>
+</div>
+
+<DialogFooter className="mt-4">
+  <Button 
+    type="button" 
+    variant="outline" 
+    onClick={() => setOpen(false)}
+    className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#d99415] hover:text-[#1D2D44] border border-[#1D2D44]/20"
+  >
+    Cancel
+  </Button>
             <Button onClick={add}>Save</Button>
           </DialogFooter>
         </DialogContent>
