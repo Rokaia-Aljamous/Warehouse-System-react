@@ -52,10 +52,16 @@ import { getProfilePic, subscribeProfilePic } from "@/lib/profile-storage";
 import { subscriptionStore, type SubscriptionRequest } from "@/lib/subscription-data";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
 
 export const Route = createFileRoute("/manager")({
   component: ManagerApp,
-  head: () => ({ meta: [{ title: "Manager Dashboard — Stockyard" }] }),
+  head: () => ({
+    meta: [
+      { title: i18n.t("title.manager") },
+      { name: "description", content: i18n.t("title.manager_desc") },
+    ],
+  }),
 });
 
 type SectionId =
@@ -105,7 +111,7 @@ function ManagerSlugShell() {
   const sidebar = (
     <aside
       className={cn(
-        "flex h-full flex-col border-r border-white/10 bg-navy-light text-cream backdrop-blur-xl transition-all duration-300",
+        "flex h-full flex-col border-e border-white/10 bg-navy-light text-cream backdrop-blur-xl transition-all duration-300",
         collapsed ? "w-[72px]" : "w-64",
       )}
       style={{ boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)" }}
@@ -148,7 +154,7 @@ function ManagerSlugShell() {
         <div className={cn("flex items-center gap-3 rounded-xl bg-white/5 p-2", collapsed && "justify-center")}>
           <div className="size-9 overflow-hidden rounded-full bg-accent/30 ring-1 ring-white/20">
             {avatar ? (
-              <img src={avatar} alt="me" className="h-full w-full object-cover" />
+              <img src={avatar} alt={t("manager.alt_avatar")} className="h-full w-full object-cover" />
             ) : (
               <div className="grid h-full w-full place-items-center text-xs font-bold text-cream">
                 {session?.full_name?.[0] ?? "M"}
@@ -157,7 +163,7 @@ function ManagerSlugShell() {
           </div>
           {!collapsed && (
             <div className="min-w-0 text-xs leading-tight">
-              <p className="truncate font-semibold text-cream">{session?.full_name ?? "Manager"}</p>
+              <p className="truncate font-semibold text-cream">{session?.full_name ?? t("manager.role")}</p>
               <p className="truncate text-cream/60">{session?.user_name ?? ""}</p>
             </div>
           )}
@@ -177,7 +183,7 @@ function ManagerSlugShell() {
           onClick={() => setCollapsed((c) => !c)}
           className="hidden md:flex w-full items-center justify-center rounded-lg border border-white/10 py-2 text-cream/70 hover:bg-white/10"
         >
-          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          {collapsed ? <ChevronRight className="h-4 w-4 rtl:rotate-180" /> : <ChevronLeft className="h-4 w-4 rtl:rotate-180" />}
         </button>
       </div>
     </aside>
@@ -185,8 +191,8 @@ function ManagerSlugShell() {
 
   return (
     <div className="flex min-h-screen w-full">
-      <div className="fixed inset-y-0 left-0 z-30 hidden md:block">{sidebar}</div>
-      <div className={cn("flex-1 transition-all", collapsed ? "md:pl-[72px]" : "md:pl-64")}>
+      <div className="fixed inset-y-0 start-0 z-30 hidden md:block">{sidebar}</div>
+      <div className={cn("flex-1 transition-all", collapsed ? "md:ps-[72px]" : "md:ps-64")}>
         <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-white/10 bg-navy/70 px-4 py-3 backdrop-blur md:px-6">
           <button onClick={() => setMobileOpen(true)} className="rounded-md p-2 text-cream md:hidden hover:bg-cream/10">
             <Menu className="h-5 w-5" />
@@ -196,13 +202,13 @@ function ManagerSlugShell() {
               <p className="text-xs uppercase tracking-wider text-cream/60">{t("warehouse.name")}</p>
               <p className="text-sm font-semibold text-cream">{t("manager.login.title")}</p>
             </div>
-            <div className="ml-auto flex items-center gap-2 rounded-xl bg-white/5 px-3 py-1.5 text-cream">
+            <div className="ms-auto flex items-center gap-2 rounded-xl bg-white/5 px-3 py-1.5 text-cream">
               <div className="grid h-7 w-7 place-items-center overflow-hidden rounded-full bg-accent text-foreground text-xs font-semibold">
-                {avatar ? <img src={avatar} alt="me" className="h-full w-full object-cover" /> : (session?.full_name?.[0] ?? "M")}
+                {avatar ? <img src={avatar} alt={t("manager.alt_avatar")} className="h-full w-full object-cover" /> : (session?.full_name?.[0] ?? "M")}
               </div>
               <div className="hidden text-xs leading-tight sm:block">
-                <p className="font-medium">{session?.full_name ?? "Manager"}</p>
-                <p className="text-cream/60">Manager</p>
+                <p className="font-medium">{session?.full_name ?? t("manager.role")}</p>
+                <p className="text-cream/60">{t("manager.role")}</p>
               </div>
             </div>
           </div>
@@ -216,6 +222,7 @@ function ManagerSlugShell() {
 }
 
 function ManagerApp() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [section, setSection] = useState<SectionId>("overview");
   const [collapsed, setCollapsed] = useState(false);
@@ -258,19 +265,19 @@ function ManagerApp() {
     localStorage.setItem("stockyard.manager", JSON.stringify(updated));
     setUser(updated);
     setFirstLoginOpen(false);
-    toast.success("Password changed successfully");
+    toast.success(t("settings.password_changed"));
   };
 
   const logout = () => {
     localStorage.removeItem("stockyard.manager");
-    toast.success("Signed out");
+    toast.success(t("settings.signed_out"));
     navigate({ to: "/manager-login" });
   };
 
   const sidebar = (
     <aside
       className={cn(
-        "flex h-full flex-col border-r border-white/10 bg-navy-light text-cream backdrop-blur-xl transition-all duration-300",
+        "flex h-full flex-col border-e border-white/10 bg-navy-light text-cream backdrop-blur-xl transition-all duration-300",
         collapsed ? "w-[72px]" : "w-64",
       )}
       style={{ boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)" }}
@@ -279,7 +286,7 @@ function ManagerApp() {
         <div className="grid size-8 place-items-center rounded-xl bg-accent/30 text-accent-foreground">
           <WarehouseIcon className="h-4 w-4" />
         </div>
-        {!collapsed && <span className="text-base font-semibold tracking-tight">Stockyard</span>}
+        {!collapsed && <span className="text-base font-semibold tracking-tight">{t("app.name")}</span>}
       </div>
       <nav className="flex-1 space-y-1 px-2">
         {NAV.map((item) => {
@@ -304,7 +311,7 @@ function ManagerApp() {
               onMouseLeave={(e) => { if (!active) e.currentTarget.style.backgroundColor = ""; }}
             >
               <Icon className={cn("h-4 w-4 shrink-0", active ? "text-accent" : "text-[#A7B3C3]")} />
-              {!collapsed && <span>{item.label}</span>}
+              {!collapsed && <span>{t(item.label)}</span>}
             </button>
           );
         })}
@@ -315,7 +322,7 @@ function ManagerApp() {
         <div className={cn("flex items-center gap-3 rounded-xl bg-white/5 p-2", collapsed && "justify-center")}>
           <div className="size-9 overflow-hidden rounded-full bg-accent/30 ring-1 ring-white/20">
             {avatar ? (
-              <img src={avatar} alt="me" className="h-full w-full object-cover" />
+              <img src={avatar} alt={t("manager.alt_avatar")} className="h-full w-full object-cover" />
             ) : (
               <div className="grid h-full w-full place-items-center text-xs font-bold text-cream">
                 {user?.name?.[0] ?? "M"}
@@ -324,7 +331,7 @@ function ManagerApp() {
           </div>
           {!collapsed && (
             <div className="min-w-0 text-xs leading-tight">
-              <p className="truncate font-semibold text-cream">{user?.name ?? "Manager"}</p>
+              <p className="truncate font-semibold text-cream">{user?.name ?? t("manager.role")}</p>
               <p className="truncate text-cream/60">{user?.whmId ?? ""}</p>
             </div>
           )}
@@ -339,13 +346,13 @@ function ManagerApp() {
           onClick={logout}
         >
           <LogOut className="h-4 w-4" />
-          {!collapsed && <span>Sign out</span>}
+          {!collapsed && <span>{t("settings.sign_out")}</span>}
         </Button>
         <button
           onClick={() => setCollapsed((c) => !c)}
           className="hidden md:flex w-full items-center justify-center rounded-lg border border-white/10 py-2 text-cream/70 hover:bg-white/10"
         >
-          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          {collapsed ? <ChevronRight className="h-4 w-4 rtl:rotate-180" /> : <ChevronLeft className="h-4 w-4 rtl:rotate-180" />}
         </button>
       </div>
     </aside>
@@ -355,7 +362,7 @@ function ManagerApp() {
   return (
     <div className="flex min-h-screen w-full">
       {/* Desktop sidebar */}
-      <div className="fixed inset-y-0 left-0 z-30 hidden md:block">{sidebar}</div>
+      <div className="fixed inset-y-0 start-0 z-30 hidden md:block">{sidebar}</div>
 
       {/* Mobile sidebar */}
       <AnimatePresence>
@@ -378,7 +385,7 @@ function ManagerApp() {
       </AnimatePresence>
 
       {/* Main */}
-      <main className={cn("flex-1 transition-all", collapsed ? "md:pl-[72px]" : "md:pl-64")}>
+      <main className={cn("flex-1 transition-all", collapsed ? "md:ps-[72px]" : "md:ps-64")}>
         {/* Header */}
         <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-white/10 bg-navy/70 px-4 py-3 backdrop-blur md:px-6">
           <button
@@ -389,23 +396,23 @@ function ManagerApp() {
           </button>
           <div className="flex flex-1 items-center gap-3">
             <div className="hidden md:block">
-              <p className="text-xs uppercase tracking-wider text-cream/60">Warehouse</p>
+              <p className="text-xs uppercase tracking-wider text-cream/60">{t("manager.warehouse")}</p>
               <p className="text-sm font-semibold text-cream">{CURRENT_WAREHOUSE.name}</p>
             </div>
-            <div className="ml-auto hidden max-w-sm flex-1 items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-cream/80 ring-1 ring-white/10 sm:flex">
+            <div className="ms-auto hidden max-w-sm flex-1 items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-cream/80 ring-1 ring-white/10 sm:flex">
               <Search className="h-4 w-4" />
-              <input className="w-full bg-transparent text-sm outline-none placeholder:text-cream/50" placeholder="Search…" />
+              <input className="w-full bg-transparent text-sm outline-none placeholder:text-cream/50" placeholder={t("placeholder.search")} />
             </div>
             <Button variant="ghost" size="icon" className="text-cream hover:bg-cream/10">
               <Bell className="h-4 w-4" />
             </Button>
             <div className="hidden items-center gap-2 rounded-xl bg-white/5 px-3 py-1.5 text-cream sm:flex">
               <div className="grid h-7 w-7 place-items-center overflow-hidden rounded-full bg-accent text-foreground text-xs font-semibold">
-                {avatar ? <img src={avatar} alt="me" className="h-full w-full object-cover" /> : (user?.name?.[0] ?? "M")}
+                {avatar ? <img src={avatar} alt={t("manager.alt_avatar")} className="h-full w-full object-cover" /> : (user?.name?.[0] ?? "M")}
               </div>
               <div className="text-xs leading-tight">
-                <p className="font-medium">{user?.name ?? "Manager"}</p>
-                <p className="text-cream/60">Manager</p>
+                <p className="font-medium">{user?.name ?? t("manager.role")}</p>
+                <p className="text-cream/60">{t("manager.role")}</p>
               </div>
             </div>
           </div>
@@ -454,14 +461,15 @@ function ManagerApp() {
 }
 
 function FirstLoginDialog({ open, onComplete }: { open: boolean; onComplete: (newPw: string) => void }) {
+  const { t } = useTranslation();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (next.length < 8) { toast.error("New password must be at least 8 characters"); return; }
-    if (next !== confirm) { toast.error("Passwords do not match"); return; }
-    if (!current) { toast.error("Enter your current temporary password"); return; }
+    if (next.length < 8) { toast.error(t("settings.password_min_length")); return; }
+    if (next !== confirm) { toast.error(t("settings.password_mismatch")); return; }
+    if (!current) { toast.error(t("manager.enter_temporary_password")); return; }
     onComplete(next);
     setCurrent(""); setNext(""); setConfirm("");
   };
@@ -469,17 +477,17 @@ function FirstLoginDialog({ open, onComplete }: { open: boolean; onComplete: (ne
     <Dialog open={open} onOpenChange={() => { /* blocking */ }}>
       <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
         <DialogHeader>
-          <DialogTitle>Set a new password</DialogTitle>
+          <DialogTitle>{t("manager.set_new_password")}</DialogTitle>
           <DialogDescription>
-            You are using a temporary password set by the General Manager. Please choose a new password to continue.
+            {t("manager.first_login_desc")}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-3">
-          <div className="space-y-2"><Label>Current (temporary) password</Label><Input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} required /></div>
-          <div className="space-y-2"><Label>New password</Label><Input type="password" value={next} onChange={(e) => setNext(e.target.value)} required /></div>
-          <div className="space-y-2"><Label>Confirm new password</Label><Input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required /></div>
+          <div className="space-y-2"><Label>{t("manager.current_temp_password")}</Label><Input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} required /></div>
+          <div className="space-y-2"><Label>{t("settings.new_password")}</Label><Input type="password" value={next} onChange={(e) => setNext(e.target.value)} required /></div>
+          <div className="space-y-2"><Label>{t("settings.confirm_new_password")}</Label><Input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required /></div>
           <DialogFooter>
-            <Button type="submit" className="w-full">Change password & continue</Button>
+            <Button type="submit" className="w-full">{t("manager.change_password_continue")}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -536,6 +544,7 @@ function statusBadge(s: string) {
 /* ---------- Overview ---------- */
 
 function Overview({ workers, products, orders }: { workers: Worker[]; products: Product[]; orders: Order[] }) {
+  const { t } = useTranslation();
   const totalWorkers = workers.length;
   const inventoryValue = products.reduce((s, p) => s + p.quantity * p.unitPrice, 0);
   const pendingOrders = orders.filter((o) => o.status === "Pending").length;
@@ -543,17 +552,17 @@ function Overview({ workers, products, orders }: { workers: Worker[]; products: 
   const lowStock = products.filter((p) => p.quantity < p.reorderLevel);
 
   const cards = [
-    { label: "Total Workers", value: totalWorkers, icon: Users, accent: "from-sky-400/30 to-sky-500/10" },
-    { label: "Inventory Value", value: `$${inventoryValue.toLocaleString()}`, icon: Boxes, accent: "from-emerald-400/30 to-emerald-500/10" },
-    { label: "Pending Orders", value: pendingOrders, icon: ClipboardList, accent: "from-amber-400/30 to-amber-500/10" },
-    { label: "Shipments Today", value: completedToday, icon: Truck, accent: "from-indigo-400/30 to-indigo-500/10" },
+    { label: "manager.total_workers", value: totalWorkers, icon: Users, accent: "from-sky-400/30 to-sky-500/10" },
+    { label: "manager.inventory_value", value: `$${inventoryValue.toLocaleString()}`, icon: Boxes, accent: "from-emerald-400/30 to-emerald-500/10" },
+    { label: "manager.pending_orders", value: pendingOrders, icon: ClipboardList, accent: "from-amber-400/30 to-amber-500/10" },
+    { label: "manager.shipments_today", value: completedToday, icon: Truck, accent: "from-indigo-400/30 to-indigo-500/10" },
   ];
 
   return (
     <div className="space-y-6">
       <SectionHeader
-        title={`Welcome back · ${CURRENT_WAREHOUSE.name}`}
-        desc="Here is what's happening across your warehouse today."
+        title={t("manager.welcome_back", { name: CURRENT_WAREHOUSE.name })}
+        desc={t("manager.overview_desc")}
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -561,7 +570,7 @@ function Overview({ workers, products, orders }: { workers: Worker[]; products: 
           <GlassCard key={c.label} className="p-5">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-xs uppercase tracking-wider text-cream/60">{c.label}</p>
+                <p className="text-xs uppercase tracking-wider text-cream/60">{t(c.label)}</p>
                 <p className="mt-2 text-3xl font-semibold text-cream">{c.value}</p>
               </div>
               <div className={cn("rounded-xl bg-gradient-to-br p-3 text-cream", c.accent)}>
@@ -575,8 +584,8 @@ function Overview({ workers, products, orders }: { workers: Worker[]; products: 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <GlassCard className="p-5 lg:col-span-2">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-cream">Daily volume (last 14 days)</h3>
-            <Badge variant="outline" className="border-white/20 text-cream/80">Incoming vs Outgoing</Badge>
+            <h3 className="text-sm font-semibold text-cream">{t("manager.daily_volume")}</h3>
+            <Badge variant="outline" className="border-white/20 text-cream/80">{t("manager.incoming_vs_outgoing")}</Badge>
           </div>
           <div className="h-72">
             <ResponsiveContainer>
@@ -604,12 +613,12 @@ function Overview({ workers, products, orders }: { workers: Worker[]; products: 
 
         <GlassCard className="p-5">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-cream">Low stock alerts</h3>
+            <h3 className="text-sm font-semibold text-cream">{t("manager.low_stock_alerts")}</h3>
             <AlertTriangle className="h-4 w-4 text-amber-300" />
           </div>
           <div className="space-y-3">
             {lowStock.length === 0 && (
-              <p className="text-sm text-cream/60">All items above reorder level.</p>
+              <p className="text-sm text-cream/60">{t("manager.no_low_stock")}</p>
             )}
             {lowStock.map((p) => (
               <div key={p.id} className="flex items-center justify-between rounded-xl bg-white/5 p-3">
@@ -632,6 +641,7 @@ function Overview({ workers, products, orders }: { workers: Worker[]; products: 
 /* ---------- Workers ---------- */
 
 function WorkersSection({ workers, setWorkers }: { workers: Worker[]; setWorkers: React.Dispatch<React.SetStateAction<Worker[]>> }) {
+  const { t } = useTranslation();
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sectionFilter, setSectionFilter] = useState<string>("all");
@@ -656,7 +666,7 @@ function WorkersSection({ workers, setWorkers }: { workers: Worker[]; setWorkers
   const bulkSet = (status: "active" | "suspended") => {
     if (selected.size === 0) return;
     setWorkers((prev) => prev.map((w) => (selected.has(w.id) ? { ...w, status } : w)));
-    toast.success(`${selected.size} worker(s) ${status === "active" ? "activated" : "deactivated"}`);
+    toast.success(t(status === "active" ? "manager.workers_activated" : "manager.workers_deactivated", { count: selected.size }));
     setSelected(new Set());
   };
 
@@ -670,49 +680,49 @@ function WorkersSection({ workers, setWorkers }: { workers: Worker[]; setWorkers
 
   const remove = (id: string) => {
     setWorkers((prev) => prev.filter((w) => w.id !== id));
-    toast.success("Worker deleted");
+    toast.success(t("worker.deleted"));
     setDeleteId(null);
   };
 
   return (
     <div className="space-y-6">
-      <SectionHeader title="Workers" desc="Manage workers assigned to your warehouse.">
-        <Button onClick={() => setAddOpen(true)}><Plus className="h-4 w-4" /> Add worker</Button>
+      <SectionHeader title={t("worker.title")} desc={t("worker.desc")}>
+        <Button onClick={() => setAddOpen(true)}><Plus className="h-4 w-4" /> {t("worker.add")}</Button>
       </SectionHeader>
 
       <GlassCard className="p-4">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-cream/60" />
+            <Search className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-cream/60" />
             <Input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search name, email or ID"
-              className="border-white/15 bg-white/5 pl-9 text-cream placeholder:text-cream/50"
+              placeholder={t("placeholder.search_worker")}
+              className="border-white/15 bg-white/5 ps-9 text-cream placeholder:text-cream/50"
             />
           </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-[160px] border-white/15 bg-white/5 text-cream"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="suspended">Suspended</SelectItem>
+              <SelectItem value="all">{t("common.all_statuses")}</SelectItem>
+              <SelectItem value="active">{t("worker.status.active")}</SelectItem>
+              <SelectItem value="pending">{t("worker.status.pending")}</SelectItem>
+              <SelectItem value="suspended">{t("worker.status.suspended")}</SelectItem>
             </SelectContent>
           </Select>
           <Select value={sectionFilter} onValueChange={setSectionFilter}>
             <SelectTrigger className="w-[160px] border-white/15 bg-white/5 text-cream"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All sections</SelectItem>
-              <SelectItem value="Receiving">Receiving</SelectItem>
-              <SelectItem value="Picking">Picking</SelectItem>
-              <SelectItem value="Packing">Packing</SelectItem>
-              <SelectItem value="Shipping">Shipping</SelectItem>
+              <SelectItem value="all">{t("worker.section.all")}</SelectItem>
+              <SelectItem value="Receiving">{t("worker.section.receiving")}</SelectItem>
+              <SelectItem value="Picking">{t("worker.section.picking")}</SelectItem>
+              <SelectItem value="Packing">{t("worker.section.packing")}</SelectItem>
+              <SelectItem value="Shipping">{t("worker.section.shipping")}</SelectItem>
             </SelectContent>
           </Select>
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="secondary" disabled={!selected.size} onClick={() => bulkSet("active")}>Activate</Button>
-            <Button  className="text-[#1D2D44]"size="sm" variant="outline" disabled={!selected.size} onClick={() => bulkSet("suspended")}>Deactivate</Button>
+            <Button size="sm" variant="secondary" disabled={!selected.size} onClick={() => bulkSet("active")}>{t("worker.activate")}</Button>
+            <Button  className="text-[#1D2D44]"size="sm" variant="outline" disabled={!selected.size} onClick={() => bulkSet("suspended")}>{t("worker.deactivate")}</Button>
           </div>
         </div>
 
@@ -726,12 +736,12 @@ function WorkersSection({ workers, setWorkers }: { workers: Worker[]; setWorkers
                     onCheckedChange={toggleAll}
                   />
                 </TableHead>
-                <TableHead className="text-cream/70">Worker</TableHead>
-                <TableHead className="text-cream/70">Worker ID</TableHead>
-                <TableHead className="text-cream/70">Section</TableHead>
-                <TableHead className="text-cream/70">Status</TableHead>
-                <TableHead className="text-cream/70">Last active</TableHead>
-                <TableHead className="text-right text-cream/70">Actions</TableHead>
+                <TableHead className="text-cream/70">{t("attendance.worker")}</TableHead>
+                <TableHead className="text-cream/70">{t("worker.worker_id")}</TableHead>
+                <TableHead className="text-cream/70">{t("worker.section")}</TableHead>
+                <TableHead className="text-cream/70">{t("employee.status")}</TableHead>
+                <TableHead className="text-cream/70">{t("worker.last_active")}</TableHead>
+                <TableHead className="text-end text-cream/70">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -757,10 +767,10 @@ function WorkersSection({ workers, setWorkers }: { workers: Worker[]; setWorkers
                     <Badge className={cn("border", statusBadge(w.status))}>{w.status}</Badge>
                   </TableCell>
                   <TableCell className="text-cream/70">{w.lastActive}</TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-end">
                     <div className="flex items-center justify-end gap-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-cream/60">Active</span>
+                        <span className="text-xs text-cream/60">{t("worker.status.active")}</span>
                         <Switch
                           checked={w.status === "active"}
                           onCheckedChange={() => toggleStatus(w.id)}
@@ -774,7 +784,7 @@ function WorkersSection({ workers, setWorkers }: { workers: Worker[]; setWorkers
                 </TableRow>
               ))}
               {filtered.length === 0 && (
-                <TableRow><TableCell colSpan={7} className="py-10 text-center text-cream/60">No workers match your filters.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="py-10 text-center text-cream/60">{t("worker.no_match")}</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
@@ -790,15 +800,15 @@ function WorkersSection({ workers, setWorkers }: { workers: Worker[]; setWorkers
       <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-[#1D2D44]">Delete worker?</AlertDialogTitle>
-            <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
+            <AlertDialogTitle className="text-[#1D2D44]">{t("worker.delete_title")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("common.cannot_undone")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
 <AlertDialogCancel 
   className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#d99415] hover:text-[#1D2D44] border border-[#1D2D44]/20"
 >
-  Cancel
-</AlertDialogCancel>            <AlertDialogAction onClick={() => deleteId && remove(deleteId)}>Delete</AlertDialogAction>
+  {t("common.cancel")}
+</AlertDialogCancel>            <AlertDialogAction onClick={() => deleteId && remove(deleteId)}>{t("common.delete")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -809,10 +819,11 @@ function WorkersSection({ workers, setWorkers }: { workers: Worker[]; setWorkers
 function AddWorkerDialog({
   open, onOpenChange, onAdd,
 }: { open: boolean; onOpenChange: (o: boolean) => void; onAdd: (w: Worker) => void }) {
+  const { t } = useTranslation();
   const [form, setForm] = useState({ name: "", email: "", phone: "", section: "Receiving" as WorkerSection });
   const submit = () => {
     if (!form.name || !form.email || !form.phone) {
-      toast.error("Please complete all fields");
+      toast.error(t("common.fields_required"));
       return;
     }
     const wid = generateWorkerId();
@@ -828,7 +839,7 @@ function AddWorkerDialog({
       ordersProcessed: 0,
       avgHandlingMin: 0,
     });
-    toast.success(`Worker added · ID ${wid}`);
+    toast.success(t("worker.added_id", { id: wid }));
     setForm({ name: "", email: "", phone: "", section: "Receiving" });
     onOpenChange(false);
   };
@@ -836,12 +847,12 @@ function AddWorkerDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="text-[#1D2D44]">Add worker</DialogTitle>
-          <DialogDescription>Worker ID will be generated automatically.</DialogDescription>
+          <DialogTitle className="text-[#1D2D44]">{t("worker.add")}</DialogTitle>
+          <DialogDescription>{t("worker.auto_id")}</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-2">
-    <Label className="text-[#1D2D44]">Full name</Label>
+    <Label className="text-[#1D2D44]">{t("worker.name")}</Label>
     <Input 
       value={form.name} 
       onChange={(e) => setForm({ ...form, name: e.target.value })} 
@@ -850,7 +861,7 @@ function AddWorkerDialog({
   </div>
 
   <div className="space-y-2">
-    <Label className="text-[#1D2D44]">Email</Label>
+    <Label className="text-[#1D2D44]">{t("worker.email")}</Label>
     <Input 
       type="email" 
       value={form.email} 
@@ -860,7 +871,7 @@ function AddWorkerDialog({
   </div>
 
   <div className="space-y-2">
-    <Label className="text-[#1D2D44]">Phone</Label>
+    <Label className="text-[#1D2D44]">{t("worker.phone")}</Label>
     <Input 
       value={form.phone} 
       onChange={(e) => setForm({ ...form, phone: e.target.value })} 
@@ -868,16 +879,16 @@ function AddWorkerDialog({
     />
   </div>
           <div className="space-y-2">
-           <Label className="text-[#1D2D44]">Section</Label>
+           <Label className="text-[#1D2D44]">{t("worker.section")}</Label>
   <Select value={form.section} onValueChange={(v) => setForm({ ...form, section: v as WorkerSection })}>
     <SelectTrigger className="text-[#1D2D44] placeholder:text-[#1D2D44]/50">
       <SelectValue />
     </SelectTrigger>
     <SelectContent>
-      <SelectItem value="Receiving">Receiving</SelectItem>
-      <SelectItem value="Picking">Picking</SelectItem>
-      <SelectItem value="Packing">Packing</SelectItem>
-      <SelectItem value="Shipping">Shipping</SelectItem>
+      <SelectItem value="Receiving">{t("worker.section.receiving")}</SelectItem>
+      <SelectItem value="Picking">{t("worker.section.picking")}</SelectItem>
+      <SelectItem value="Packing">{t("worker.section.packing")}</SelectItem>
+      <SelectItem value="Shipping">{t("worker.section.shipping")}</SelectItem>
     </SelectContent>
   </Select>
           </div>
@@ -888,9 +899,9 @@ function AddWorkerDialog({
   onClick={() => onOpenChange(false)} 
   className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#f2a618] border border-[#1D2D44]/20"
 >
-  Cancel
+  {t("common.cancel")}
 </Button>
-          <Button onClick={submit}>Add worker</Button>
+          <Button onClick={submit}>{t("worker.add")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -900,6 +911,7 @@ function AddWorkerDialog({
 /* ---------- Inventory ---------- */
 
 function InventorySection({ products, setProducts }: { products: Product[]; setProducts: React.Dispatch<React.SetStateAction<Product[]>> }) {
+  const { t } = useTranslation();
   const [editing, setEditing] = useState<Product | null>(null);
   const [delta, setDelta] = useState(0);
   const lowStock = products.filter((p) => p.quantity < p.reorderLevel);
@@ -907,15 +919,15 @@ function InventorySection({ products, setProducts }: { products: Product[]; setP
   const apply = () => {
     if (!editing) return;
     setProducts((prev) => prev.map((p) => (p.id === editing.id ? { ...p, quantity: Math.max(0, p.quantity + delta) } : p)));
-    toast.success(`Stock updated for ${editing.sku}`);
+    toast.success(t("inventory.stock_updated_for", { sku: editing.sku }));
     setEditing(null); setDelta(0);
   };
 
   return (
     <div className="space-y-6">
-      <SectionHeader title="Inventory" desc={`Real-time stock for ${CURRENT_WAREHOUSE.name}.`}>
+      <SectionHeader title={t("inventory.title")} desc={t("inventory.real_time_desc", { name: CURRENT_WAREHOUSE.name })}>
         <Button variant="outline" className="border-white/20 text-cream hover:bg-white/10">
-          <QrCode className="h-4 w-4" /> Scan barcode
+          <QrCode className="h-4 w-4" /> {t("inventory.scan_barcode")}
         </Button>
       </SectionHeader>
 
@@ -923,7 +935,7 @@ function InventorySection({ products, setProducts }: { products: Product[]; setP
         <GlassCard className="p-4">
           <div className="flex items-center gap-2 text-amber-300">
             <AlertTriangle className="h-4 w-4" />
-            <p className="text-sm font-medium">Low stock alert · {lowStock.length} item(s) below reorder level</p>
+            <p className="text-sm font-medium">{t("inventory.low_stock_alert", { count: lowStock.length })}</p>
           </div>
         </GlassCard>
       )}
@@ -933,13 +945,13 @@ function InventorySection({ products, setProducts }: { products: Product[]; setP
           <Table>
             <TableHeader>
               <TableRow className="border-white/10 hover:bg-transparent">
-                <TableHead className="text-cream/70">Product</TableHead>
-                <TableHead className="text-cream/70">SKU</TableHead>
-                <TableHead className="text-cream/70">Quantity</TableHead>
-                <TableHead className="text-cream/70">Location</TableHead>
-                <TableHead className="text-cream/70">Reorder</TableHead>
-                <TableHead className="text-cream/70">Status</TableHead>
-                <TableHead className="text-right text-cream/70">Action</TableHead>
+                <TableHead className="text-cream/70">{t("section.product")}</TableHead>
+                <TableHead className="text-cream/70">{t("product.sku")}</TableHead>
+                <TableHead className="text-cream/70">{t("inventory.quantity")}</TableHead>
+                <TableHead className="text-cream/70">{t("warehouse.location")}</TableHead>
+                <TableHead className="text-cream/70">{t("inventory.reorder")}</TableHead>
+                <TableHead className="text-cream/70">{t("employee.status")}</TableHead>
+                <TableHead className="text-end text-cream/70">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -954,17 +966,17 @@ function InventorySection({ products, setProducts }: { products: Product[]; setP
                     <TableCell>{p.reorderLevel}</TableCell>
                     <TableCell>
                       <Badge className={cn("border", low ? "bg-amber-500/20 text-amber-200 border-amber-400/30" : "bg-emerald-500/20 text-emerald-200 border-emerald-400/30")}>
-                        {low ? "Low" : "OK"}
+                        {low ? t("inventory.low") : t("inventory.ok")}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-end">
                       <Button 
   size="sm" 
   variant="outline" 
   className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#d99415] hover:text-[#1D2D44] border border-[#1D2D44]/20" 
   onClick={() => { setEditing(p); setDelta(0); }}
 >
-  Update stock
+  {t("inventory.update_stock")}
 </Button>
                     </TableCell>
                   </TableRow>
@@ -976,7 +988,7 @@ function InventorySection({ products, setProducts }: { products: Product[]; setP
       </GlassCard>
 
       <GlassCard className="p-5">
-        <h3 className="mb-3 text-sm font-semibold text-cream">Stock movement history</h3>
+        <h3 className="mb-3 text-sm font-semibold text-cream">{t("inventory.movement_history")}</h3>
         <div className="space-y-2">
           {initialMovements.map((m) => (
             <div key={m.id} className="flex items-center justify-between rounded-xl bg-white/5 p-3 text-sm text-cream">
@@ -985,7 +997,7 @@ function InventorySection({ products, setProducts }: { products: Product[]; setP
                   ? <ArrowDownRight className="h-4 w-4 text-emerald-300" />
                   : <ArrowUpRight className="h-4 w-4 text-rose-300" />}
                 <div>
-                  <p className="font-medium">{m.sku} · {m.qty} units</p>
+                  <p className="font-medium">{m.sku} · {t("common.units", { count: m.qty })}</p>
                   <p className="text-xs text-cream/60">{m.date} · {m.reference}</p>
                 </div>
               </div>
@@ -998,17 +1010,17 @@ function InventorySection({ products, setProducts }: { products: Product[]; setP
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="text-[#1D2D44]">Update stock — {editing?.sku}</DialogTitle>
-            <DialogDescription className="text-[#1D2D44]">Current quantity: {editing?.quantity}</DialogDescription>
+            <DialogTitle className="text-[#1D2D44]">{t("inventory.update_stock_sku", { sku: editing?.sku })}</DialogTitle>
+            <DialogDescription className="text-[#1D2D44]">{t("inventory.current_quantity", { count: editing?.quantity })}</DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            <Label className="text-[#1D2D44]">Adjustment (+/-)</Label>
+            <Label className="text-[#1D2D44]">{t("inventory.adjustment")}</Label>
   <Input 
     type="number" 
     value={delta } 
     onChange={(e) => setDelta(e.target.value === "" ? 0 : parseInt(e.target.value, 10))} 
     className="text-[#1D2D44] focus:text-[#1D2D44] focus-visible:text-[#1D2D44] placeholder:text-[#1D2D44]/50"/>
-            <p className="text-xs text-muted-foreground">New quantity: {(editing?.quantity ?? 0) + delta}</p>
+            <p className="text-xs text-muted-foreground">{t("inventory.new_quantity", { count: (editing?.quantity ?? 0) + delta })}</p>
           </div>
           <DialogFooter>
 <Button 
@@ -1017,8 +1029,8 @@ function InventorySection({ products, setProducts }: { products: Product[]; setP
   onClick={() => setEditing(null)}
   className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#d99415] hover:text-[#1D2D44] border border-[#1D2D44]/20"
 >
-  Cancel
-</Button>            <Button onClick={apply}>Apply</Button>
+  {t("common.cancel")}
+</Button>            <Button onClick={apply}>{t("inventory.apply")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1031,6 +1043,7 @@ function InventorySection({ products, setProducts }: { products: Product[]; setP
 const ORDER_TABS: OrderStatus[] = ["Pending", "Processing", "Shipped", "Delivered", "Cancelled"];
 
 function OrdersSection({ orders, setOrders, workers }: { orders: Order[]; setOrders: React.Dispatch<React.SetStateAction<Order[]>>; workers: Worker[] }) {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<OrderStatus>("Pending");
   const [openOrder, setOpenOrder] = useState<Order | null>(null);
   const [cancelId, setCancelId] = useState<string | null>(null);
@@ -1039,16 +1052,16 @@ function OrdersSection({ orders, setOrders, workers }: { orders: Order[]; setOrd
 
   const updateStatus = (id: string, status: OrderStatus) => {
     setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status } : o)));
-    toast.success(`Order ${id} → ${status}`);
+    toast.success(t("order.status_changed", { id, status }));
   };
   const assign = (id: string, workerId: string) => {
     setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, assignedTo: workerId } : o)));
-    toast.success(`Assigned to ${workerId}`);
+    toast.success(t("order.assigned_to", { worker: workerId }));
   };
 
   return (
     <div className="space-y-6">
-      <SectionHeader title="Orders" desc={`Orders for ${CURRENT_WAREHOUSE.name}.`} />
+      <SectionHeader title={t("order.title")} desc={t("order.desc", { name: CURRENT_WAREHOUSE.name })} />
       <Tabs value={tab} onValueChange={(v) => setTab(v as OrderStatus)}>
         <TabsList className="bg-white/10 text-cream">
           {ORDER_TABS.map((s) => (
@@ -1064,12 +1077,12 @@ function OrdersSection({ orders, setOrders, workers }: { orders: Order[]; setOrd
           <Table>
             <TableHeader>
               <TableRow className="border-white/10 hover:bg-transparent">
-                <TableHead className="text-cream/70">Order</TableHead>
-                <TableHead className="text-cream/70">Customer</TableHead>
-                <TableHead className="text-cream/70">Items</TableHead>
-                <TableHead className="text-cream/70">Total</TableHead>
-                <TableHead className="text-cream/70">Assigned</TableHead>
-                <TableHead className="text-right text-cream/70">Actions</TableHead>
+                <TableHead className="text-cream/70">{t("order.order")}</TableHead>
+                <TableHead className="text-cream/70">{t("order.customer")}</TableHead>
+                <TableHead className="text-cream/70">{t("order.items")}</TableHead>
+                <TableHead className="text-cream/70">{t("order.total")}</TableHead>
+                <TableHead className="text-cream/70">{t("order.assigned")}</TableHead>
+                <TableHead className="text-end text-cream/70">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1077,10 +1090,10 @@ function OrdersSection({ orders, setOrders, workers }: { orders: Order[]; setOrd
                 <TableRow key={o.id} className="border-white/10 text-cream hover:bg-white/5">
                   <TableCell className="font-mono text-xs">{o.id}</TableCell>
                   <TableCell>{o.customer}</TableCell>
-                  <TableCell>{o.items} ({o.qty} units)</TableCell>
+                  <TableCell>{o.items} ({t("common.units", { count: o.qty })})</TableCell>
                   <TableCell>${o.total.toLocaleString()}</TableCell>
                   <TableCell className="text-cream/70">{o.assignedTo ?? "—"}</TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-end">
                     <div className="flex items-center justify-end gap-2">
                       <Select value={o.status} onValueChange={(v) => updateStatus(o.id, v as OrderStatus)}>
                         <SelectTrigger className="h-8 w-[130px] border-white/15 bg-white/5 text-xs text-cream"><SelectValue /></SelectTrigger>
@@ -1094,13 +1107,13 @@ function OrdersSection({ orders, setOrders, workers }: { orders: Order[]; setOrd
   className="bg-[#eeebdd] text-[#1D2D44] hover:bg-[#eeebff] hover:text-[#1D2D44] border border-[#1D2D44]/20" 
   onClick={() => setOpenOrder(o)}
 >
-  Details
-</Button>                      <Button size="sm" variant="ghost" className="text-rose-300 hover:bg-rose-500/10" onClick={() => setCancelId(o.id)}>Cancel</Button>
+  {t("order.details")}
+</Button>                      <Button size="sm" variant="ghost" className="text-rose-300 hover:bg-rose-500/10" onClick={() => setCancelId(o.id)}>{t("common.cancel")}</Button>
                     </div>
                   </TableCell>
                 </TableRow>
               ))}
-              {list.length === 0 && <TableRow><TableCell colSpan={6} className="py-10 text-center text-cream/60">No orders in {tab}.</TableCell></TableRow>}
+              {list.length === 0 && <TableRow><TableCell colSpan={6} className="py-10 text-center text-cream/60">{t("order.no_orders_in", { status: tab })}</TableCell></TableRow>}
             </TableBody>
           </Table>
         </div>
@@ -1109,40 +1122,40 @@ function OrdersSection({ orders, setOrders, workers }: { orders: Order[]; setOrd
       <Dialog open={!!openOrder} onOpenChange={(o) => !o && setOpenOrder(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="text-[#1D2D44]">Order {openOrder?.id}</DialogTitle>
-            <DialogDescription>Created {openOrder?.createdAt}</DialogDescription>
+            <DialogTitle className="text-[#1D2D44]">{t("order.detail_title", { id: openOrder?.id })}</DialogTitle>
+            <DialogDescription>{t("order.created_at", { date: openOrder?.createdAt })}</DialogDescription>
           </DialogHeader>
           {openOrder && (
             <div className="space-y-3 text-sm">
              <div className="flex justify-between">
-    <span className="text-[#1D2D44] font-medium">Customer</span>
+    <span className="text-[#1D2D44] font-medium">{t("order.customer")}</span>
     <span className="font-semibold text-[#1D2D44]">{openOrder.customer}</span>
   </div>
 
   <div className="flex justify-between">
-    <span className="text-[#1D2D44] font-medium">Items</span>
-    <span className="text-[#1D2D44]">{openOrder.items} ({openOrder.qty} units)</span>
+    <span className="text-[#1D2D44] font-medium">{t("order.items")}</span>
+    <span className="text-[#1D2D44]">{openOrder.items} ({t("common.units", { count: openOrder.qty })})</span>
   </div>
 
   <div className="flex justify-between">
-    <span className="text-[#1D2D44] font-medium">Total</span>
+    <span className="text-[#1D2D44] font-medium">{t("order.total")}</span>
     <span className="font-bold text-[#1D2D44]">${openOrder.total.toLocaleString()}</span>
   </div>
 
   <div className="flex justify-between items-center">
-    <span className="text-[#1D2D44] font-medium">Status</span>
+    <span className="text-[#1D2D44] font-medium">{t("order.status")}</span>
     <Badge className="bg-[#1D2D44] text-[#eeebdd] hover:bg-[#1D2D44]/90">
       {openOrder.status}
     </Badge>
   </div>
               <div className="space-y-2 pt-2">
-                <Label className="text-[#1D2D44]">Assign to worker</Label>
+                <Label className="text-[#1D2D44]">{t("order.assign_worker")}</Label>
                <Select 
     value={openOrder.assignedTo} 
     onValueChange={(v) => { assign(openOrder.id, v); setOpenOrder({ ...openOrder, assignedTo: v }); }}
   >
     <SelectTrigger className="text-[#1D2D44] border-[#1D2D44]/20 bg-transparent focus:ring-[#1D2D44]">
-      <SelectValue placeholder="Select worker" className="text-[#1D2D44] placeholder:text-[#1D2D44]/50" />
+      <SelectValue placeholder={t("placeholder.select_worker")} className="text-[#1D2D44] placeholder:text-[#1D2D44]/50" />
     </SelectTrigger>
     
     <SelectContent className="bg-[#eeebdd] text-[#1D2D44] border-[#1D2D44]/20">
@@ -1166,15 +1179,15 @@ function OrdersSection({ orders, setOrders, workers }: { orders: Order[]; setOrd
       <AlertDialog open={!!cancelId} onOpenChange={(o) => !o && setCancelId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-[#1D2D44]">Cancel order?</AlertDialogTitle>
-            <AlertDialogDescription>This will mark the order as Cancelled.</AlertDialogDescription>
+            <AlertDialogTitle className="text-[#1D2D44]">{t("order.cancel_confirm")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("order.cancel_desc")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
           <AlertDialogCancel 
-             className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#d99415] hover:text-[#1D2D44] border border-[#1D2D44]/20">Keep
+             className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#d99415] hover:text-[#1D2D44] border border-[#1D2D44]/20">{t("order.keep")}
           </AlertDialogCancel>   
          <AlertDialogAction onClick={() => { if (cancelId) updateStatus(cancelId, "Cancelled"); setCancelId(null); }}>
-              Cancel order
+              {t("order.cancel_order")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1186,51 +1199,52 @@ function OrdersSection({ orders, setOrders, workers }: { orders: Order[]; setOrd
 /* ---------- Transfers ---------- */
 
 function TransfersSection({ transfers, setTransfers, products }: { transfers: Transfer[]; setTransfers: React.Dispatch<React.SetStateAction<Transfer[]>>; products: Product[] }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const outgoing = transfers.filter((t) => t.direction === "outgoing");
   const incoming = transfers.filter((t) => t.direction === "incoming");
 
   const setStatus = (id: string, status: TransferStatus) => {
     setTransfers((prev) => prev.map((t) => (t.id === id ? { ...t, status } : t)));
-    toast.success(`Transfer ${id} → ${status}`);
+    toast.success(t("transfer.status_changed", { id, status }));
   };
 
   return (
     <div className="space-y-6">
-      <SectionHeader title="Transfers" desc="Request large transfers from other warehouses.">
-        <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4" /> New transfer request</Button>
+      <SectionHeader title={t("transfer.title")} desc={t("transfer.desc")}>
+        <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4" /> {t("transfer.new_request")}</Button>
       </SectionHeader>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <TransferList title="Pending requests sent" items={outgoing} onSet={setStatus} canAct={false} />
-        <TransferList title="Received requests" items={incoming} onSet={setStatus} canAct />
+        <TransferList title={t("transfer.pending_sent")} items={outgoing} onSet={setStatus} canAct={false} />
+        <TransferList title={t("transfer.received_requests")} items={incoming} onSet={setStatus} canAct />
       </div>
 
       <GlassCard className="p-4">
-        <h3 className="mb-3 text-sm font-semibold text-cream">Transfer history</h3>
+        <h3 className="mb-3 text-sm font-semibold text-cream">{t("transfer.history")}</h3>
         <div className="overflow-hidden rounded-xl border border-white/10">
           <Table>
             <TableHeader>
               <TableRow className="border-white/10 hover:bg-transparent">
-                <TableHead className="text-cream/70">ID</TableHead>
-                <TableHead className="text-cream/70">Direction</TableHead>
-                <TableHead className="text-cream/70">From / To</TableHead>
-                <TableHead className="text-cream/70">Product</TableHead>
-                <TableHead className="text-cream/70">Qty</TableHead>
-                <TableHead className="text-cream/70">Priority</TableHead>
-                <TableHead className="text-cream/70">Status</TableHead>
+                <TableHead className="text-cream/70">{t("common.id")}</TableHead>
+                <TableHead className="text-cream/70">{t("transfer.direction")}</TableHead>
+                <TableHead className="text-cream/70">{t("transfer.from_to")}</TableHead>
+                <TableHead className="text-cream/70">{t("section.product")}</TableHead>
+                <TableHead className="text-cream/70">{t("transfer.qty")}</TableHead>
+                <TableHead className="text-cream/70">{t("transfer.priority")}</TableHead>
+                <TableHead className="text-cream/70">{t("employee.status")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {transfers.map((t) => (
-                <TableRow key={t.id} className="border-white/10 text-cream hover:bg-white/5">
-                  <TableCell className="font-mono text-xs">{t.id}</TableCell>
-                  <TableCell className="capitalize">{t.direction}</TableCell>
-                  <TableCell className="text-cream/70">{t.fromWarehouse} → {t.toWarehouse}</TableCell>
-                  <TableCell>{t.product}</TableCell>
-                  <TableCell>{t.qty}</TableCell>
-                  <TableCell><Badge variant="outline" className="border-white/20 text-cream/90">{t.priority}</Badge></TableCell>
-                  <TableCell><Badge className={cn("border", statusBadge(t.status))}>{t.status}</Badge></TableCell>
+              {transfers.map((tr) => (
+                <TableRow key={tr.id} className="border-white/10 text-cream hover:bg-white/5">
+                  <TableCell className="font-mono text-xs">{tr.id}</TableCell>
+                  <TableCell className="capitalize">{tr.direction}</TableCell>
+                  <TableCell className="text-cream/70">{tr.fromWarehouse} → {tr.toWarehouse}</TableCell>
+                  <TableCell>{tr.product}</TableCell>
+                  <TableCell>{tr.qty}</TableCell>
+                  <TableCell><Badge variant="outline" className="border-white/20 text-cream/90">{tr.priority}</Badge></TableCell>
+                  <TableCell><Badge className={cn("border", statusBadge(tr.status))}>{tr.status}</Badge></TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -1251,30 +1265,31 @@ function TransfersSection({ transfers, setTransfers, products }: { transfers: Tr
 function TransferList({
   title, items, onSet, canAct,
 }: { title: string; items: Transfer[]; onSet: (id: string, s: TransferStatus) => void; canAct: boolean }) {
+  const { t } = useTranslation();
   return (
     <GlassCard className="p-5">
       <h3 className="mb-3 text-sm font-semibold text-cream">{title}</h3>
       <div className="space-y-3">
-        {items.length === 0 && <p className="text-sm text-cream/60">No transfers.</p>}
-        {items.map((t) => (
-          <div key={t.id} className="rounded-xl bg-white/5 p-3 text-sm text-cream">
+        {items.length === 0 && <p className="text-sm text-cream/60">{t("transfer.no_transfers")}</p>}
+        {items.map((tr) => (
+          <div key={tr.id} className="rounded-xl bg-white/5 p-3 text-sm text-cream">
             <div className="flex items-start justify-between gap-2">
               <div>
-                <p className="font-medium">{t.product} · {t.qty} units</p>
-                <p className="text-xs text-cream/60">{t.fromWarehouse} → {t.toWarehouse}</p>
+                <p className="font-medium">{tr.product} · {t("common.units", { count: tr.qty })}</p>
+                <p className="text-xs text-cream/60">{tr.fromWarehouse} → {tr.toWarehouse}</p>
               </div>
-              <Badge className={cn("border", statusBadge(t.status))}>{t.status}</Badge>
+              <Badge className={cn("border", statusBadge(tr.status))}>{tr.status}</Badge>
             </div>
-            {canAct && t.status === "Pending Approval" && (
+            {canAct && tr.status === "Pending Approval" && (
               <div className="mt-3 flex gap-2">
-                <Button size="sm" onClick={() => onSet(t.id, "Approved")}>Approve</Button>
+                <Button size="sm" onClick={() => onSet(tr.id, "Approved")}>{t("transfer.approve")}</Button>
 <Button 
   size="sm" 
   variant="outline" 
   className="bg-white/10 text-[#1D2D44] border-white/30 hover:bg-white/20 hover:text-[#1D2D44]" 
-  onClick={() => onSet(t.id, "Rejected")}
+  onClick={() => onSet(tr.id, "Rejected")}
 >
-  Reject
+  {t("transfer.reject")}
 </Button>              </div>
             )}
           </div>
@@ -1287,6 +1302,7 @@ function TransferList({
 function NewTransferDialog({
   open, onOpenChange, products, onCreate,
 }: { open: boolean; onOpenChange: (o: boolean) => void; products: Product[]; onCreate: (t: Transfer) => void }) {
+  const { t } = useTranslation();
   const otherWarehouses = ALL_WAREHOUSES.filter((w) => w.id !== CURRENT_WAREHOUSE.id);
   const [form, setForm] = useState({ source: otherWarehouses[0].name, product: products[0]?.name ?? "", qty: 100, priority: "Medium" as Transfer["priority"], notes: "" });
   const [loading, setLoading] = useState(false);
@@ -1306,7 +1322,7 @@ function NewTransferDialog({
         createdAt: new Date().toISOString().slice(0, 10),
         notes: form.notes,
       });
-      toast.success("Transfer request submitted");
+      toast.success(t("transfer.request_submitted"));
       setLoading(false);
       onOpenChange(false);
     }, 600);
@@ -1316,12 +1332,12 @@ function NewTransferDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="text-[#1D2D44]">New transfer request</DialogTitle>
-          <DialogDescription>Place a large order to another warehouse.</DialogDescription>
+          <DialogTitle className="text-[#1D2D44]">{t("transfer.new_request")}</DialogTitle>
+          <DialogDescription>{t("transfer.new_request_desc")}</DialogDescription>
         </DialogHeader>
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-2 sm:col-span-2">
-            <Label className="text-[#1D2D44]">Source warehouse</Label>
+            <Label className="text-[#1D2D44]">{t("transfer.source_warehouse")}</Label>
     <Select value={form.source} onValueChange={(v) => setForm({ ...form, source: v })}>
       <SelectTrigger className="text-[#1D2D44] border-[#1D2D44]/20 bg-transparent focus:ring-[#1D2D44]">
         <SelectValue className="text-[#1D2D44] placeholder:text-[#1D2D44]/50" />
@@ -1342,7 +1358,7 @@ function NewTransferDialog({
 
   {/* Product */}
   <div className="space-y-2">
-    <Label className="text-[#1D2D44]">Product</Label>
+    <Label className="text-[#1D2D44]">{t("section.product")}</Label>
     <Select value={form.product} onValueChange={(v) => setForm({ ...form, product: v })}>
       <SelectTrigger className="text-[#1D2D44] border-[#1D2D44]/20 bg-transparent focus:ring-[#1D2D44]">
         <SelectValue className="text-[#1D2D44] placeholder:text-[#1D2D44]/50" />
@@ -1363,7 +1379,7 @@ function NewTransferDialog({
 
   {/* Quantity */}
   <div className="space-y-2">
-    <Label className="text-[#1D2D44]">Quantity</Label>
+    <Label className="text-[#1D2D44]">{t("inventory.quantity")}</Label>
     <Input 
       type="number" 
       value={form.qty} 
@@ -1374,22 +1390,22 @@ function NewTransferDialog({
 
   {/* Priority */}
   <div className="space-y-2 sm:col-span-2">
-    <Label className="text-[#1D2D44]">Priority</Label>
+    <Label className="text-[#1D2D44]">{t("transfer.priority")}</Label>
     <Select value={form.priority} onValueChange={(v) => setForm({ ...form, priority: v as Transfer["priority"] })}>
       <SelectTrigger className="text-[#1D2D44] border-[#1D2D44]/20 bg-transparent focus:ring-[#1D2D44]">
         <SelectValue className="text-[#1D2D44] placeholder:text-[#1D2D44]/50" />
       </SelectTrigger>
       <SelectContent className="bg-[#eeebdd] text-[#1D2D44] border-[#1D2D44]/20">
-        <SelectItem value="High" className="text-[#1D2D44] focus:bg-[#f2a618] focus:text-[#1D2D44] cursor-pointer">High</SelectItem>
-        <SelectItem value="Medium" className="text-[#1D2D44] focus:bg-[#f2a618] focus:text-[#1D2D44] cursor-pointer">Medium</SelectItem>
-        <SelectItem value="Low" className="text-[#1D2D44] focus:bg-[#f2a618] focus:text-[#1D2D44] cursor-pointer">Low</SelectItem>
+        <SelectItem value="High" className="text-[#1D2D44] focus:bg-[#f2a618] focus:text-[#1D2D44] cursor-pointer">{t("transfer.priority.high")}</SelectItem>
+        <SelectItem value="Medium" className="text-[#1D2D44] focus:bg-[#f2a618] focus:text-[#1D2D44] cursor-pointer">{t("transfer.priority.medium")}</SelectItem>
+        <SelectItem value="Low" className="text-[#1D2D44] focus:bg-[#f2a618] focus:text-[#1D2D44] cursor-pointer">{t("transfer.priority.low")}</SelectItem>
       </SelectContent>
     </Select>
   </div>
 
   {/* Internal notes */}
   <div className="space-y-2 sm:col-span-2">
-    <Label className="text-[#1D2D44]">Internal notes</Label>
+    <Label className="text-[#1D2D44]">{t("transfer.internal_notes")}</Label>
     <Textarea 
       value={form.notes} 
       onChange={(e) => setForm({ ...form, notes: e.target.value })} 
@@ -1404,10 +1420,10 @@ function NewTransferDialog({
   className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#d99415] hover:text-[#1D2D44] border border-[#1D2D44]/20" 
   onClick={() => onOpenChange(false)}
 >
-  Cancel
+  {t("common.cancel")}
 </Button>          <Button onClick={submit} disabled={loading}>
             {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-            Submit request
+            {t("transfer.submit_request")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1418,6 +1434,7 @@ function NewTransferDialog({
 /* ---------- Statistics ---------- */
 
 function StatisticsSection({ workers }: { workers: Worker[] }) {
+  const { t } = useTranslation();
   const productivity = workers
     .filter((w) => w.status === "active")
     .map((w) => ({ name: w.name.split(" ")[0], orders: w.ordersProcessed, avg: w.avgHandlingMin }));
@@ -1426,18 +1443,18 @@ function StatisticsSection({ workers }: { workers: Worker[] }) {
 
   return (
     <div className="space-y-6">
-      <SectionHeader title="Statistics" desc="Productivity and operational analytics.">
-        <Button variant="outline" className="border-white/20 text-cream hover:bg-white/10" onClick={() => toast.success("Exported PDF (demo)") }>
-          <Download className="h-4 w-4" /> Export PDF
+      <SectionHeader title={t("manager.statistics")} desc={t("manager.statistics_desc")}>
+        <Button variant="outline" className="border-white/20 text-cream hover:bg-white/10" onClick={() => toast.success(t("manager.exported_pdf")) }>
+          <Download className="h-4 w-4" /> {t("manager.export_pdf")}
         </Button>
-        <Button variant="outline" className="border-white/20 text-cream hover:bg-white/10" onClick={() => toast.success("Exported CSV (demo)") }>
-          <Download className="h-4 w-4" /> Export CSV
+        <Button variant="outline" className="border-white/20 text-cream hover:bg-white/10" onClick={() => toast.success(t("manager.exported_csv")) }>
+          <Download className="h-4 w-4" /> {t("manager.export_csv")}
         </Button>
       </SectionHeader>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <GlassCard className="p-5">
-          <h3 className="mb-3 text-sm font-semibold text-cream">Worker productivity</h3>
+          <h3 className="mb-3 text-sm font-semibold text-cream">{t("manager.worker_productivity")}</h3>
           <div className="h-72">
             <ResponsiveContainer>
               <BarChart data={productivity}>
@@ -1446,15 +1463,15 @@ function StatisticsSection({ workers }: { workers: Worker[] }) {
                 <YAxis stroke="#F0EBD8" tick={{ fontSize: 11 }} />
                 <RTooltip contentStyle={{ background: "#1D2D44", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 12, color: "#F0EBD8" }} />
                 <Legend />
-                <Bar dataKey="orders" name="Orders" fill="#A7B3C3" radius={[6,6,0,0]} />
-                <Bar dataKey="avg" name="Avg min" fill="#F0EBD8" radius={[6,6,0,0]} />
+                <Bar dataKey="orders" name={t("order.title")} fill="#A7B3C3" radius={[6,6,0,0]} />
+                <Bar dataKey="avg" name={t("manager.avg_min")} fill="#F0EBD8" radius={[6,6,0,0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </GlassCard>
 
         <GlassCard className="p-5">
-          <h3 className="mb-3 text-sm font-semibold text-cream">Monthly volume</h3>
+          <h3 className="mb-3 text-sm font-semibold text-cream">{t("manager.monthly_volume")}</h3>
           <div className="h-72">
             <ResponsiveContainer>
               <BarChart data={monthlyVolume}>
@@ -1471,7 +1488,7 @@ function StatisticsSection({ workers }: { workers: Worker[] }) {
         </GlassCard>
 
         <GlassCard className="p-5">
-          <h3 className="mb-3 text-sm font-semibold text-cream">Worker attendance (this week)</h3>
+          <h3 className="mb-3 text-sm font-semibold text-cream">{t("manager.attendance_week")}</h3>
           <div className="h-64">
             <ResponsiveContainer>
               <LineChart data={attendanceTrend}>
@@ -1488,7 +1505,7 @@ function StatisticsSection({ workers }: { workers: Worker[] }) {
         </GlassCard>
 
         <GlassCard className="p-5">
-          <h3 className="mb-3 text-sm font-semibold text-cream">Peak hours activity</h3>
+          <h3 className="mb-3 text-sm font-semibold text-cream">{t("manager.peak_hours")}</h3>
           <div className="grid grid-cols-12 gap-1.5">
             {peakHours.map((h) => {
               const intensity = h.activity / heatMax;
@@ -1500,12 +1517,12 @@ function StatisticsSection({ workers }: { workers: Worker[] }) {
                       style={{ background: `rgba(240, 235, 216, ${0.08 + intensity * 0.85})` }}
                     />
                   </TooltipTrigger>
-                  <TooltipContent>{h.hour} · {h.activity} actions</TooltipContent>
+                  <TooltipContent>{h.hour} · {t("manager.actions", { count: h.activity })}</TooltipContent>
                 </Tooltip>
               );
             })}
           </div>
-          <p className="mt-3 text-xs text-cream/60">Brighter cells indicate higher activity volume.</p>
+          <p className="mt-3 text-xs text-cream/60">{t("manager.heatmap_hint")}</p>
         </GlassCard>
       </div>
     </div>
@@ -1515,6 +1532,7 @@ function StatisticsSection({ workers }: { workers: Worker[] }) {
 /* ---------- Reports ---------- */
 
 function ReportsSection() {
+  const { t } = useTranslation();
   const [type, setType] = useState("Inventory Report");
   const [from, setFrom] = useState("2026-05-01");
   const [to, setTo] = useState("2026-05-13");
@@ -1532,20 +1550,20 @@ function ReportsSection() {
       setGenerating(false);
       setPreview(true);
       setHistory((h) => [{ id: `RPT-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, type, date: to, format }, ...h]);
-      toast.success(`${type} ready (${format})`);
+      toast.success(t("report.ready", { type, format }));
     }, 900);
   };
 
   return (
     <div className="space-y-6">
-      <SectionHeader title="Reports" desc="Generate, preview, and schedule reports." />
+      <SectionHeader title={t("report.title")} desc={t("report.desc")} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <GlassCard className="p-5 lg:col-span-2">
-          <h3 className="mb-4 text-sm font-semibold text-cream">Generate report</h3>
+          <h3 className="mb-4 text-sm font-semibold text-cream">{t("report.generate")}</h3>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label className="text-cream/80">Report type</Label>
+              <Label className="text-cream/80">{t("report.type")}</Label>
               <Select value={type} onValueChange={setType}>
                 <SelectTrigger className="border-white/15 bg-white/5 text-cream"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -1557,7 +1575,7 @@ function ReportsSection() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label className="text-cream/80">Format</Label>
+              <Label className="text-cream/80">{t("report.format")}</Label>
               <Select value={format} onValueChange={setFormat}>
                 <SelectTrigger className="border-white/15 bg-white/5 text-cream"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -1568,31 +1586,31 @@ function ReportsSection() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label className="text-cream/80">From</Label>
+              <Label className="text-cream/80">{t("inventory.from")}</Label>
               <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="border-white/15 bg-white/5 text-cream" />
             </div>
             <div className="space-y-2">
-              <Label className="text-cream/80">To</Label>
+              <Label className="text-cream/80">{t("inventory.to")}</Label>
               <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="border-white/15 bg-white/5 text-cream" />
             </div>
           </div>
           <div className="mt-4 flex items-center gap-2">
             <Button onClick={generate} disabled={generating}>
               {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-              Generate report
+              {t("report.generate")}
             </Button>
            <Button 
   variant="outline" 
   className="border-[#eeebdd]/30 bg-[#1D2D44]/20 text-[#eeebdd] hover:bg-[#1D2D44]/40 hover:text-[#eeebdd]" 
-  onClick={() => toast.success("Schedule saved (demo)")}
+  onClick={() => toast.success(t("report.schedule_saved"))}
 >
-  Schedule weekly
+  {t("report.schedule_weekly")}
 </Button>
           </div>
         </GlassCard>
 
         <GlassCard className="p-5">
-          <h3 className="mb-3 text-sm font-semibold text-cream">Saved reports</h3>
+          <h3 className="mb-3 text-sm font-semibold text-cream">{t("report.saved")}</h3>
           <div className="space-y-2">
             {history.map((r) => (
               <div key={r.id} className="flex items-center justify-between rounded-xl bg-white/5 p-3 text-sm text-cream">
@@ -1613,25 +1631,25 @@ function ReportsSection() {
       <Dialog open={preview} onOpenChange={setPreview}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle className="text-[#1D2D44]">{type} preview</DialogTitle>
+            <DialogTitle className="text-[#1D2D44]">{t("report.preview_title", { type })}</DialogTitle>
             <DialogDescription>{from} → {to} · {format}</DialogDescription>
           </DialogHeader>
           <div className="rounded-xl bg-muted p-6 text-sm">
             <h4  className="mb-2 font-semibold text-[#1D2D44]">{CURRENT_WAREHOUSE.name}</h4>
-            <p className="text-muted-foreground">This is a demo preview of the {type.toLowerCase()} for the selected period. In production this would render the full report.</p>
+            <p className="text-muted-foreground">{t("report.demo_preview", { type: type.toLowerCase() })}</p>
             <div className="mt-4 grid grid-cols-3 gap-3 text-xs">
               <div className="rounded-lg bg-[#eeebdd] p-3 border border-[#1D2D44]/15">
-  <p className="text-xs font-medium text-[#1D2D44]/70">Records</p>
+  <p className="text-xs font-medium text-[#1D2D44]/70">{t("report.records")}</p>
   <p className="text-lg font-semibold text-[#1D2D44]">312</p>
 </div>
 
 <div className="rounded-lg bg-[#eeebdd] p-3 border border-[#1D2D44]/15">
-  <p className="text-xs font-medium text-[#1D2D44]/70">Total volume</p>
+  <p className="text-xs font-medium text-[#1D2D44]/70">{t("report.total_volume")}</p>
   <p className="text-lg font-semibold text-[#1D2D44]">8,420</p>
 </div>
 
 <div className="rounded-lg bg-[#eeebdd] p-3 border border-[#1D2D44]/15">
-  <p className="text-xs font-medium text-[#1D2D44]/70">Net change</p>
+  <p className="text-xs font-medium text-[#1D2D44]/70">{t("report.net_change")}</p>
   <p className="text-lg font-semibold text-[#1D2D44]">+12.4%</p>
 </div>            </div>
           </div>
@@ -1641,8 +1659,8 @@ function ReportsSection() {
   className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#d99415] hover:text-[#1D2D44] border border-[#1D2D44]/20" 
   onClick={() => setPreview(false)}
 >
-  Close
-</Button>            <Button onClick={() => { toast.success("Download started"); setPreview(false); }}><Download className="h-4 w-4" /> Download</Button>
+  {t("common.close")}
+</Button>            <Button onClick={() => { toast.success(t("report.download_started")); setPreview(false); }}><Download className="h-4 w-4" /> {t("report.download")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1653,6 +1671,7 @@ function ReportsSection() {
 /* ---------- Settings ---------- */
 
 function SettingsSection({ user, whmId }: { user: { name: string; whmId: string }; whmId: string }) {
+  const { t } = useTranslation();
   const [form, setForm] = useState({ name: user.name, phone: "+1 415 555 0101" });
   const [pw, setPw] = useState({ current: "", next: "", confirm: "" });
   const [twoFA, setTwoFA] = useState(false);
@@ -1665,72 +1684,72 @@ function SettingsSection({ user, whmId }: { user: { name: string; whmId: string 
   }, [dark]);
 
   const saveProfile = () => {
-    toast.success("Profile saved");
+    toast.success(t("settings.profile_saved"));
   };
 
   const changePw = () => {
-    if (!pw.current) { toast.error("Enter your current password"); return; }
-    if (pw.next.length < 8) { toast.error("New password must be at least 8 characters"); return; }
-    if (pw.next !== pw.confirm) { toast.error("New passwords do not match"); return; }
+    if (!pw.current) { toast.error(t("settings.enter_current_password")); return; }
+    if (pw.next.length < 8) { toast.error(t("settings.password_min_length")); return; }
+    if (pw.next !== pw.confirm) { toast.error(t("settings.password_mismatch")); return; }
     const overridesRaw = localStorage.getItem("stockyard.manager.overrides");
     const overrides = overridesRaw ? JSON.parse(overridesRaw) : {};
     overrides[whmId] = { password: pw.next, isTempPassword: false, lastPasswordChange: new Date().toISOString().slice(0, 10) };
     localStorage.setItem("stockyard.manager.overrides", JSON.stringify(overrides));
     setPw({ current: "", next: "", confirm: "" });
-    toast.success("Password changed successfully");
+    toast.success(t("settings.password_changed"));
   };
 
   return (
     <div className="space-y-6">
-      <SectionHeader title="Profile & Settings" />
+      <SectionHeader title={t("settings.profile_settings")} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <GlassCard className="p-5">
-  <h3 className="mb-4 text-sm font-semibold text-[#eeebdd]">Profile picture</h3>
+  <h3 className="mb-4 text-sm font-semibold text-[#eeebdd]">{t("settings.profile_picture")}</h3>
   <div className="text-[#eeebdd] [&_p]:text-[#eeebdd] [&_span]:text-[#eeebdd] [&_button]:bg-[#f2a618] [&_button]:text-[#1D2D44] [&_button]:hover:bg-[#f2a618]/90">
     <ProfilePictureUpload role="manager" fallback={user.name?.[0] ?? "M"} />
   </div>
 </GlassCard>
 
         <GlassCard className="p-5">
-          <h3 className="mb-4 text-sm font-semibold text-cream">Profile</h3>
+          <h3 className="mb-4 text-sm font-semibold text-cream">{t("settings.profile")}</h3>
           <div className="space-y-3">
-            <div className="space-y-2"><Label className="text-cream/80">Manager ID</Label><Input className="border-white/15 bg-white/5 text-cream font-mono" value={whmId} readOnly /></div>
-            <div className="space-y-2"><Label className="text-cream/80">Name (username)</Label><Input className="border-white/15 bg-white/5 text-cream" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-            <div className="space-y-2"><Label className="text-cream/80">Phone</Label><Input className="border-white/15 bg-white/5 text-cream" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
-            <Button onClick={saveProfile}>Save profile</Button>
+            <div className="space-y-2"><Label className="text-cream/80">{t("settings.manager_id")}</Label><Input className="border-white/15 bg-white/5 text-cream font-mono" value={whmId} readOnly /></div>
+            <div className="space-y-2"><Label className="text-cream/80">{t("settings.name_username")}</Label><Input className="border-white/15 bg-white/5 text-cream" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+            <div className="space-y-2"><Label className="text-cream/80">{t("worker.phone")}</Label><Input className="border-white/15 bg-white/5 text-cream" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
+            <Button onClick={saveProfile}>{t("settings.save_profile")}</Button>
           </div>
         </GlassCard>
 
         <GlassCard className="p-5">
-          <h3 className="mb-4 text-sm font-semibold text-cream">Change password</h3>
+          <h3 className="mb-4 text-sm font-semibold text-cream">{t("settings.change_password")}</h3>
           <div className="space-y-3">
-            <div className="space-y-2"><Label className="text-cream/80">Current password</Label><Input type="password" className="border-white/15 bg-white/5 text-cream" value={pw.current} onChange={(e) => setPw({ ...pw, current: e.target.value })} /></div>
-            <div className="space-y-2"><Label className="text-cream/80">New password</Label><Input type="password" className="border-white/15 bg-white/5 text-cream" value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} /></div>
-            <div className="space-y-2"><Label className="text-cream/80">Confirm new password</Label><Input type="password" className="border-white/15 bg-white/5 text-cream" value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} /></div>
-            <Button onClick={changePw}>Change password</Button>
+            <div className="space-y-2"><Label className="text-cream/80">{t("settings.current_password")}</Label><Input type="password" className="border-white/15 bg-white/5 text-cream" value={pw.current} onChange={(e) => setPw({ ...pw, current: e.target.value })} /></div>
+            <div className="space-y-2"><Label className="text-cream/80">{t("settings.new_password")}</Label><Input type="password" className="border-white/15 bg-white/5 text-cream" value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} /></div>
+            <div className="space-y-2"><Label className="text-cream/80">{t("settings.confirm_new_password")}</Label><Input type="password" className="border-white/15 bg-white/5 text-cream" value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} /></div>
+            <Button onClick={changePw}>{t("settings.change_password")}</Button>
             <div className="mt-4 flex items-center justify-between rounded-xl bg-white/5 p-3">
               <div>
-                <p className="text-sm font-medium text-cream">Two-factor authentication</p>
-                <p className="text-xs text-cream/60">Adds an extra step at sign-in</p>
+                <p className="text-sm font-medium text-cream">{t("settings.two_fa")}</p>
+                <p className="text-xs text-cream/60">{t("settings.two_fa_desc")}</p>
               </div>
-              <Switch checked={twoFA} onCheckedChange={(v) => { setTwoFA(v); toast.success(v ? "2FA enabled (demo)" : "2FA disabled"); }} />
+              <Switch checked={twoFA} onCheckedChange={(v) => { setTwoFA(v); toast.success(v ? t("settings.two_fa_enabled") : t("settings.two_fa_disabled")); }} />
             </div>
           </div>
         </GlassCard>
 
         <GlassCard className="p-5">
-          <h3 className="mb-4 text-sm font-semibold text-cream">Notifications</h3>
+          <h3 className="mb-4 text-sm font-semibold text-cream">{t("settings.notifications")}</h3>
           <div className="space-y-3">
-            <SettingRow label="Email · low stock & new orders" checked={emailNotif} onCheckedChange={setEmailNotif} />
-            <SettingRow label="SMS · critical alerts only" checked={smsNotif} onCheckedChange={setSmsNotif} />
+            <SettingRow label={t("settings.notif_email")} checked={emailNotif} onCheckedChange={setEmailNotif} />
+            <SettingRow label={t("settings.notif_sms")} checked={smsNotif} onCheckedChange={setSmsNotif} />
           </div>
         </GlassCard>
 
         <GlassCard className="p-5">
-          <h3 className="mb-4 text-sm font-semibold text-cream">Appearance</h3>
-          <SettingRow label="Dark theme" checked={dark} onCheckedChange={setDark} />
-          <p className="mt-2 text-xs text-cream/60">Toggles between cream and navy themes built from the brand palette.</p>
+          <h3 className="mb-4 text-sm font-semibold text-cream">{t("settings.appearance")}</h3>
+          <SettingRow label={t("settings.dark_theme")} checked={dark} onCheckedChange={setDark} />
+          <p className="mt-2 text-xs text-cream/60">{t("settings.dark_theme_desc")}</p>
         </GlassCard>
       </div>
     </div>
@@ -1748,6 +1767,7 @@ function SettingRow({ label, checked, onCheckedChange }: { label: string; checke
 
 /* ---------- Wallet & Subscriptions ---------- */
 function WalletSection({ user }: { user: { name: string; whmId: string } }) {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<"overview" | "subs">("overview");
   const [subs, setSubs] = useState<SubscriptionRequest[]>(() => subscriptionStore.list());
   const [open, setOpen] = useState(false);
@@ -1763,32 +1783,32 @@ function WalletSection({ user }: { user: { name: string; whmId: string } }) {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <SectionHeader title="Wallet" />
+        <SectionHeader title={t("manager.wallet")} />
         <Button onClick={() => setOpen(true)} className="bg-accent text-foreground hover:bg-accent/80">
-          <Sparkles className="size-4" /> Upgrade plan
+          <Sparkles className="size-4" /> {t("wallet.upgrade_plan")}
         </Button>
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
         <TabsList className="bg-white/5">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="subs">My Subscriptions</TabsTrigger>
+          <TabsTrigger value="overview">{t("wallet.overview")}</TabsTrigger>
+          <TabsTrigger value="subs">{t("wallet.my_subscriptions")}</TabsTrigger>
         </TabsList>
       </Tabs>
 
       {tab === "overview" && (
         <div className="grid gap-4 lg:grid-cols-3">
           <GlassCard className="lg:col-span-2 p-5">
-            <p className="text-xs uppercase tracking-wider text-cream/60">Plan balance</p>
+            <p className="text-xs uppercase tracking-wider text-cream/60">{t("wallet.plan_balance")}</p>
             <p className="mt-2 text-4xl font-bold text-cream">$1,240.00</p>
-            <p className="mt-1 text-xs text-cream/60">Demo wallet</p>
+            <p className="mt-1 text-xs text-cream/60">{t("wallet.demo")}</p>
             <div className="mt-5 flex flex-wrap gap-2">
              <Button 
   variant="outline" 
   className="bg-[#f2a618] text-[#1D2D44] border-[#1D2D44]/20 hover:bg-[#1D2D44] hover:text-[#eeebdd] flex items-center gap-2"
 >
   <CreditCard className="size-4 text-current" /> 
-  Manage cards
+  {t("wallet.manage_cards")}
 </Button>
 
 <Button 
@@ -1797,14 +1817,14 @@ function WalletSection({ user }: { user: { name: string; whmId: string } }) {
   onClick={() => setTab("subs")}
 >
   <WalletIcon className="size-4 text-current" /> 
-  Subscriptions
+  {t("wallet.subscriptions")}
 </Button>
             </div>
           </GlassCard>
           <GlassCard className="p-5">
-            <p className="text-xs uppercase tracking-wider text-cream/60">Pending requests</p>
+            <p className="text-xs uppercase tracking-wider text-cream/60">{t("wallet.pending_requests")}</p>
             <p className="mt-2 text-3xl font-bold text-cream">{subs.filter((s) => s.status === "pending").length}</p>
-            <p className="mt-1 text-xs text-cream/60">Awaiting admin approval</p>
+            <p className="mt-1 text-xs text-cream/60">{t("wallet.awaiting_approval")}</p>
           </GlassCard>
         </div>
       )}
@@ -1814,16 +1834,16 @@ function WalletSection({ user }: { user: { name: string; whmId: string } }) {
           <Table>
             <TableHeader>
               <TableRow className="border-white/10 hover:bg-transparent">
-                <TableHead className="text-cream/70">Company</TableHead>
-                <TableHead className="text-cream/70">Warehouses</TableHead>
-                <TableHead className="text-cream/70">Slok URL</TableHead>
-                <TableHead className="text-cream/70">Request date</TableHead>
-                <TableHead className="text-cream/70">Status</TableHead>
+                <TableHead className="text-cream/70">{t("wallet.company")}</TableHead>
+                <TableHead className="text-cream/70">{t("subscribe.warehouses")}</TableHead>
+                <TableHead className="text-cream/70">{t("wallet.slok_url")}</TableHead>
+                <TableHead className="text-cream/70">{t("wallet.request_date")}</TableHead>
+                <TableHead className="text-cream/70">{t("employee.status")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {subs.length === 0 && (
-                <TableRow><TableCell colSpan={5} className="py-8 text-center text-cream/60">No subscription requests yet.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="py-8 text-center text-cream/60">{t("wallet.no_requests")}</TableCell></TableRow>
               )}
               {subs.map((s) => (
                 <TableRow key={s.id} className="border-white/10">

@@ -39,6 +39,8 @@ import {
   type SubscriptionPlan,
 } from "@/lib/api";
 import { toast } from "sonner";
+import i18n from "@/lib/i18n";
+import { LanguageToggle } from "@/components/LanguageToggle";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -47,16 +49,13 @@ export const Route = createFileRoute("/")({
   }),
   head: () => ({
     meta: [
-      { title: "Stockyard — Run your warehouse like clockwork" },
+      { title: `${i18n.t("title.index")} — Stockyard` },
       {
         name: "description",
-        content:
-          "Unified warehouse management: inventory, dispatch, analytics and an integrated payment wallet for modern logistics teams.",
-          
+        content: i18n.t("title.index_desc"),
       },
       <link rel="icon" type="image/svg+xml" href="/logo?v=2" />
     ],
-    
   }),
 });
 
@@ -102,7 +101,7 @@ function Index() {
     }
     clearStoredUser();
     setUser(null);
-    toast.success("Logged out successfully.");
+    toast.success(t("index.logged_out"));
   };
 
   useEffect(() => {
@@ -159,6 +158,7 @@ function Index() {
           </nav>
 
           <div className="flex items-center gap-3">
+            <LanguageToggle variant="header" />
             {user ? (
               <div className="flex items-center gap-2">
                 <span className="text-xs text-[#f0ecdb]/60">{user.email}</span>
@@ -211,7 +211,7 @@ function Index() {
           <div className="space-y-6 animate-fade-up">
               <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-[#f0ecdb]/85 backdrop-blur">
                 <Sparkles className="size-3.5 text-[#f3a523]" />
-                Operations Suite · v2026
+                {t("index.ops_badge")}
               </span>
             <h1 className="text-4xl font-bold leading-[1.1] tracking-tight text-[#f0ecdb] md:text-6xl">
               {t("app.tagline")}
@@ -288,7 +288,7 @@ function Index() {
             <div>
               <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-[#f0ecdb]/80">
                 <Shield className="size-3.5 text-[#f3a523]" />
-                Built for the floor
+                {t("index.built_for_floor")}
               </span>
               <h2 className="mt-3 text-3xl font-bold text-[#f0ecdb] md:text-4xl">
                 {t("operations.title")}
@@ -302,7 +302,7 @@ function Index() {
             <figure className="group overflow-hidden rounded-3xl border border-white/10 shadow-2xl">
               <img
                 src={warehouseAisle}
-                alt="Forklift moving through a stocked warehouse aisle"
+                alt={t("index.alt_aisle")}
                 className="aspect-[4/3] w-full object-cover transition-transform duration-700 group-hover:scale-105"
               />
               <figcaption className="bg-[#0f1b2d] px-5 py-3 text-sm text-[#f0ecdb]/80">
@@ -312,7 +312,7 @@ function Index() {
             <figure className="group overflow-hidden rounded-3xl border border-white/10 shadow-2xl">
               <img
                 src={warehouseTeam}
-                alt="Warehouse staff scanning and labeling packages"
+                alt={t("index.alt_team")}
                 className="aspect-[4/3] w-full object-cover transition-transform duration-700 group-hover:scale-105"
               />
               <figcaption className="bg-[#0f1b2d] px-5 py-3 text-sm text-[#f0ecdb]/80">
@@ -427,7 +427,7 @@ function PlansPanel() {
         .catch(() => {
           if (signal.aborted) return;
           setPlansError("load_failed");
-          toast.error("Failed to load subscription plans");
+          toast.error(t("subscribe.load_failed"));
         })
         .finally(() => {
           if (!signal.aborted) setLoadingPlans(false);
@@ -442,9 +442,9 @@ function PlansPanel() {
   }, []);
 
   const perLabel = (days: number) => {
-    if (days >= 360) return "year";
-    if (days >= 28) return "month";
-    return `${days} days`;
+    if (days >= 360) return t("plans.year");
+    if (days >= 28) return t("plans.month");
+    return i18n.t("plans.days", { count: days });
   };
   const isPopular = (days: number) => days >= 28 && days < 360;
 
@@ -459,15 +459,15 @@ function PlansPanel() {
       setSlugStatus(res.available ? "ok" : "taken");
     } catch {
       setSlugStatus("invalid");
-      toast.error("Could not verify slug. Is the backend running?");
+      toast.error(t("subscribe.verify_slug_failed"));
     }
   };
 
   const pay = async () => {
     if (!user) return (window.location.href = "/?login=1");
-    if (!company.trim()) return toast.error("Company name required");
-    if (!slug || slugStatus !== "ok") return toast.error("Verify your slug first");
-    if (!planId) return toast.error("Select a plan first");
+    if (!company.trim()) return toast.error(t("subscribe.company_required"));
+    if (!slug || slugStatus !== "ok") return toast.error(t("subscribe.verify_slug_first"));
+    if (!planId) return toast.error(t("subscribe.select_plan_first"));
     setPaying(true);
     try {
       await getCsrfCookie();
@@ -484,16 +484,16 @@ function PlansPanel() {
       if (error.response?.status === 422) {
         const errs = error.response.data.errors;
         const first = errs ? Object.values(errs)[0] : error.response.data.message;
-        toast.error(Array.isArray(first) ? first[0] : first || "Validation failed");
+        toast.error(Array.isArray(first) ? first[0] : first || t("subscribe.validation_failed"));
       } else if (error.response?.status === 409) {
-        toast.error("You already have a subscription.");
+        toast.error(t("subscribe.already_subscribed"));
       } else if (error.response?.status === 403) {
-        toast.error(error.response.data?.message || "Access denied.");
+        toast.error(error.response.data?.message || t("subscribe.access_denied"));
       } else if (error.response?.status === 401) {
-        toast.error("Please log in first.");
+        toast.error(t("subscribe.login_first"));
         window.location.href = "/?login=1";
       } else {
-        toast.error("Payment setup failed. Check PayPal credentials on the backend.");
+        toast.error(t("subscribe.payment_setup_failed"));
       }
     } finally {
       setPaying(false);
@@ -537,7 +537,7 @@ function PlansPanel() {
                 })
                 .catch(() => {
                   setPlansError("load_failed");
-                  toast.error("Failed to load subscription plans");
+                  toast.error(t("subscribe.load_failed"));
                 })
                 .finally(() => setLoadingPlans(false));
             }}
@@ -686,7 +686,7 @@ function PlansPanel() {
             <input
               value={company}
               onChange={(e) => setCompany(e.target.value)}
-              placeholder="Acme Logistics Inc."
+              placeholder={t("subscribe.company_placeholder")}
               className="w-full rounded-lg border border-[#1a2942]/15 bg-white px-3 py-2.5 text-sm text-[#1a2942] outline-none transition focus:border-[#f3a523] focus:ring-4 focus:ring-[#f3a523]/15"
             />
           </Field>
@@ -726,7 +726,7 @@ function PlansPanel() {
                   setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""));
                   setSlugStatus("idle");
                 }}
-                placeholder="your-company"
+                placeholder={t("subscribe.slug_placeholder")}
                 className="flex-1 rounded-lg border border-[#1a2942]/15 bg-white px-3 py-2.5 text-sm text-[#1a2942] outline-none transition focus:border-[#f3a523] focus:ring-4 focus:ring-[#f3a523]/15"
               />
               <button
@@ -765,17 +765,19 @@ function PlansPanel() {
               <div className="space-y-2 px-4 py-3">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-[#1a2942]/70">
-                    {selected.name} × {count} warehouse{count > 1 ? "s" : ""}
+                    {i18n.t("subscribe.warehouse_count", { name: selected.name, count })}
                   </span>
                   <span className="font-medium text-[#1a2942]">${total.toFixed(2)}</span>
                 </div>
                 <div className="flex items-center justify-between text-[11px] text-[#1a2942]/50">
                   <span>
-                    ${(parseFloat(selected.price_per_warehouse) || 0).toFixed(2)} /{" "}
-                    {perLabel(selected.duration_days)} per warehouse
+                    {i18n.t("subscribe.per_warehouse_full", {
+                      price: (parseFloat(selected.price_per_warehouse) || 0).toFixed(2),
+                      period: perLabel(selected.duration_days),
+                    })}
                   </span>
                   <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-                    {perLabel(selected.duration_days)}ly
+                    {i18n.t("subscribe.per_period", { period: perLabel(selected.duration_days) })}
                   </span>
                 </div>
               </div>
@@ -876,10 +878,10 @@ function LoginOverlay({
       const user = adminMode ? (admin ? { ...admin, is_admin: true } : null) : (res.data?.user || res.data);
       if (user && user.id) {
         setStoredUser(user);
-        toast.success(res.data?.message || "Welcome back!");
+        toast.success(res.data?.message || t("auth.welcome_back_toast"));
         onLoginSuccess();
       } else {
-        toast.error("Login succeeded but no user data returned. Check the backend response format.");
+        toast.error(t("auth.no_user_data"));
         setStoredUser(res.data);
       }
     } catch (error: any) {
@@ -897,32 +899,32 @@ function LoginOverlay({
             const recoveredUser = adminMode ? (admin ? { ...admin, is_admin: true } : null) : (res.data?.user || res.data);
             if (recoveredUser && recoveredUser.id) {
               setStoredUser(recoveredUser);
-              toast.success(res.data?.message || "Welcome back!");
+              toast.success(res.data?.message || t("auth.welcome_back_toast"));
               onLoginSuccess();
               return;
             }
           } catch {
             if (user && user.id) {
               setStoredUser(user);
-              toast.success("Logged in.");
+              toast.success(t("auth.logged_in"));
               onLoginSuccess();
               return;
             }
           }
-          toast.error(msg || `Session issue — try clearing cookies.`);
+          toast.error(msg || t("auth.session_issue"));
         } else if (error.response.status === 419) {
-          toast.error("Session expired. Please refresh and try again.");
+          toast.error(t("auth.session_expired"));
         } else if (error.response.status >= 500 && user && user.id) {
           setStoredUser(user);
-          toast.success("Logged in.");
+          toast.success(t("auth.logged_in"));
           onLoginSuccess();
         } else {
-          toast.error(msg || `Server error (${error.response.status})`);
+          toast.error(msg || i18n.t("auth.server_error", { status: error.response.status }));
         }
       } else if (error.request) {
-        toast.error("No response from server. Is the backend running?");
+        toast.error(t("auth.no_response"));
       } else {
-        toast.error("Something went wrong.");
+        toast.error(t("auth.something_went_wrong"));
       }
     } finally {
       setLoading(false);
@@ -982,7 +984,7 @@ function LoginOverlay({
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    placeholder={adminMode ? "admin@company.com" : "jane@company.com"}
+                    placeholder={adminMode ? t("auth.admin_email_placeholder") : t("auth.email_placeholder")}
                     className="w-full rounded-lg border border-[#dcdace] bg-white px-3 py-2.5 text-sm text-[#1a2942] outline-none transition focus:border-[#f3a523] focus:ring-4 focus:ring-[#f3a523]/15"
                   />
                 </div>

@@ -1,5 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
 import {
   Table,
@@ -9,19 +10,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { LanguageToggle } from "@/components/LanguageToggle";
 import { fetchSubscribers, type BackendSubscriber } from "@/lib/subscribers-api";
+import i18n from "@/lib/i18n";
 
 export const Route = createFileRoute("/subscribers")({
   component: SubscribersPage,
   head: () => ({
     meta: [
-      { title: "Subscribers — Stockyard" },
-      { name: "description", content: "List of platform subscribers." },
+      { title: `${i18n.t("title.subscribers")} — Stockyard` },
+      { name: "description", content: i18n.t("title.subscribers_desc") },
     ],
   }),
 });
 
 function SubscribersPage() {
+  const { t } = useTranslation();
   const [subs, setSubs] = useState<BackendSubscriber[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -31,7 +35,7 @@ function SubscribersPage() {
       .then(setSubs)
       .catch((err) => {
         const status = err.response?.status;
-        const msg = err.response?.data?.message || err.message || "Failed to load subscribers.";
+        const msg = err.response?.data?.message || err.message || t("subscribers.load_failed");
         setError(status ? `${status}: ${msg}` : msg);
       })
       .finally(() => setLoading(false));
@@ -42,22 +46,23 @@ function SubscribersPage() {
       <div className="glass-light rounded-2xl p-5 shadow-xl">
         <div className="mb-4 flex items-start justify-between">
           <div>
-            <h2 className="text-lg font-semibold">Platform Subscribers</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Users who have subscribed to the platform.</p>
+            <h2 className="text-lg font-semibold">{t("subscribers.title")}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{t("subscribers.desc")}</p>
           </div>
+          <LanguageToggle variant="header" />
         </div>
 
         <div className="overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow className="border-b border-white/40 hover:bg-transparent">
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Company</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>{t("subscribers.name")}</TableHead>
+                <TableHead>{t("subscribers.email")}</TableHead>
+                <TableHead>{t("subscribers.company")}</TableHead>
+                <TableHead>{t("subscribers.status")}</TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody>
+            <TableBody className="stagger-fade">
               {loading && (
                 <TableRow>
                   <TableCell colSpan={4} className="py-6 text-center text-muted-foreground">
@@ -75,7 +80,7 @@ function SubscribersPage() {
               {!loading && !error && subs.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={4} className="py-6 text-center text-muted-foreground">
-                    No subscribers yet.
+                    {t("subscribers.empty")}
                   </TableCell>
                 </TableRow>
               )}

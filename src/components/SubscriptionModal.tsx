@@ -56,7 +56,7 @@ export function SubscriptionModal({
         .catch(() => {
           if (!mounted) return;
           setPlansError("load_failed");
-          toast.error("Failed to load subscription plans");
+          toast.error(t("subscribe.toast_load_failed"));
         })
         .finally(() => {
           if (mounted) setLoadingPlans(false);
@@ -73,9 +73,14 @@ export function SubscriptionModal({
   if (!open) return null;
 
   const perLabel = (days: number) => {
-    if (days >= 360) return "year";
-    if (days >= 28) return "month";
-    return `${days} days`;
+    if (days >= 360) return t("subscribe.per_year");
+    if (days >= 28) return t("subscribe.per_month");
+    return t("subscribe.per_days", { count: days });
+  };
+  const cycleLabel = (days: number) => {
+    if (days >= 360) return t("subscribe.yearly");
+    if (days >= 28) return t("subscribe.monthly");
+    return t("subscribe.per_days", { count: days });
   };
   const isPopular = (days: number) => days >= 28 && days < 360;
 
@@ -90,15 +95,15 @@ export function SubscriptionModal({
       setSlugStatus(res.available ? "ok" : "taken");
     } catch {
       setSlugStatus("invalid");
-      toast.error("Could not verify slug.");
+      toast.error(t("subscribe.toast_slug_check_failed"));
     }
   };
 
   const pay = async () => {
     if (!user) return (window.location.href = "/?login=1");
-    if (!company.trim()) return toast.error("Company name required");
-    if (!slug || slugStatus !== "ok") return toast.error("Verify your slug first");
-    if (!planId) return toast.error("Select a plan first");
+    if (!company.trim()) return toast.error(t("subscribe.company_required"));
+    if (!slug || slugStatus !== "ok") return toast.error(t("subscribe.verify_slug_first"));
+    if (!planId) return toast.error(t("subscribe.select_plan_first"));
     setPaying(true);
     try {
       await getCsrfCookie();
@@ -115,16 +120,16 @@ export function SubscriptionModal({
       if (error.response?.status === 422) {
         const errs = error.response.data.errors;
         const first = errs ? Object.values(errs)[0] : error.response.data.message;
-        toast.error(Array.isArray(first) ? first[0] : first || "Validation failed");
+        toast.error(Array.isArray(first) ? first[0] : first || t("subscribe.validation_failed"));
       } else if (error.response?.status === 409) {
-        toast.error("You already have a subscription.");
+        toast.error(t("subscribe.already_subscribed"));
       } else if (error.response?.status === 403) {
-        toast.error(error.response.data?.message || "Access denied.");
+        toast.error(error.response.data?.message || t("subscribe.access_denied"));
       } else if (error.response?.status === 401) {
-        toast.error("Please log in first.");
+        toast.error(t("subscribe.login_first"));
         window.location.href = "/?login=1";
       } else {
-        toast.error("Payment setup failed. Check that PayPal is configured on the backend.");
+        toast.error(t("subscribe.payment_setup_failed"));
       }
     } finally {
       setPaying(false);
@@ -136,25 +141,25 @@ export function SubscriptionModal({
       <div className="relative w-full max-w-2xl rounded-3xl bg-[#f0ecdb] shadow-2xl">
         <button
           onClick={onClose}
-          className="absolute right-4 top-4 z-10 rounded-full bg-white/80 p-1.5 text-[#1a2942] shadow-sm transition hover:bg-white"
+          className="absolute end-4 top-4 z-10 rounded-full bg-white/80 p-1.5 text-[#1a2942] shadow-sm transition hover:bg-white"
         >
           <X className="size-5" />
         </button>
 
         <div className="p-6 sm:p-8">
           {/* Header */}
-          <h2 className="text-2xl font-bold text-[#1a2942]">Subscribe to Stockyard</h2>
+          <h2 className="text-2xl font-bold text-[#1a2942]">{t("subscribe.title")}</h2>
           <p className="mt-1 text-sm text-[#1a2942]/70">
             {user
-              ? "Choose a plan, configure your workspace, and go live."
-              : "Log in first to subscribe."}
+              ? t("subscribe.desc")
+              : t("subscribe.login_first")}
           </p>
           {!user && (
             <button
               onClick={() => (window.location.href = "/?login=1")}
               className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-[#f3a523] hover:underline"
             >
-              <LogIn className="size-3.5" /> Log in to continue
+              <LogIn className="size-3.5" /> {t("subscribe.login_to_continue")}
             </button>
           )}
 
@@ -162,7 +167,7 @@ export function SubscriptionModal({
           {loadingPlans && (
             <div className="flex flex-col items-center justify-center py-12 text-[#1a2942]/60">
               <Loader2 className="size-6 animate-spin" />
-              <p className="mt-2 text-sm font-medium">Loading subscription plans…</p>
+              <p className="mt-2 text-sm font-medium">{t("subscribe.loading")}</p>
             </div>
           )}
 
@@ -172,9 +177,9 @@ export function SubscriptionModal({
               <div className="mb-4 flex size-14 items-center justify-center rounded-2xl bg-red-100">
                 <X className="size-7 text-red-500" />
               </div>
-              <h3 className="text-xl font-bold text-[#1a2942]">Something went wrong</h3>
+              <h3 className="text-xl font-bold text-[#1a2942]">{t("subscribe.error_title")}</h3>
               <p className="mx-auto mt-2 max-w-sm text-sm text-[#1a2942]/70">
-                Couldn't load subscription plans.
+                {t("subscribe.error_desc")}
               </p>
               <button
                 onClick={() => {
@@ -211,7 +216,7 @@ export function SubscriptionModal({
                     <button
                       key={p.id}
                       onClick={() => setPlanId(p.id)}
-                      className={`group relative flex flex-col rounded-2xl border-2 p-3 text-left transition-all duration-200 ${
+                      className={`group relative flex flex-col rounded-2xl border-2 p-3 text-start transition-all duration-200 ${
                         active
                           ? "z-10 border-[#1a2942] bg-gradient-to-br from-[#1a2942] to-[#26384c] text-[#f0ecdb] scale-[1.02] shadow-lg"
                           : popular
@@ -221,13 +226,13 @@ export function SubscriptionModal({
                     >
                       {popular && (
                         <span
-                          className={`absolute -top-2 right-3 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider shadow-sm ${
+                          className={`absolute -top-2 end-3 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider shadow-sm ${
                             active
                               ? "bg-[#f3a523] text-[#1a2942]"
                               : "bg-gradient-to-r from-[#f3a523] to-[#e09412] text-white"
                           }`}
                         >
-                          Popular
+                          {t("subscribe.popular")}
                         </span>
                       )}
                       <div
@@ -250,14 +255,14 @@ export function SubscriptionModal({
                         <span
                           className={`mt-0.5 text-[10px] ${active ? "text-[#f0ecdb]/55" : "text-[#1a2942]/45"}`}
                         >
-                          per warehouse
+                          {t("subscribe.per_warehouse")}
                         </span>
                       </div>
 
                       {active && (
                         <div className="mt-auto pt-2">
                           <div className="flex items-center gap-1 text-[10px] font-semibold text-[#f3a523]">
-                            <CheckCircle2 className="size-3" /> Selected
+                            <CheckCircle2 className="size-3" /> {t("subscribe.selected")}
                           </div>
                         </div>
                       )}
@@ -281,7 +286,7 @@ export function SubscriptionModal({
                 )}
 
                 <div>
-                  <label className="text-xs font-semibold text-[#1a2942]">Company Name</label>
+                  <label className="text-xs font-semibold text-[#1a2942]">{t("subscribe.company_name")}</label>
                   <input
                     value={company}
                     onChange={(e) => setCompany(e.target.value)}
@@ -291,7 +296,7 @@ export function SubscriptionModal({
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-[#1a2942]">Warehouses</label>
+                  <label className="text-xs font-semibold text-[#1a2942]">{t("subscribe.warehouses")}</label>
                   <div className="mt-1 flex items-center gap-2">
                     <button
                       type="button"
@@ -319,7 +324,7 @@ export function SubscriptionModal({
                 </div>
 
                 <div>
-                  <label className="text-xs font-semibold text-[#1a2942]">Your Subdomain</label>
+                  <label className="text-xs font-semibold text-[#1a2942]">{t("subscribe.subdomain")}</label>
                   <div className="mt-1 flex gap-2">
                     <input
                       value={slug}
@@ -335,22 +340,22 @@ export function SubscriptionModal({
                       disabled={slugStatus === "checking"}
                       className="rounded-lg bg-[#1a2942] px-4 text-sm font-semibold text-[#f0ecdb] transition hover:bg-[#26384c] disabled:opacity-60"
                     >
-                      {slugStatus === "checking" ? <Loader2 className="size-4 animate-spin" /> : "Verify"}
+                      {slugStatus === "checking" ? <Loader2 className="size-4 animate-spin" /> : t("subscribe.verify")}
                     </button>
                   </div>
                   {slugStatus === "ok" && (
                     <p className="mt-1 flex items-center gap-1 text-xs font-medium text-emerald-700">
-                      <CheckCircle2 className="size-3.5" /> {slug}.stockyard.com is available
+                      <CheckCircle2 className="size-3.5" /> {slug}.stockyard.com {t("subscribe.available")}
                     </p>
                   )}
                   {slugStatus === "taken" && (
                     <p className="mt-1 flex items-center gap-1 text-xs text-red-600">
-                      <X className="size-3.5" /> That subdomain is already taken.
+                      <X className="size-3.5" /> {t("subscribe.taken")}
                     </p>
                   )}
                   {slugStatus === "invalid" && (
                     <p className="mt-1 flex items-center gap-1 text-xs text-amber-600">
-                      <X className="size-3.5" /> Min 3 chars, lowercase, digits, dashes only.
+                      <X className="size-3.5" /> {t("subscribe.invalid")}
                     </p>
                   )}
                 </div>
@@ -361,29 +366,29 @@ export function SubscriptionModal({
                 <div className="mt-4 overflow-hidden rounded-xl border border-[#1a2942]/10 bg-gradient-to-br from-white to-[#f0ecdb]">
                   <div className="border-b border-[#1a2942]/5 px-4 py-2.5">
                     <span className="text-[11px] font-semibold uppercase tracking-wider text-[#1a2942]/50">
-                      Order Summary
+                      {t("subscribe.order_summary")}
                     </span>
                   </div>
                   <div className="space-y-2 px-4 py-3">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-[#1a2942]/70">
-                        {selected.name} × {count} warehouse{count > 1 ? "s" : ""}
+                        {selected.name} × {t("subscribe.warehouse_count", { count })}
                       </span>
                       <span className="font-medium text-[#1a2942]">${total.toFixed(2)}</span>
                     </div>
                     <div className="flex items-center justify-between text-[11px] text-[#1a2942]/50">
                       <span>
                         ${(parseFloat(selected.price_per_warehouse) || 0).toFixed(2)} /{" "}
-                        {perLabel(selected.duration_days)} per warehouse
+                        {perLabel(selected.duration_days)} {t("subscribe.per_warehouse")}
                       </span>
                       <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-                        {perLabel(selected.duration_days)}ly
+                        {cycleLabel(selected.duration_days)}
                       </span>
                     </div>
                   </div>
                   <div className="border-t border-[#1a2942]/5 bg-[#1a2942]/[0.02] px-4 py-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-[#1a2942]">Total due today</span>
+                      <span className="text-sm font-semibold text-[#1a2942]">{t("subscribe.total_due")}</span>
                       <span className="text-lg font-black text-[#1a2942]">${total.toFixed(2)}</span>
                     </div>
                   </div>
@@ -397,21 +402,21 @@ export function SubscriptionModal({
               >
                 {paying ? (
                   <>
-                    <Loader2 className="size-4 animate-spin" /> Creating PayPal order…
+                    <Loader2 className="size-4 animate-spin" /> {t("subscribe.creating_order")}
                   </>
                 ) : !user ? (
                   <span onClick={() => (window.location.href = "/?login=1")}>
-                    <LogIn className="size-4" /> Log in to subscribe
+                    <LogIn className="size-4" /> {t("subscribe.log_in_to_subscribe")}
                   </span>
                 ) : (
                   <>
-                    <Wallet className="size-4" /> Pay with PayPal — ${total.toFixed(2)}
+                    <Wallet className="size-4" /> {t("subscribe.paypal")} — ${total.toFixed(2)}
                   </>
                 )}
               </button>
               {user && (
                 <p className="flex items-center justify-center gap-1.5 text-center text-[11px] text-[#1a2942]/45">
-                  <Shield className="size-3" /> Secured by PayPal · Cancel anytime
+                  <Shield className="size-3" /> {t("subscribe.secured")}
                 </p>
               )}
             </>

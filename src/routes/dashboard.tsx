@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
 import {
   LayoutDashboard, Users, Warehouse, BarChart3, Wallet, Settings as SettingsIcon,
   Search, Bell, Menu, Plus, Pencil, Trash2, ChevronLeft, ChevronRight,
@@ -72,8 +73,8 @@ export const Route = createFileRoute("/dashboard")({
   component: DashboardPage,
   head: () => ({
     meta: [
-      { title: "Dashboard — Stockyard" },
-      { name: "description", content: "Manage warehouses, managers, analytics and your payment wallet." },
+      { title: i18n.t("title.dashboard") },
+      { name: "description", content: i18n.t("title.dashboard_desc") },
     ],
   }),
 });
@@ -87,7 +88,7 @@ const NAV: { id: SectionId; labelKey: string; icon: React.ComponentType<{ classN
   { id: "products", labelKey: "sidebar.products", icon: Package },
   { id: "shipments", labelKey: "sidebar.shipments", icon: Truck },
   { id: "analytics", labelKey: "feature.analytics", icon: BarChart3 },
-  { id: "wallet", labelKey: "Wallet", icon: Wallet },
+  { id: "wallet", labelKey: "sidebar.wallet", icon: Wallet },
   { id: "settings", labelKey: "sidebar.settings", icon: SettingsIcon },
 ];
 
@@ -180,7 +181,7 @@ export function DashboardPage() {
               } catch (err: any) {
                 const msg = err.response?.data?.message
                   || err.response?.data?.errors?.[Object.keys(err.response?.data?.errors ?? {})[0]]?.[0]
-                  || "Login failed. Check your credentials.";
+                  || t("manager.login.failed");
                 toast.error(msg);
               } finally {
                 setLoginLoading(false);
@@ -189,32 +190,32 @@ export function DashboardPage() {
             className="space-y-4 rounded-2xl bg-[#f0ecdb] p-6 shadow-xl"
           >
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-[#1a2942]">Tenant Slug</label>
+              <label className="text-sm font-medium text-[#1a2942]">{t("manager.login.tenant_slug")}</label>
               <input
                 value={loginSlug}
                 onChange={(e) => setLoginSlug(e.target.value)}
-                placeholder="e.g. roro"
+                placeholder={t("manager.login.slug_placeholder")}
                 required
                 className="w-full rounded-xl border border-[#1a2942]/20 bg-white px-4 py-2.5 text-sm text-[#1a2942] outline-none transition focus:border-[#f3a523]"
               />
               <div className="space-y-1.5">
-  <label className="text-sm font-medium text-[#1a2942]">Username</label>
+  <label className="text-sm font-medium text-[#1a2942]">{t("manager.login.username")}</label>
   <input
     value={loginUsername}
     onChange={(e) => setLoginUsername(e.target.value)}
-    placeholder="e.g. jane_admin"
+    placeholder={t("manager.login.username_placeholder")}
     required
     className="w-full rounded-xl border border-[#1a2942]/20 bg-white px-4 py-2.5 text-sm text-[#1a2942] outline-none transition focus:border-[#f3a523]"
   />
 </div>
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-[#1a2942]">Password</label>
+              <label className="text-sm font-medium text-[#1a2942]">{t("manager.login.password")}</label>
               <input
                 type="password"
                 value={loginPw}
                 onChange={(e) => setLoginPw(e.target.value)}
-                placeholder="Your password"
+                placeholder={t("manager.login.password_placeholder")}
                 required
                 className="w-full rounded-xl border border-[#1a2942]/20 bg-white px-4 py-2.5 text-sm text-[#1a2942] outline-none transition focus:border-[#f3a523]"
               />
@@ -225,9 +226,9 @@ export function DashboardPage() {
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a2942] py-2.5 text-sm font-semibold text-[#f0ecdb] transition hover:bg-[#26384c] disabled:opacity-60"
             >
               {loginLoading ? (
-                <><Loader2 className="size-4 animate-spin" /> Connecting…</>
+                <><Loader2 className="size-4 animate-spin" /> {t("manager.login.connecting")}</>
               ) : (
-                <><LogIn className="size-4" /> Enter dashboard</>
+                <><LogIn className="size-4" /> {t("manager.login.enter_dashboard")}</>
               )}
             </button>
           </form>
@@ -241,7 +242,7 @@ export function DashboardPage() {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-white/10 bg-navy text-cream transition-all duration-300 md:flex",
+          "fixed inset-y-0 start-0 z-30 hidden flex-col border-e border-white/10 bg-navy text-cream transition-all duration-300 md:flex",
           collapsed ? "w-[72px]" : "w-64",
         )}
       >
@@ -250,14 +251,14 @@ export function DashboardPage() {
             <div className="flex size-9 items-center justify-center rounded-xl bg-[oklch(0.78_0.16_75)] shadow-lg">
               <Warehouse className="size-5 text-white" />
             </div>
-            {!collapsed && <span className="text-base font-bold">Stockyard</span>}
+            {!collapsed && <span className="text-base font-bold">{t("app.name")}</span>}
           </Link>
           <button
             onClick={() => setCollapsed((c) => !c)}
             className="rounded-lg p-1.5 text-cream/70 transition hover:bg-white/10 hover:text-cream"
-            aria-label="Toggle sidebar"
+            aria-label={t("dashboard.toggle_sidebar")}
           >
-            {collapsed ? <ChevronRight className="size-4" /> : <ChevronLeft className="size-4" />}
+            {collapsed ? <ChevronRight className="size-4 rtl:rotate-180" /> : <ChevronLeft className="size-4 rtl:rotate-180" />}
           </button>
         </div>
 
@@ -280,7 +281,7 @@ export function DashboardPage() {
                     <Icon className={cn("size-4 shrink-0 transition", active && "text-[oklch(0.85_0.16_75)]")} />
                     {!collapsed && <span>{t(item.labelKey)}</span>}
                     {!collapsed && item.id === "warehouses" && (
-                      <span className="ml-auto inline-flex size-2 animate-pulse rounded-full bg-[oklch(0.78_0.16_75)]" />
+                      <span className="ms-auto inline-flex size-2 animate-pulse rounded-full bg-[oklch(0.78_0.16_75)]" />
                     )}
                   </button>
                 </TooltipTrigger>
@@ -306,47 +307,47 @@ export function DashboardPage() {
                 className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-cream/70 transition hover:bg-white/10 hover:text-red-300 disabled:opacity-50"
               >
                 <LogOut className="size-4 shrink-0" />
-                {!collapsed && <span>{logoutLoading ? "Logging out…" : "Log out"}</span>}
+                {!collapsed && <span>{logoutLoading ? t("dashboard.logging_out") : t("nav.log_out")}</span>}
               </button>
             </TooltipTrigger>
-            {collapsed && <TooltipContent side="right">Log out</TooltipContent>}
+            {collapsed && <TooltipContent side="right">{t("nav.log_out")}</TooltipContent>}
           </Tooltip>
         </div>
       </aside>
 
       {/* Main */}
-      <div className={cn("flex min-h-screen flex-1 flex-col transition-all duration-300", collapsed ? "md:pl-[72px]" : "md:pl-64")}>
+      <div className={cn("flex min-h-screen flex-1 flex-col transition-all duration-300", collapsed ? "md:ps-[72px]" : "md:ps-64")}>
         {/* Top header */}
         <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-white/10 bg-navy/80 px-4 text-cream backdrop-blur-xl md:px-6">
-          <button className="rounded-lg p-2 text-cream/70 hover:bg-white/10 md:hidden" aria-label="Menu">
+          <button className="rounded-lg p-2 text-cream/70 hover:bg-white/10 md:hidden" aria-label={t("dashboard.menu")}>
             <Menu className="size-5" />
           </button>
           <h1 className="text-base font-semibold capitalize md:text-lg">
             {t(NAV.find((n) => n.id === section)?.labelKey ?? "")}
           </h1>
-          <div className="ml-auto flex items-center gap-2 md:gap-3">
+          <div className="ms-auto flex items-center gap-2 md:gap-3">
             <LanguageToggle variant="header" />
             <div className="relative hidden md:block">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-cream/50" />
+              <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-cream/50" />
               <input
-                placeholder="Search anything..."
-                className="h-9 w-64 rounded-full border border-white/15 bg-white/5 pl-9 pr-3 text-sm text-cream placeholder:text-cream/40 outline-none transition focus:w-72 focus:border-[oklch(0.78_0.16_75)]/60"
+                placeholder={t("dashboard.search_placeholder")}
+                className="h-9 w-64 rounded-full border border-white/15 bg-white/5 ps-9 pe-3 text-sm text-cream placeholder:text-cream/40 outline-none transition focus:w-72 focus:border-[oklch(0.78_0.16_75)]/60"
               />
             </div>
             <Tooltip>
               <TooltipTrigger asChild>
                 <button className="relative rounded-full p-2 text-cream/80 transition hover:bg-white/10">
                   <Bell className="size-4" />
-                  <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-[oklch(0.78_0.16_75)]" />
+                  <span className="absolute end-1.5 top-1.5 size-2 rounded-full bg-[oklch(0.78_0.16_75)]" />
                 </button>
               </TooltipTrigger>
-              <TooltipContent>3 new notifications</TooltipContent>
+              <TooltipContent>{t("dashboard.notifications", { count: 3 })}</TooltipContent>
             </Tooltip>
-            <div className="flex items-center gap-2 rounded-full border border-white/15 bg-white/5 py-1 pl-1 pr-3">
+            <div className="flex items-center gap-2 rounded-full border border-white/15 bg-white/5 py-1 ps-1 pe-3">
               <div className="flex size-7 items-center justify-center overflow-hidden rounded-full bg-[oklch(0.78_0.16_75)] text-xs font-bold text-navy">
-                {avatar ? <img src={avatar} alt="me" className="h-full w-full object-cover" /> : userInitials}
+                {avatar ? <img src={avatar} alt={t("dashboard.avatar_alt")} className="h-full w-full object-cover" /> : userInitials}
               </div>
-              <span className="hidden text-xs font-semibold sm:inline">{storedUser?.full_name ?? "Owner"}</span>
+              <span className="hidden text-xs font-semibold sm:inline">{storedUser?.full_name ?? t("dashboard.owner")}</span>
             </div>
           </div>
         </header>
@@ -390,6 +391,7 @@ function GlassCard({ children, className }: { children: React.ReactNode; classNa
 
 /* -------------------- Overview -------------------- */
 function Overview({ slug }: { slug: string | null }) {
+  const { t } = useTranslation();
   const [data, setData] = useState<{ warehouses: number; products: number; shipments: number; employees: number } | null>(null);
 
   useEffect(() => {
@@ -415,24 +417,24 @@ function Overview({ slug }: { slug: string | null }) {
   }, [slug]);
 
   const stats = [
-    { label: "Warehouses", value: data ? data.warehouses.toString() : "—", icon: Warehouse, trend: "active" },
-    { label: "Products", value: data ? data.products.toString() : "—", icon: Package, trend: "in stock" },
-    { label: "Shipments", value: data ? data.shipments.toString() : "—", icon: Truck, trend: "this month" },
-    { label: "Employees", value: data ? (data.employees || "—").toString() : "—", icon: Users, trend: "on staff" },
+    { labelKey: "sidebar.warehouses", value: data ? data.warehouses.toString() : "—", icon: Warehouse, trendKey: "dashboard.trend_active" },
+    { labelKey: "sidebar.products", value: data ? data.products.toString() : "—", icon: Package, trendKey: "dashboard.trend_in_stock" },
+    { labelKey: "sidebar.shipments", value: data ? data.shipments.toString() : "—", icon: Truck, trendKey: "dashboard.trend_this_month" },
+    { labelKey: "sidebar.employees", value: data ? (data.employees || "—").toString() : "—", icon: Users, trendKey: "dashboard.trend_on_staff" },
   ];
   return (
     <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((s, i) => (
-          <motion.div key={s.label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
+          <motion.div key={s.labelKey} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
             <GlassCard className="transition hover:-translate-y-0.5 hover:shadow-2xl">
               <div className="flex items-center justify-between">
-                <p className="text-xs font-medium uppercase tracking-wider text-[#1a2942]/70">{s.label}</p>
+                <p className="text-xs font-medium uppercase tracking-wider text-[#1a2942]/70">{t(s.labelKey)}</p>
                 <s.icon className="size-4 text-[oklch(0.74_0.02_252)]" />
               </div>
               <p className="mt-3 text-3xl font-bold text-[#1a2942]">{s.value}</p>
               <p className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-emerald-600">
-                <TrendingUp className="size-3" /> {s.trend}
+                <TrendingUp className="size-3" /> {t(s.trendKey)}
               </p>
             </GlassCard>
           </motion.div>
@@ -443,22 +445,22 @@ function Overview({ slug }: { slug: string | null }) {
         <GlassCard className="lg:col-span-2">
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-semibold">Inventory trend</h3>
-              <p className="text-xs text-[#1a2942]/70">Last 30 days (demo)</p>
+              <h3 className="text-sm font-semibold">{t("dashboard.inventory_trend")}</h3>
+              <p className="text-xs text-[#1a2942]/70">{t("dashboard.last_30_days_demo")}</p>
             </div>
           </div>
           <ChartArea />
         </GlassCard>
 
         <GlassCard>
-          <h3 className="mb-4 text-sm font-semibold">Quick summary</h3>
+          <h3 className="mb-4 text-sm font-semibold">{t("dashboard.quick_summary")}</h3>
           <div className="space-y-3">
             <div className="flex items-center gap-3 rounded-xl border border-white/40 bg-white/40 p-3 transition hover:bg-white/60">
               <div className="flex size-9 items-center justify-center rounded-lg bg-[#6366f1]/20">
                 <Warehouse className="size-4 text-[#6366f1]" />
               </div>
               <div className="flex-1">
-                <p className="text-sm font-semibold">Total warehouses</p>
+                <p className="text-sm font-semibold">{t("dashboard.total_warehouses")}</p>
                 <p className="text-xs text-[#1a2942]/70">{data ? data.warehouses : "—"}</p>
               </div>
             </div>
@@ -467,7 +469,7 @@ function Overview({ slug }: { slug: string | null }) {
                 <Package className="size-4 text-[#10B981]" />
               </div>
               <div className="flex-1">
-                <p className="text-sm font-semibold">Total products</p>
+                <p className="text-sm font-semibold">{t("dashboard.total_products")}</p>
                 <p className="text-xs text-[#1a2942]/70">{data ? data.products : "—"}</p>
               </div>
             </div>
@@ -476,7 +478,7 @@ function Overview({ slug }: { slug: string | null }) {
                 <Truck className="size-4 text-[#F59E0B]" />
               </div>
               <div className="flex-1">
-                <p className="text-sm font-semibold">Total shipments</p>
+                <p className="text-sm font-semibold">{t("dashboard.total_shipments")}</p>
                 <p className="text-xs text-[#1a2942]/70">{data ? data.shipments : "—"}</p>
               </div>
             </div>
@@ -485,7 +487,7 @@ function Overview({ slug }: { slug: string | null }) {
       </div>
 
       <GlassCard>
-        <h3 className="mb-4 text-sm font-semibold">Recent activity</h3>
+        <h3 className="mb-4 text-sm font-semibold">{t("dashboard.recent_activity")}</h3>
         <ul className="divide-y divide-white/40">
           {recentActivity.map((a) => (
             <li key={a.id} className="flex items-center justify-between py-3 text-sm">
@@ -505,6 +507,7 @@ function ManagersSection({
 }: {
   slug?: string | null; managers: Manager[]; setManagers: React.Dispatch<React.SetStateAction<Manager[]>>; types: WarehouseType[];
 }) {
+  const { t } = useTranslation();
   useEffect(() => {
     if (!slug) return;
     const load = async () => {
@@ -563,7 +566,7 @@ function ManagersSection({
       const today = new Date().toISOString().slice(0, 10);
       if (data.id) {
         setManagers((prev) => prev.map((m) => (m.id === data.id ? { ...m, name: data.name, age: data.age, warehouseId: data.warehouseId, status: data.status } as Manager : m)));
-        toast.success("Manager updated");
+        toast.success(t("manager.toast_updated"));
       } else {
         const whmId = generateWhmId(managers);
         const newM: Manager = {
@@ -579,7 +582,7 @@ function ManagersSection({
           role: "Manager",
         };
         setManagers((prev) => [newM, ...prev]);
-        toast.success(`Manager added · ${whmId}`);
+        toast.success(t("manager.toast_added", { id: whmId }));
       }
       setLoading(false);
       setOpen(false);
@@ -590,17 +593,17 @@ function ManagersSection({
   const handleDelete = () => {
     if (!deleteId) return;
     setManagers((prev) => prev.filter((m) => m.id !== deleteId));
-    toast.success("Manager removed");
+    toast.success(t("manager.toast_removed"));
     setDeleteId(null);
   };
 
   const handleForceReset = () => {
     if (!resetId || resetPw.length < 6) {
-      toast.error("Temporary password must be at least 6 characters");
+      toast.error(t("manager.toast_password_short"));
       return;
     }
     setManagers((prev) => prev.map((m) => m.id === resetId ? { ...m, password: resetPw, isTempPassword: true, lastPasswordChange: new Date().toISOString().slice(0, 10) } : m));
-    toast.success("Password reset · manager will be prompted on next login");
+    toast.success(t("manager.toast_password_reset"));
     setResetId(null);
     setResetPw("");
   };
@@ -609,36 +612,36 @@ function ManagersSection({
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative w-full sm:max-w-xs">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#1a2942]/70" />
+          <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-[#1a2942]/70" />
           <Input
             value={query}
             onChange={(e) => { setQuery(e.target.value); setPage(1); }}
-            placeholder="Search by name, ID or warehouse"
-            className="pl-9"
+            placeholder={t("manager.search_placeholder")}
+            className="ps-9"
           />
         </div>
         <Button
           onClick={() => { setEditing(null); setOpen(true); }}
           className="bg-navy text-cream hover:bg-navy/90"
         >
-          <Plus className="size-4" /> Add manager
+          <Plus className="size-4" /> {t("manager.add")}
         </Button>
       </div>
 
       <GlassCard className="p-0 overflow-hidden">
         {filtered.length === 0 ? (
-          <EmptyState icon={Users} title="No managers found" subtitle="Adjust your search or add a new manager." />
+          <EmptyState icon={Users} title={t("manager.no_managers_found")} subtitle={t("manager.no_managers_found.subtitle")} />
         ) : (
           <Table>
             <TableHeader>
               <TableRow className="border-b border-white/40 hover:bg-transparent">
-                <TableHead>ID</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead className="hidden sm:table-cell">Age</TableHead>
-                <TableHead>Warehouse</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="hidden md:table-cell">Last password change</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead>{t("common.id")}</TableHead>
+                <TableHead>{t("common.name")}</TableHead>
+                <TableHead className="hidden sm:table-cell">{t("common.age")}</TableHead>
+                <TableHead>{t("common.warehouse")}</TableHead>
+                <TableHead>{t("common.status")}</TableHead>
+                <TableHead className="hidden md:table-cell">{t("manager.last_password_change")}</TableHead>
+                <TableHead className="text-end">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -650,7 +653,7 @@ function ManagersSection({
                     <TableCell className="font-medium">
                       {m.name}
                       {m.isTempPassword && (
-                        <Badge variant="outline" className="ml-2 border-amber-400/50 bg-amber-100/40 text-amber-800">temp pw</Badge>
+                        <Badge variant="outline" className="ms-2 border-amber-400/50 bg-amber-100/40 text-amber-800">{t("manager.temp_pw")}</Badge>
                       )}
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">{m.age}</TableCell>
@@ -663,10 +666,10 @@ function ManagersSection({
                       )}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={m.status === "active" ? "default" : "secondary"} className={cn(m.status === "active" ? "bg-emerald-500/20 text-emerald-700 hover:bg-emerald-500/20" : "")}>{m.status}</Badge>
+                      <Badge variant={m.status === "active" ? "default" : "secondary"} className={cn(m.status === "active" ? "bg-emerald-500/20 text-emerald-700 hover:bg-emerald-500/20" : "")}>{t(`manager.status.${m.status}`)}</Badge>
                     </TableCell>
                     <TableCell className="hidden text-[#1a2942]/70 md:table-cell">{m.lastPasswordChange}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-end">
                       <div className="flex justify-end gap-1">
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -676,15 +679,15 @@ function ManagersSection({
                               if (!slug || !empId || !whId) return;
                               try {
                                 await logoutEmployee(slug, whId, empId);
-                                toast.success(`${m.name} logged out`);
+                                toast.success(t("manager.toast_logged_out", { name: m.name }));
                               } catch (err: any) {
-                                toast.error(err.response?.data?.message || "Logout failed");
+                                toast.error(err.response?.data?.message || t("manager.toast_logout_failed"));
                               }
                             }}>
                               <LogOut className="size-3.5 text-sky-600" />
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent>Log out this manager</TooltipContent>
+                          <TooltipContent>{t("manager.logout_tooltip")}</TooltipContent>
                         </Tooltip>
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -692,7 +695,7 @@ function ManagersSection({
                               <AlertTriangle className="size-3.5 text-amber-600" />
                             </Button>
                           </TooltipTrigger>
-                          <TooltipContent>Force password reset</TooltipContent>
+                          <TooltipContent>{t("manager.force_password_reset")}</TooltipContent>
                         </Tooltip>
                         <Button size="sm" variant="ghost" onClick={() => { setEditing(m); setOpen(true); }}>
                           <Pencil className="size-3.5" />
@@ -710,13 +713,13 @@ function ManagersSection({
         )}
         {filtered.length > 0 && (
           <div className="flex items-center justify-between border-t border-white/40 px-4 py-3 text-xs text-[#1a2942]/70">
-            <span>Page {page} of {totalPages} • {filtered.length} total</span>
+            <span>{t("manager.page_info", { page, total: totalPages, count: filtered.length })}</span>
             <div className="flex gap-1">
               <Button size="sm" variant="outline" disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
                 <ChevronLeft className="size-3.5" />
               </Button>
               <Button size="sm" variant="outline" disabled={page === totalPages} onClick={() => setPage((p) => p + 1)}>
-                <ChevronRight className="size-3.5" />
+                <ChevronRight className="size-3.5 rtl:rotate-180" />
               </Button>
             </div>
           </div>
@@ -736,16 +739,16 @@ function ManagersSection({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="size-5 text-destructive" /> Delete manager?
+              <AlertTriangle className="size-5 text-destructive" /> {t("manager.confirm_delete")}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently remove the manager and revoke their warehouse assignment.
+              {t("manager.confirm_delete.desc")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">
-              Delete
+              {t("common.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -754,18 +757,18 @@ function ManagersSection({
       <Dialog open={!!resetId} onOpenChange={(o) => { if (!o) { setResetId(null); setResetPw(""); } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Force password reset</DialogTitle>
+            <DialogTitle>{t("manager.force_password_reset")}</DialogTitle>
             <DialogDescription>
-              Set a new temporary password. The manager will be required to change it on next login.
+              {t("manager.force_reset.desc")}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-2 py-2">
-            <Label>Temporary password</Label>
-            <Input type="text" value={resetPw} onChange={(e) => setResetPw(e.target.value)} placeholder="min 6 characters" />
+            <Label>{t("manager.temporary_password")}</Label>
+            <Input type="text" value={resetPw} onChange={(e) => setResetPw(e.target.value)} placeholder={t("manager.min_6_characters")} />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setResetId(null); setResetPw(""); }}>Cancel</Button>
-            <Button onClick={handleForceReset} className="bg-navy text-cream hover:bg-navy/90">Reset password</Button>
+            <Button variant="outline" onClick={() => { setResetId(null); setResetPw(""); }}>{t("common.cancel")}</Button>
+            <Button onClick={handleForceReset} className="bg-navy text-cream hover:bg-navy/90">{t("auth.reset_password")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -781,6 +784,7 @@ function ManagerDialog({
   onSave: (m: { id?: string; name: string; age: number; warehouseId: string; password: string; status: Manager["status"] }) => void;
   loading: boolean;
 }) {
+  const { t } = useTranslation();
   const [form, setForm] = useState({
     name: "", age: 30, password: "",
     warehouseId: types[0]?.id ?? "", status: "active" as Manager["status"],
@@ -800,15 +804,15 @@ function ManagerDialog({
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.warehouseId) {
-      toast.error("Please fill required fields");
+      toast.error(t("manager.toast_required_fields"));
       return;
     }
     if (!editing && form.password.length < 6) {
-      toast.error("Temporary password must be at least 6 characters");
+      toast.error(t("manager.toast_password_short"));
       return;
     }
     if (form.age < 18 || form.age > 70) {
-      toast.error("Age must be between 18 and 70");
+      toast.error(t("manager.toast_age_range"));
       return;
     }
     onSave({
@@ -822,26 +826,26 @@ function ManagerDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="text-[#1D2D44]">{editing ? "Edit manager" : "Add warehouse manager"}</DialogTitle>
+          <DialogTitle className="text-[#1D2D44]">{editing ? t("manager.edit") : t("manager.add_warehouse_manager")}</DialogTitle>
           <DialogDescription>
-            {editing ? "Update manager details. Use force reset to change the password." : "An ID (WHM-XXX) is generated automatically. The manager logs in with their Name + temporary password."}
+            {editing ? t("manager.edit.desc") : t("manager.add.desc")}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="grid gap-4 py-2">
           <div className="grid gap-4 sm:grid-cols-2">
            <div className="grid gap-2">
-    <Label className="text-[#1D2D44]">Name (username)</Label>
+    <Label className="text-[#1D2D44]">{t("manager.name_username")}</Label>
     <Input 
       value={form.name} 
       onChange={(e) => setForm({ ...form, name: e.target.value })} 
-      placeholder="Ahmed" 
+      placeholder={t("placeholder.ahmed")} 
       required 
       className="text-[#1D2D44] placeholder:text-[#1D2D44]/50 focus:text-[#1D2D44]"
     />
   </div>
 
   <div className="grid gap-2">
-    <Label className="text-[#1D2D44]">Age</Label>
+    <Label className="text-[#1D2D44]">{t("common.age")}</Label>
     <Input 
       type="number" 
       min={18} 
@@ -854,34 +858,40 @@ function ManagerDialog({
   </div>
           </div>
          <div className="grid gap-2">
-  <Label className="text-[#1D2D44]">Assign to warehouse</Label>
+  <Label className="text-[#1D2D44]">{t("manager.assign_warehouse")}</Label>
   <Select value={form.warehouseId} onValueChange={(v) => setForm({ ...form, warehouseId: v })}>
     <SelectTrigger className="text-[#1D2D44] placeholder:text-[#1D2D44]/50">
       <SelectValue />
     </SelectTrigger>
     <SelectContent>
-      {types.map((t) => (
-        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+      {types.map((wtype) => (
+        <SelectItem key={wtype.id} value={wtype.id}>{wtype.name}</SelectItem>
       ))}
     </SelectContent>
   </Select>
 </div>
           {!editing && (
             <div className="grid gap-2">
-              <Label>Temporary password</Label>
-              <Input type="text" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="min 6 characters" required />
-              <p className="text-xs text-[#1a2942]/70">Manager will be required to change this on first login.</p>
+              <Label className="text-[#1D2D44]">{t("manager.temporary_password")}</Label>
+<Input
+  type="text"
+  value={form.password}
+  onChange={(e) => setForm({ ...form, password: e.target.value })}
+  placeholder={t("manager.min_6_characters")}
+  className="text-[#1D2D44]"
+  required
+/>              <p className="text-xs text-[#1a2942]/70">{t("manager.temp_pw_hint")}</p>
             </div>
           )}
           <div className="grid gap-2">
-  <Label className="text-[#1D2D44]">Status</Label>
+  <Label className="text-[#1D2D44]">{t("common.status")}</Label>
   <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as Manager["status"] })}>
     <SelectTrigger className="text-[#1D2D44] placeholder:text-[#1D2D44]/50">
       <SelectValue />
     </SelectTrigger>
     <SelectContent>
-      <SelectItem value="active">Active</SelectItem>
-      <SelectItem value="inactive">Inactive</SelectItem>
+      <SelectItem value="active">{t("manager.status.active")}</SelectItem>
+      <SelectItem value="inactive">{t("manager.status.inactive")}</SelectItem>
     </SelectContent>
   </Select>
 </div>
@@ -891,10 +901,10 @@ function ManagerDialog({
     onClick={() => onOpenChange(false)} 
     className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#E2DDD3] border border-[#1D2D44]/20"
   >
-    Cancel
+    {t("common.cancel")}
   </Button>
             <Button type="submit" disabled={loading} className="bg-navy text-cream hover:bg-navy/90">
-              {loading ? "Saving..." : editing ? "Save changes" : "Add manager"}
+              {loading ? t("common.saving") : editing ? t("common.save_changes") : t("manager.add")}
             </Button>
           </DialogFooter>
         </form>
@@ -919,6 +929,7 @@ function WarehousesSection({
 
 /* -------------------- My Warehouses (Backend) -------------------- */
 function WarehouseManager({ slug }: { slug: string }) {
+  const { t } = useTranslation();
   const [warehouses, setWarehouses] = useState<BackendWarehouse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -939,7 +950,7 @@ function WarehouseManager({ slug }: { slug: string }) {
       setWarehouses(res.warehouses);
       setAllowedCount(res.allowed_warehouses_count);
     } catch (err: any) {
-      setError(err.response?.data?.message || "Failed to load warehouses");
+      setError(err.response?.data?.message || t("warehouse.toast_load_failed"));
     } finally {
       setLoading(false);
     }
@@ -951,23 +962,23 @@ function WarehouseManager({ slug }: { slug: string }) {
 
   const handleSave = async (data: WarehouseInput & { id?: number }) => {
     if (!data.id && atLimit) {
-      toast.error(`Subscription limit reached (${allowedCount} warehouses). Upgrade to add more.`);
+      toast.error(t("warehouse.toast_limit_reached", { count: allowedCount }));
       return;
     }
     setSaving(true);
     try {
       if (data.id) {
         await updateWarehouse(slug, data.id, data);
-        toast.success("Warehouse updated");
+        toast.success(t("warehouse.updated"));
       } else {
         await createWarehouse(slug, data);
-        toast.success("Warehouse added");
+        toast.success(t("warehouse.created"));
       }
       setOpen(false);
       setEditing(null);
       load();
     } catch (err: any) {
-      toast.error(err.response?.data?.message || "Operation failed");
+      toast.error(err.response?.data?.message || t("common.operation_failed"));
     } finally {
       setSaving(false);
     }
@@ -979,24 +990,24 @@ function WarehouseManager({ slug }: { slug: string }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-base font-semibold text-cream">Your Warehouses</h3>
+          <h3 className="text-base font-semibold text-cream">{t("warehouse.your_warehouses")}</h3>
           <p className="text-xs text-[#1a2942]/70">
-            {loading ? "Loading..." : `${warehouses.length} of ${allowedCount} warehouses used`}
+            {loading ? t("common.loading") : t("warehouse.usage", { count: warehouses.length, max: allowedCount })}
           </p>
         </div>
         <Button
           onClick={() => { setEditing(null); setOpen(true); }}
           disabled={atLimit}
           className="bg-navy text-cream hover:bg-navy/90"
-          title={atLimit ? `Upgrade to add more (limit: ${allowedCount})` : "Add a warehouse"}
+          title={atLimit ? t("warehouse.add_limit_tooltip", { count: allowedCount }) : t("warehouse.add_tooltip")}
         >
-          <Plus className="size-4" /> Add warehouse
+          <Plus className="size-4" /> {t("warehouse.add")}
         </Button>
       </div>
 
       {atLimit && !loading && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-300">
-          Subscription limit reached. You can manage existing warehouses or upgrade your plan.
+          {t("warehouse.limit_banner")}
         </div>
       )}
 
@@ -1017,11 +1028,11 @@ function WarehouseManager({ slug }: { slug: string }) {
           <div className="flex flex-col items-center gap-2 py-8 text-center">
             <AlertTriangle className="size-8 text-red-400" />
             <p className="text-sm text-red-400">{error}</p>
-            <Button variant="outline" onClick={load} className="mt-2">Retry</Button>
+            <Button variant="outline" onClick={load} className="mt-2">{t("common.try_again")}</Button>
           </div>
         </GlassCard>
       ) : warehouses.length === 0 ? (
-        <GlassCard><EmptyState icon={Warehouse} title="No warehouses yet" subtitle="Add your first warehouse to get started." /></GlassCard>
+        <GlassCard><EmptyState icon={Warehouse} title={t("warehouse.no_warehouses_title")} subtitle={t("warehouse.no_warehouses_subtitle")} /></GlassCard>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {warehouses.map((w, i) => {
@@ -1043,7 +1054,7 @@ function WarehouseManager({ slug }: { slug: string }) {
                   {manager && (
                     <div className="mt-2 flex items-center gap-1.5 text-xs text-[#1a2942]/80">
                       <User className="size-3.5" />
-                      <span>{manager.system_user?.full_name ?? "Unknown"}</span>
+                      <span>{manager.system_user?.full_name ?? t("common.unknown")}</span>
                     </div>
                   )}
 
@@ -1052,11 +1063,11 @@ function WarehouseManager({ slug }: { slug: string }) {
                       {w.products.slice(0, 4).map((p) => (
                         <div key={p.id} className="flex items-center justify-between text-xs text-[#1a2942]/80">
                           <span className="truncate">{p.product_name}</span>
-                          <span className="ml-2 shrink-0 font-medium">{p.pivot.quantity} units</span>
+                          <span className="ms-2 shrink-0 font-medium">{t("warehouse.units", { count: p.pivot.quantity })}</span>
                         </div>
                       ))}
                       {w.products.length > 4 && (
-                        <p className="text-[10px] text-[#1a2942]/50">+{w.products.length - 4} more</p>
+                        <p className="text-[10px] text-[#1a2942]/50">{t("warehouse.more", { count: w.products.length - 4 })}</p>
                       )}
                     </div>
                   )}
@@ -1075,12 +1086,12 @@ function WarehouseManager({ slug }: { slug: string }) {
                         try {
                           const info = await fetchDeleteWarehouseInfo(slug, w.id);
                           if (info.employees_count > 0 || info.products_count > 0) {
-                            setDeleteBlocked(`Cannot delete: ${info.employees_count} employee(s) and ${info.products_count} product(s) assigned. Remove them first.`);
+                            setDeleteBlocked(t("warehouse.delete_blocked", { employees: info.employees_count, products: info.products_count }));
                           } else {
                             setDeleteId(w.id);
                           }
                         } catch {
-                          setDeleteBlocked("Failed to check warehouse status.");
+                          setDeleteBlocked(t("warehouse.delete_check_failed"));
                         } finally {
                           setDeleteChecking(false);
                         }
@@ -1108,11 +1119,11 @@ function WarehouseManager({ slug }: { slug: string }) {
       <AlertDialog open={deleteId !== null} onOpenChange={(o) => { if (!o && !deleteDeleting) setDeleteId(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete warehouse?</AlertDialogTitle>
-            <AlertDialogDescription>This will permanently remove this warehouse and its data.</AlertDialogDescription>
+            <AlertDialogTitle>{t("warehouse.delete_title")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("warehouse.delete_desc")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleteDeleting}>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               disabled={deleteDeleting}
               className="bg-destructive hover:bg-destructive/90"
@@ -1121,17 +1132,17 @@ function WarehouseManager({ slug }: { slug: string }) {
                 setDeleteDeleting(true);
                 try {
                   await deleteWarehouse(slug, deleteId);
-                  toast.success("Warehouse deleted");
+                  toast.success(t("warehouse.deleted"));
                   setDeleteId(null);
                   load();
                 } catch (err: any) {
-                  toast.error(err.response?.data?.message || "Delete failed");
+                  toast.error(err.response?.data?.message || t("common.delete_failed"));
                 } finally {
                   setDeleteDeleting(false);
                 }
               }}
             >
-              {deleteDeleting ? "Deleting..." : "Delete"}
+              {deleteDeleting ? t("common.deleting") : t("common.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1140,11 +1151,11 @@ function WarehouseManager({ slug }: { slug: string }) {
       <AlertDialog open={deleteBlocked !== null} onOpenChange={(o) => { if (!o) setDeleteBlocked(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Cannot delete warehouse</AlertDialogTitle>
+            <AlertDialogTitle>{t("warehouse.cannot_delete")}</AlertDialogTitle>
             <AlertDialogDescription>{deleteBlocked}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setDeleteBlocked(null)}>OK</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => setDeleteBlocked(null)}>{t("common.ok")}</AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -1165,6 +1176,7 @@ function WarehouseDialog({
   editing: BackendWarehouse | null; onSave: (d: WarehouseInput & { id?: number }) => void;
   saving: boolean; existingTypes: string[];
 }) {
+  const { t } = useTranslation();
   const allTypes = [...new Set([...WAREHOUSE_TYPE_OPTIONS, ...existingTypes])];
   const [form, setForm] = useState<WarehouseInput & { id?: number }>({
     warehouse_name: "", type: allTypes[0] ?? "Cold Storage",
@@ -1196,7 +1208,7 @@ function WarehouseDialog({
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.warehouse_name || !form.type || !form.location || !form.governorate || form.area <= 0) {
-      toast.error("Please fill in all required fields");
+      toast.error(t("warehouse.toast_required_fields"));
       return;
     }
     onSave(form);
@@ -1206,36 +1218,50 @@ function WarehouseDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{editing ? "Edit warehouse" : "Add warehouse"}</DialogTitle>
+          <DialogTitle className="text-[#1D2D44]">{editing ? t("warehouse.edit_warehouse") : t("warehouse.add")}</DialogTitle>
           <DialogDescription>
-            {editing ? "Update warehouse details." : "Fill in the details to create a new warehouse."}
+            {editing ? t("warehouse.edit.desc") : t("warehouse.add.desc")}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="grid gap-4 py-2">
           <div className="grid gap-2">
-            <Label>Warehouse name *</Label>
-            <Input value={form.warehouse_name} onChange={(e) => setForm({ ...form, warehouse_name: e.target.value })} placeholder="e.g. Cold Storage A" required />
+           <Label className="text-[#1D2D44]">{t("warehouse.name")} *</Label>
+            <Input 
+              value={form.warehouse_name} 
+              onChange={(e) => setForm({ ...form, warehouse_name: e.target.value })} 
+              placeholder={t("warehouse.name_placeholder")} 
+              className="text-[#1D2D44] placeholder:text-[#1D2D44]/70"
+              required 
+            />
           </div>
+
           <div className="grid gap-2">
-            <Label>Type *</Label>
+            <Label className="text-[#1D2D44]">{t("warehouse.type")} *</Label>
             <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger className="text-[#1D2D44]"><SelectValue placeholder={t("warehouse.select_type")} /></SelectTrigger>
               <SelectContent>
-                {allTypes.map((t) => (
-                  <SelectItem key={t} value={t}>{t}</SelectItem>
+                {allTypes.map((type) => (
+                  <SelectItem key={type} value={type}>{type}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-              <Label>Location *</Label>
-              <Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="e.g. Industrial Zone" required />
+              <Label className="text-[#1D2D44]">{t("warehouse.location")} *</Label>
+              <Input 
+                value={form.location} 
+                onChange={(e) => setForm({ ...form, location: e.target.value })} 
+                placeholder={t("warehouse.location_placeholder")} 
+                className="text-[#1D2D44] placeholder:text-[#1D2D44]/70"
+                required 
+              />
             </div>
             <div className="grid gap-2">
-              <Label>Governorate *</Label>
+              <Label className="text-[#1D2D44]">{t("warehouse.governorate")} *</Label>
               <Select value={form.governorate} onValueChange={(v) => setForm({ ...form, governorate: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="text-[#1D2D44]"><SelectValue placeholder={t("warehouse.select_governorate")} /></SelectTrigger>
                 <SelectContent>
                   {GOVERNORATE_OPTIONS.map((g) => (
                     <SelectItem key={g} value={g}>{g}</SelectItem>
@@ -1244,29 +1270,49 @@ function WarehouseDialog({
               </Select>
             </div>
           </div>
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-              <Label>Area (m&sup2;) *</Label>
-              <Input type="number" min={0} step={0.01} value={form.area} onChange={(e) => setForm({ ...form, area: Number(e.target.value) })} placeholder="e.g. 500" required />
+              <Label className="text-[#1D2D44]">{t("warehouse.area")} (m&sup2;) *</Label>
+              <Input 
+                type="number" 
+                min={0} 
+                step={0.01} 
+                value={form.area} 
+                onChange={(e) => setForm({ ...form, area: Number(e.target.value) })} 
+                placeholder={t("warehouse.area_placeholder")} 
+                className="text-[#1D2D44] placeholder:text-[#1D2D44]/70"
+                required 
+              />
             </div>
             <div className="grid gap-2">
-              <Label>Financial budget ($) *</Label>
-              <Input type="number" min={0} step={0.01} value={form.financial_budgets} onChange={(e) => setForm({ ...form, financial_budgets: Number(e.target.value) })} placeholder="e.g. 10000" required />
+              <Label className="text-[#1D2D44]">{t("warehouse.financial_budget")} *</Label>
+              <Input 
+                type="number" 
+                min={0} 
+                step={0.01} 
+                value={form.financial_budgets} 
+                onChange={(e) => setForm({ ...form, financial_budgets: Number(e.target.value) })} 
+                placeholder={t("warehouse.budget_placeholder")} 
+                className="text-[#1D2D44] placeholder:text-[#1D2D44]/70"
+                required 
+              />
             </div>
           </div>
+
           <div className="grid gap-2">
-            <Label>Description</Label>
+            <Label className="text-[#1D2D44]">{t("warehouse.description")}</Label>
             <textarea
               value={form.description ?? ""}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
-              placeholder="Optional notes about this warehouse..."
-              className="flex min-h-[80px] w-full rounded-xl border border-[#1a2942]/20 bg-white px-3 py-2 text-sm placeholder:text-[#1a2942]/40 focus:outline-none focus:ring-2 focus:ring-[#f3a523]"
+              placeholder={t("warehouse.description_placeholder")}
+              className="flex min-h-[80px] w-full rounded-xl border border-[#1a2942]/20 bg-white px-3 py-2 text-sm text-[#1D2D44] placeholder:text-[#1D2D44]/70 focus:outline-none focus:ring-2 focus:ring-[#f3a523]"
             />
           </div>
           <DialogFooter className="mt-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{t("common.cancel")}</Button>
             <Button type="submit" disabled={saving} className="bg-navy text-cream hover:bg-navy/90">
-              {saving ? "Saving..." : editing ? "Save changes" : "Add warehouse"}
+              {saving ? t("common.saving") : editing ? t("common.save_changes") : t("warehouse.add")}
             </Button>
           </DialogFooter>
         </form>
@@ -1281,17 +1327,18 @@ function WarehouseTypesSection({
 }: {
   types: WarehouseType[]; setTypes: React.Dispatch<React.SetStateAction<WarehouseType[]>>; managers: Manager[];
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<WarehouseType | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const handleSave = (t: WarehouseType) => {
-    if (types.some((x) => x.id === t.id)) {
-      setTypes((prev) => prev.map((x) => (x.id === t.id ? t : x)));
-      toast.success("Warehouse type updated");
+  const handleSave = (wtype: WarehouseType) => {
+    if (types.some((x) => x.id === wtype.id)) {
+      setTypes((prev) => prev.map((x) => (x.id === wtype.id ? wtype : x)));
+      toast.success(t("warehouse.toast_type_updated"));
     } else {
-      setTypes((prev) => [...prev, t]);
-      toast.success("Warehouse type added");
+      setTypes((prev) => [...prev, wtype]);
+      toast.success(t("warehouse.toast_type_added"));
     }
     setOpen(false);
     setEditing(null);
@@ -1300,39 +1347,39 @@ function WarehouseTypesSection({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-cream/80">Organize warehouses by type and visual identity.</p>
+        <p className="text-sm text-cream/80">{t("warehouse.types_subtitle")}</p>
         <Button onClick={() => { setEditing(null); setOpen(true); }} className="bg-navy text-cream hover:bg-navy/90">
-          <Plus className="size-4" /> Add warehouse type
+          <Plus className="size-4" /> {t("warehouse.add_type")}
         </Button>
       </div>
 
       {types.length === 0 ? (
-        <GlassCard><EmptyState icon={Warehouse} title="No warehouse types yet" subtitle="Create your first warehouse type to begin." /></GlassCard>
+        <GlassCard><EmptyState icon={Warehouse} title={t("warehouse.no_types_title")} subtitle={t("warehouse.no_types_subtitle")} /></GlassCard>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {types.map((t, i) => {
-            const Icon = ICON_MAP[t.icon] ?? Package;
-            const count = managers.filter((m) => m.warehouseId === t.id).length;
+          {types.map((wtype, i) => {
+            const Icon = ICON_MAP[wtype.icon] ?? Package;
+            const count = managers.filter((m) => m.warehouseId === wtype.id).length;
             return (
-              <motion.div key={t.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
+              <motion.div key={wtype.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
                 <GlassCard className="group h-full transition hover:-translate-y-0.5 hover:shadow-2xl">
                   <div className="flex items-start justify-between">
-                    <div className="flex size-11 items-center justify-center rounded-xl" style={{ background: `${t.color}25` }}>
-                      <Icon className="size-5" style={{ color: t.color }} />
+                    <div className="flex size-11 items-center justify-center rounded-xl" style={{ background: `${wtype.color}25` }}>
+                      <Icon className="size-5" style={{ color: wtype.color }} />
                     </div>
-                    <Badge variant="secondary" className="text-[10px]">{t.status}</Badge>
+                    <Badge variant="secondary" className="text-[10px]">{wtype.status}</Badge>
                   </div>
-                  <h4 className="mt-3 text-base font-semibold">{t.name}</h4>
-                  <p className="mt-1 text-sm text-[#1a2942]/70">{t.description}</p>
+                  <h4 className="mt-3 text-base font-semibold">{wtype.name}</h4>
+                  <p className="mt-1 text-sm text-[#1a2942]/70">{wtype.description}</p>
                   <div className="mt-4 flex items-center justify-between border-t border-white/40 pt-3">
                     <span className="inline-flex items-center gap-1.5 text-xs text-[#1a2942]/70">
-                      <Users className="size-3.5" /> {count} manager{count === 1 ? "" : "s"}
+                      <Users className="size-3.5" /> {t("warehouse.manager_count", { count })}
                     </span>
                     <div className="flex gap-1 opacity-0 transition group-hover:opacity-100">
-                      <Button size="sm" variant="ghost" onClick={() => { setEditing(t); setOpen(true); }}>
+                      <Button size="sm" variant="ghost" onClick={() => { setEditing(wtype); setOpen(true); }}>
                         <Pencil className="size-3.5" />
                       </Button>
-                      <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setDeleteId(t.id)}>
+                      <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setDeleteId(wtype.id)}>
                         <Trash2 className="size-3.5" />
                       </Button>
                     </div>
@@ -1349,20 +1396,20 @@ function WarehouseTypesSection({
       <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete warehouse type?</AlertDialogTitle>
-            <AlertDialogDescription>Managers assigned to this type will need to be reassigned.</AlertDialogDescription>
+            <AlertDialogTitle>{t("warehouse.delete_type_title")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("warehouse.delete_type_desc")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 setTypes((prev) => prev.filter((t) => t.id !== deleteId));
-                toast.success("Type deleted");
+                toast.success(t("warehouse.toast_type_deleted"));
                 setDeleteId(null);
               }}
               className="bg-destructive hover:bg-destructive/90"
             >
-              Delete
+              {t("common.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1379,6 +1426,7 @@ function WarehouseTypeDialog({
   open: boolean; onOpenChange: (o: boolean) => void;
   editing: WarehouseType | null; onSave: (t: WarehouseType) => void;
 }) {
+  const { t } = useTranslation();
   const [form, setForm] = useState<WarehouseType>({
     id: "", name: "", description: "", color: "#A7B3C3", icon: "Package", status: "active",
   });
@@ -1392,27 +1440,27 @@ function WarehouseTypeDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{editing ? "Edit type" : "Add warehouse type"}</DialogTitle>
+          <DialogTitle>{editing ? t("warehouse.edit_type") : t("warehouse.add_type")}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={(e) => { e.preventDefault(); if (!form.name) { toast.error("Name required"); return; } onSave(form); }} className="grid gap-4 py-2">
+        <form onSubmit={(e) => { e.preventDefault(); if (!form.name) { toast.error(t("warehouse.toast_name_required")); return; } onSave(form); }} className="grid gap-4 py-2">
           <div className="grid gap-2">
-            <Label>Type name</Label>
+            <Label>{t("warehouse.type_name")}</Label>
             <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Cold Storage" />
           </div>
           <div className="grid gap-2">
-            <Label>Description</Label>
+            <Label>{t("warehouse.description")}</Label>
             <Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-              <Label>Color code</Label>
+              <Label>{t("warehouse.color_code")}</Label>
               <div className="flex items-center gap-2">
                 <input type="color" value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })} className="h-10 w-14 cursor-pointer rounded-lg border border-white/40 bg-transparent" />
                 <Input value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })} className="flex-1" />
               </div>
             </div>
             <div className="grid gap-2">
-              <Label>Icon</Label>
+              <Label>{t("warehouse.icon")}</Label>
               <div className="grid grid-cols-6 gap-2">
                 {ICON_OPTIONS.map((name) => {
                   const I = ICON_MAP[name];
@@ -1428,8 +1476,8 @@ function WarehouseTypeDialog({
             </div>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button type="submit" className="bg-navy text-cream hover:bg-navy/90">{editing ? "Save" : "Create"}</Button>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{t("common.cancel")}</Button>
+            <Button type="submit" className="bg-navy text-cream hover:bg-navy/90">{editing ? t("common.save") : t("common.create")}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -1439,6 +1487,7 @@ function WarehouseTypeDialog({
 
 /* -------------------- Analytics -------------------- */
 function AnalyticsSection({ slug }: { slug?: string | null }) {
+  const { t } = useTranslation();
   const [types] = useState<WarehouseType[]>(initialWarehouseTypes);
   const [managers] = useState<Manager[]>(initialManagers);
   const [selected, setSelected] = useState(types[0]?.id ?? "");
@@ -1454,11 +1503,11 @@ function AnalyticsSection({ slug }: { slug?: string | null }) {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-cream">Warehouse analytics</h3>
-          <p className="text-sm text-cream/70">Performance and operations breakdown.</p>
+          <h3 className="text-lg font-semibold text-cream">{t("dashboard.analytics_title")}</h3>
+          <p className="text-sm text-cream/70">{t("dashboard.analytics_subtitle")}</p>
         </div>
         <Select value={selected} onValueChange={setSelected}>
-          <SelectTrigger className="w-full bg-white/10 text-cream sm:w-64"><SelectValue placeholder="Select warehouse" /></SelectTrigger>
+          <SelectTrigger className="w-full bg-white/10 text-cream sm:w-64"><SelectValue placeholder={t("dashboard.select_warehouse")} /></SelectTrigger>
           <SelectContent>
             {types.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
           </SelectContent>
@@ -1467,14 +1516,14 @@ function AnalyticsSection({ slug }: { slug?: string | null }) {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          { label: "Total inventory", value: "12,840", icon: Boxes },
-          { label: "Active managers", value: assigned.toString(), icon: Users },
-          { label: "Monthly shipments", value: "684", icon: Truck },
-          { label: "Capacity used", value: "72%", icon: Activity },
+          { labelKey: "dashboard.stat_total_inventory", value: "12,840", icon: Boxes },
+          { labelKey: "dashboard.stat_active_managers", value: assigned.toString(), icon: Users },
+          { labelKey: "dashboard.stat_monthly_shipments", value: "684", icon: Truck },
+          { labelKey: "dashboard.stat_capacity_used", value: "72%", icon: Activity },
         ].map((s) => (
-          <GlassCard key={s.label}>
+          <GlassCard key={s.labelKey}>
             <div className="flex items-center justify-between">
-              <p className="text-xs uppercase tracking-wider text-[#1a2942]/70">{s.label}</p>
+              <p className="text-xs uppercase tracking-wider text-[#1a2942]/70">{t(s.labelKey)}</p>
               <s.icon className="size-4 text-[oklch(0.74_0.02_252)]" />
             </div>
             <p className="mt-2 text-2xl font-bold">{s.value}</p>
@@ -1485,11 +1534,11 @@ function AnalyticsSection({ slug }: { slug?: string | null }) {
 
       <div className="grid gap-4 lg:grid-cols-3">
         <GlassCard className="lg:col-span-2">
-          <h4 className="mb-4 text-sm font-semibold">Inventory trend</h4>
+          <h4 className="mb-4 text-sm font-semibold">{t("dashboard.inventory_trend")}</h4>
           <ChartArea />
         </GlassCard>
         <GlassCard>
-          <h4 className="mb-4 text-sm font-semibold">Capacity utilization</h4>
+          <h4 className="mb-4 text-sm font-semibold">{t("dashboard.capacity_utilization")}</h4>
           <div className="h-[240px]">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -1502,7 +1551,7 @@ function AnalyticsSection({ slug }: { slug?: string | null }) {
           </div>
           <div className="mt-2 flex justify-center gap-4 text-xs">
             {capacity.map((c) => (
-              <span key={c.name} className="flex items-center gap-1.5"><span className="size-2 rounded-full" style={{ background: c.color }} />{c.name} {c.value}%</span>
+              <span key={c.name} className="flex items-center gap-1.5"><span className="size-2 rounded-full" style={{ background: c.color }} />{t(`dashboard.capacity_${c.name.toLowerCase()}`)} {c.value}%</span>
             ))}
           </div>
         </GlassCard>
@@ -1510,7 +1559,7 @@ function AnalyticsSection({ slug }: { slug?: string | null }) {
 
       <div className="grid gap-4 lg:grid-cols-3">
         <GlassCard className="lg:col-span-2">
-          <h4 className="mb-4 text-sm font-semibold">Incoming vs outgoing shipments</h4>
+          <h4 className="mb-4 text-sm font-semibold">{t("dashboard.incoming_outgoing")}</h4>
           <div className="h-[260px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={shipmentsData}>
@@ -1526,18 +1575,18 @@ function AnalyticsSection({ slug }: { slug?: string | null }) {
           </div>
         </GlassCard>
         <GlassCard>
-          <h4 className="mb-4 text-sm font-semibold">Performance</h4>
+          <h4 className="mb-4 text-sm font-semibold">{t("dashboard.performance")}</h4>
           <div className="space-y-4">
-            <Metric label="Order fulfillment rate" value={96} />
-            <Metric label="On-time dispatch" value={89} />
-            <Metric label="Avg processing (hrs)" raw="3.2h" value={68} />
-            <Metric label="Damage rate" raw="0.4%" value={4} inverted />
+            <Metric label={t("dashboard.metric_fulfillment")} value={96} />
+            <Metric label={t("dashboard.metric_ontime")} value={89} />
+            <Metric label={t("dashboard.metric_processing")} raw="3.2h" value={68} />
+            <Metric label={t("dashboard.metric_damage")} raw="0.4%" value={4} inverted />
           </div>
         </GlassCard>
       </div>
 
       <GlassCard>
-        <h4 className="mb-4 text-sm font-semibold">Recent activity — {wh?.name}</h4>
+        <h4 className="mb-4 text-sm font-semibold">{t("dashboard.recent_activity")} — {wh?.name}</h4>
         <ul className="divide-y divide-white/40">
           {recentActivity.map((a) => (
             <li key={a.id} className="flex items-center justify-between py-3 text-sm">
@@ -1592,43 +1641,44 @@ function ChartArea() {
 
 /* -------------------- Wallet -------------------- */
 function WalletSection() {
+  const { t } = useTranslation();
   return (
     <div className="space-y-6">
       <div className="grid gap-4 lg:grid-cols-3">
         <GlassCard className="lg:col-span-2 relative overflow-hidden">
-          <div className="absolute -right-20 -top-20 size-64 rounded-full bg-[oklch(0.78_0.16_75)]/30 blur-3xl" />
+          <div className="absolute -end-20 -top-20 size-64 rounded-full bg-[oklch(0.78_0.16_75)]/30 blur-3xl" />
           <div className="relative">
-            <p className="text-xs uppercase tracking-wider text-[#1a2942]/70">Available balance</p>
+            <p className="text-xs uppercase tracking-wider text-[#1a2942]/70">{t("wallet.available_balance")}</p>
             <p className="mt-2 text-4xl font-bold">$24,820.45</p>
-            <p className="mt-1 text-xs text-[#1a2942]/70">Updated just now</p>
+            <p className="mt-1 text-xs text-[#1a2942]/70">{t("wallet.updated_just_now")}</p>
             <div className="mt-6 flex flex-wrap gap-2">
-              <Button className="bg-navy text-cream hover:bg-navy/90"><Plus className="size-4" /> Top up</Button>
-              <Button variant="outline"><CreditCard className="size-4" /> Manage cards</Button>
-              <Button variant="outline"><ArrowUpRight className="size-4" /> Send</Button>
+              <Button className="bg-navy text-cream hover:bg-navy/90"><Plus className="size-4" /> {t("wallet.top_up")}</Button>
+              <Button variant="outline"><CreditCard className="size-4" /> {t("wallet.manage_cards")}</Button>
+              <Button variant="outline"><ArrowUpRight className="size-4" /> {t("wallet.send")}</Button>
             </div>
           </div>
         </GlassCard>
         <GlassCard>
-          <p className="text-xs uppercase tracking-wider text-[#1a2942]/70">This month</p>
+          <p className="text-xs uppercase tracking-wider text-[#1a2942]/70">{t("wallet.this_month")}</p>
           <div className="mt-2 space-y-3 text-sm">
-            <div className="flex justify-between"><span className="text-[#1a2942]/70">Income</span><span className="font-semibold text-emerald-600">+ $7,090</span></div>
-            <div className="flex justify-between"><span className="text-[#1a2942]/70">Spending</span><span className="font-semibold text-rose-600">− $2,369</span></div>
-            <div className="flex justify-between border-t border-white/40 pt-2"><span>Net</span><span className="font-bold">+ $4,721</span></div>
+            <div className="flex justify-between"><span className="text-[#1a2942]/70">{t("wallet.income")}</span><span className="font-semibold text-emerald-600">+ $7,090</span></div>
+            <div className="flex justify-between"><span className="text-[#1a2942]/70">{t("wallet.spending")}</span><span className="font-semibold text-rose-600">− $2,369</span></div>
+            <div className="flex justify-between border-t border-white/40 pt-2"><span>{t("wallet.net")}</span><span className="font-bold">+ $4,721</span></div>
           </div>
         </GlassCard>
       </div>
 
       <GlassCard className="p-0 overflow-hidden">
         <div className="flex items-center justify-between border-b border-white/40 px-5 py-3">
-          <h4 className="text-sm font-semibold">Recent transactions</h4>
-          <Button size="sm" variant="ghost">View all</Button>
+          <h4 className="text-sm font-semibold">{t("wallet.recent_transactions")}</h4>
+          <Button size="sm" variant="ghost">{t("wallet.view_all")}</Button>
         </div>
         <Table>
           <TableHeader>
             <TableRow className="border-white/40 hover:bg-transparent">
-              <TableHead>Date</TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
+              <TableHead>{t("common.date")}</TableHead>
+              <TableHead>{t("common.description")}</TableHead>
+              <TableHead className="text-end">{t("common.amount")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -1636,7 +1686,7 @@ function WalletSection() {
               <TableRow key={t.id} className="border-white/40">
                 <TableCell className="text-[#1a2942]/70">{t.date}</TableCell>
                 <TableCell className="font-medium">{t.description}</TableCell>
-                <TableCell className="text-right">
+                <TableCell className="text-end">
                   <span className={cn("inline-flex items-center gap-1 font-semibold", t.amount > 0 ? "text-emerald-600" : "text-rose-600")}>
                     {t.amount > 0 ? <ArrowUpRight className="size-3" /> : <ArrowDownRight className="size-3" />}
                     {t.amount > 0 ? "+" : "−"}${Math.abs(t.amount).toLocaleString()}
@@ -1653,31 +1703,32 @@ function WalletSection() {
 
 /* -------------------- Settings -------------------- */
 function SettingsSection() {
+  const { t } = useTranslation();
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <GlassCard>
-        <h4 className="text-sm font-semibold">Profile picture</h4>
-        <p className="mb-4 text-xs text-[#1a2942]/70">Shown in the header and across the app.</p>
+        <h4 className="text-sm font-semibold">{t("settings.profile_picture")}</h4>
+        <p className="mb-4 text-xs text-[#1a2942]/70">{t("settings.profile_picture.desc")}</p>
         <div className="rounded-xl bg-navy/90 p-4">
           <ProfilePictureUpload role="admin" fallback="A" />
         </div>
       </GlassCard>
       <GlassCard>
-        <h4 className="text-sm font-semibold">Account</h4>
-        <p className="mb-4 text-xs text-[#1a2942]/70">Update your personal info.</p>
+        <h4 className="text-sm font-semibold">{t("settings.account")}</h4>
+        <p className="mb-4 text-xs text-[#1a2942]/70">{t("settings.account.desc")}</p>
         <div className="space-y-3">
-          <div className="grid gap-2"><Label>Full name</Label><Input defaultValue="Amelia Carter" /></div>
-          <div className="grid gap-2"><Label>Email</Label><Input defaultValue="amelia@stockyard.io" /></div>
-          <Button onClick={() => toast.success("Profile saved")} className="bg-navy text-cream hover:bg-navy/90">Save changes</Button>
+          <div className="grid gap-2"><Label>{t("settings.full_name")}</Label><Input defaultValue="Amelia Carter" /></div>
+          <div className="grid gap-2"><Label>{t("settings.email")}</Label><Input defaultValue="amelia@stockyard.io" /></div>
+          <Button onClick={() => toast.success(t("settings.toast_profile_saved"))} className="bg-navy text-cream hover:bg-navy/90">{t("common.save_changes")}</Button>
         </div>
       </GlassCard>
       <GlassCard className="lg:col-span-2">
-        <h4 className="text-sm font-semibold">Notifications</h4>
-        <p className="mb-4 text-xs text-[#1a2942]/70">Control what you hear about.</p>
+        <h4 className="text-sm font-semibold">{t("settings.notifications")}</h4>
+        <p className="mb-4 text-xs text-[#1a2942]/70">{t("settings.notifications.desc")}</p>
         <div className="grid gap-3 text-sm sm:grid-cols-2">
-          {["New shipments", "Manager updates", "Low inventory alerts", "Wallet activity"].map((n) => (
-            <label key={n} className="flex items-center justify-between rounded-xl border border-white/40 bg-white/40 px-4 py-3">
-              <span>{n}</span>
+          {["settings.notif_new_shipments", "settings.notif_manager_updates", "settings.notif_low_inventory", "settings.notif_wallet_activity"].map((k) => (
+            <label key={k} className="flex items-center justify-between rounded-xl border border-white/40 bg-white/40 px-4 py-3">
+              <span>{t(k)}</span>
               <input type="checkbox" defaultChecked className="size-4 accent-[oklch(0.28_0.04_252)]" />
             </label>
           ))}
@@ -1689,12 +1740,13 @@ function SettingsSection() {
 
 /* -------------------- Subscription Requests -------------------- */
 function SubscriptionRequestsSection() {
+  const { t } = useTranslation();
   const [subs, setSubs] = useState<SubscriptionRequest[]>(() => subscriptionStore.list());
   useEffect(() => subscriptionStore.subscribe(() => setSubs(subscriptionStore.list())), []);
 
   const act = (id: string, status: "approved" | "rejected" | "active") => {
     subscriptionStore.update(id, status);
-    toast.success(`Request ${status}`);
+    toast.success(t("dashboard.toast_request_status", { status }));
   };
 
   const badge = (s: SubscriptionRequest["status"]) =>
@@ -1707,23 +1759,23 @@ function SubscriptionRequestsSection() {
     <div className="space-y-4">
       <GlassCard className="p-0 overflow-hidden">
         <div className="flex items-center justify-between border-b border-white/40 px-5 py-3">
-          <h4 className="text-sm font-semibold">Subscription requests</h4>
-          <Badge variant="outline">{subs.filter((s) => s.status === "pending").length} pending</Badge>
+          <h4 className="text-sm font-semibold">{t("dashboard.subscription_requests")}</h4>
+          <Badge variant="outline">{t("dashboard.pending_count", { count: subs.filter((s) => s.status === "pending").length })}</Badge>
         </div>
         <Table>
           <TableHeader>
             <TableRow className="border-white/40 hover:bg-transparent">
-              <TableHead>Company</TableHead>
-              <TableHead>Warehouses</TableHead>
-              <TableHead>Slok</TableHead>
-              <TableHead>Request date</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead>{t("common.company")}</TableHead>
+              <TableHead>{t("sidebar.warehouses")}</TableHead>
+              <TableHead>{t("dashboard.slok")}</TableHead>
+              <TableHead>{t("dashboard.request_date")}</TableHead>
+              <TableHead>{t("common.status")}</TableHead>
+              <TableHead className="text-end">{t("common.actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {subs.length === 0 && (
-              <TableRow><TableCell colSpan={6} className="py-8 text-center text-[#1a2942]/70">No requests yet.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={6} className="py-8 text-center text-[#1a2942]/70">{t("dashboard.no_requests")}</TableCell></TableRow>
             )}
             {subs.map((s) => (
               <TableRow key={s.id} className="border-white/40">
@@ -1732,15 +1784,15 @@ function SubscriptionRequestsSection() {
                 <TableCell className="font-mono text-xs">{s.slok}</TableCell>
                 <TableCell className="text-[#1a2942]/70">{s.requestDate}</TableCell>
                 <TableCell><Badge variant="outline" className={cn("capitalize", badge(s.status))}>{s.status}</Badge></TableCell>
-                <TableCell className="text-right">
+                <TableCell className="text-end">
                   {s.status === "pending" && (
                     <div className="inline-flex gap-2">
-                      <Button size="sm" onClick={() => act(s.id, "approved")} className="bg-navy text-cream hover:bg-navy/90">Approve</Button>
-                      <Button size="sm" variant="outline" onClick={() => act(s.id, "rejected")}>Reject</Button>
+                      <Button size="sm" onClick={() => act(s.id, "approved")} className="bg-navy text-cream hover:bg-navy/90">{t("dashboard.approve")}</Button>
+                      <Button size="sm" variant="outline" onClick={() => act(s.id, "rejected")}>{t("order.reject")}</Button>
                     </div>
                   )}
                   {s.status === "approved" && (
-                    <Button size="sm" onClick={() => act(s.id, "active")} className="bg-navy text-cream hover:bg-navy/90">Activate</Button>
+                    <Button size="sm" onClick={() => act(s.id, "active")} className="bg-navy text-cream hover:bg-navy/90">{t("dashboard.activate")}</Button>
                   )}
                 </TableCell>
               </TableRow>
@@ -1768,6 +1820,7 @@ function EmptyState({ icon: Icon, title, subtitle }: { icon: React.ComponentType
 
 /* -------------------- Products -------------------- */
 function ProductsSection({ slug }: { slug?: string | null }) {
+  const { t } = useTranslation();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("");
@@ -1801,41 +1854,41 @@ function ProductsSection({ slug }: { slug?: string | null }) {
     try {
       if (data.id) {
         await updateProduct(slug, data.id, data);
-        toast.success("Product updated");
+        toast.success(t("product.updated"));
       } else {
         await createProduct(slug, data);
-        toast.success("Product added");
+        toast.success(t("product.created"));
       }
       setOpen(false);
       setEditing(null);
       load();
     } catch (err: any) {
-      toast.error(err.response?.data?.message || "Operation failed");
+      toast.error(err.response?.data?.message || t("common.operation_failed"));
     } finally {
       setSaving(false);
     }
   };
 
   if (!slug) {
-    return <GlassCard><EmptyState icon={Package} title="Connect to a tenant" subtitle="Log in with a tenant slug to view products." /></GlassCard>;
+    return <GlassCard><EmptyState icon={Package} title={t("product.connect_tenant")} subtitle={t("product.connect_tenant.desc")} /></GlassCard>;
   }
 
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <p className="text-sm text-cream/80">{products.length} products in catalogue.</p>
+          <p className="text-sm text-cream/80">{t("product.catalogue_count", { count: products.length })}</p>
           <Button onClick={() => { setEditing(null); setOpen(true); }} className="bg-navy text-cream hover:bg-navy/90">
-            <Plus className="size-4" /> Add product
+            <Plus className="size-4" /> {t("product.add")}
           </Button>
         </div>
         <div className="relative w-full sm:max-w-xs">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-cream/50" />
+          <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-cream/50" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search products..."
-            className="h-9 w-full rounded-full border border-white/15 bg-white/5 pl-9 pr-3 text-sm text-cream placeholder:text-cream/40 outline-none transition focus:border-[oklch(0.78_0.16_75)]/60"
+            placeholder={t("product.search_placeholder")}
+            className="h-9 w-full rounded-full border border-white/15 bg-white/5 ps-9 pe-3 text-sm text-cream placeholder:text-cream/40 outline-none transition focus:border-[oklch(0.78_0.16_75)]/60"
           />
         </div>
       </div>
@@ -1851,7 +1904,7 @@ function ProductsSection({ slug }: { slug?: string | null }) {
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <GlassCard><EmptyState icon={Package} title="No products found" subtitle={query ? "Try a different search term." : "No products in this tenant yet."} /></GlassCard>
+        <GlassCard><EmptyState icon={Package} title={t("product.no_products_found")} subtitle={query ? t("product.try_different_search") : t("product.no_products_tenant")} /></GlassCard>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((p) => (
@@ -1871,7 +1924,7 @@ function ProductsSection({ slug }: { slug?: string | null }) {
                   </div>
                 )}
                 <div className="mt-4 flex items-center justify-between border-t border-white/40 pt-3 text-xs">
-                  <span>${p.selling_price} / unit</span>
+                  <span>{t("product.price_per_unit", { price: `$${p.selling_price}` })}</span>
                   <div className="flex items-center gap-1 opacity-0 transition group-hover:opacity-100">
                     <button onClick={() => { setEditing(p); setOpen(true); }} className="text-navy hover:text-navy/80">
                       <Pencil className="size-3.5" />
@@ -1880,16 +1933,16 @@ function ProductsSection({ slug }: { slug?: string | null }) {
                       if (!slug) return;
                       try {
                         await deleteProduct(slug, p.id);
-                        toast.success("Product deleted");
+                        toast.success(t("product.deleted"));
                         load();
                       } catch (err: any) {
-                        toast.error(err.response?.data?.message || "Delete failed");
+                        toast.error(err.response?.data?.message || t("common.delete_failed"));
                       }
                     }} className="text-red-600 hover:text-red-700">
                       <Trash2 className="size-3.5" />
                     </button>
                   </div>
-                  <span className="text-[#1a2942]/70">{p.units_per_packing} per pack</span>
+                  <span className="text-[#1a2942]/70">{t("product.per_pack", { count: p.units_per_packing })}</span>
                 </div>
               </GlassCard>
             </motion.div>
@@ -1910,6 +1963,7 @@ function ProductsSection({ slug }: { slug?: string | null }) {
 
 /* -------------------- Shipments -------------------- */
 function ShipmentsSection({ slug }: { slug?: string | null }) {
+  const { t } = useTranslation();
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -1929,10 +1983,10 @@ function ShipmentsSection({ slug }: { slug?: string | null }) {
     if (!slug) return;
     try {
       await receiveShipment(slug, id);
-      toast.success("Shipment received");
+      toast.success(t("shipment.received_success"));
       load();
     } catch (err: any) {
-      toast.error(err.response?.data?.message || "Failed to receive shipment");
+      toast.error(err.response?.data?.message || t("shipment.toast_receive_failed"));
     }
   };
 
@@ -1946,29 +2000,29 @@ function ShipmentsSection({ slug }: { slug?: string | null }) {
   };
 
   if (!slug) {
-    return <GlassCard><EmptyState icon={Truck} title="Connect to a tenant" subtitle="Log in with a tenant slug to view shipments." /></GlassCard>;
+    return <GlassCard><EmptyState icon={Truck} title={t("shipment.connect_tenant")} subtitle={t("shipment.connect_tenant.desc")} /></GlassCard>;
   }
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-cream/80">{shipments.length} shipments found.</p>
+      <p className="text-sm text-cream/80">{t("shipment.count", { count: shipments.length })}</p>
 
       {loading ? (
         <GlassCard><Skeleton className="h-40 w-full bg-white/20" /></GlassCard>
       ) : shipments.length === 0 ? (
-        <GlassCard><EmptyState icon={Truck} title="No shipments yet" subtitle="Shipments will appear here once created." /></GlassCard>
+        <GlassCard><EmptyState icon={Truck} title={t("shipment.no_shipments")} subtitle={t("shipment.no_shipments_subtitle")} /></GlassCard>
       ) : (
         <GlassCard className="overflow-hidden p-0">
           <Table>
             <TableHeader>
               <TableRow className="border-white/40 hover:bg-transparent">
-                <TableHead>ID</TableHead>
-                <TableHead>Factory</TableHead>
-                <TableHead>Warehouse</TableHead>
-                <TableHead>Total</TableHead>
-                <TableHead>Arrival</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead>{t("common.id")}</TableHead>
+                <TableHead>{t("shipment.factory")}</TableHead>
+                <TableHead>{t("common.warehouse")}</TableHead>
+                <TableHead>{t("shipment.total")}</TableHead>
+                <TableHead>{t("shipment.arrival")}</TableHead>
+                <TableHead>{t("common.status")}</TableHead>
+                <TableHead className="text-end">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1984,10 +2038,10 @@ function ShipmentsSection({ slug }: { slug?: string | null }) {
                       {s.status_label}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-end">
                     {s.can_receive ? (
                       <Button size="sm" onClick={() => handleReceive(s.id)} className="bg-navy text-cream hover:bg-navy/90">
-                        <CheckCircle2 className="size-3.5" /> Receive
+                        <CheckCircle2 className="size-3.5" /> {t("shipment.receive")}
                       </Button>
                     ) : (
                       <span className="text-xs text-[#1a2942]/70">—</span>
@@ -2011,6 +2065,7 @@ function ProductDialog({
   editing: Product | null; onSave: (d: ProductInput & { id?: number }) => void;
   saving: boolean;
 }) {
+  const { t } = useTranslation();
   const [form, setForm] = useState<ProductInput & { id?: number }>({
     name: "", brand: "", type: "",
     piece_barcode: "", parcel_barcode: "",
@@ -2056,11 +2111,11 @@ function ProductDialog({
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.brand || !form.type) {
-      toast.error("Please fill in name, brand, and type");
+      toast.error(t("product.toast_required_fields"));
       return;
     }
     if (!form.piece_barcode) {
-      toast.error("Piece barcode is required");
+      toast.error(t("product.toast_barcode_required"));
       return;
     }
     onSave(form);
@@ -2070,15 +2125,15 @@ function ProductDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-[#1D2D44]">{editing ? "Edit product" : "Add product"}</DialogTitle>
+          <DialogTitle className="text-[#1D2D44]">{editing ? t("product.edit") : t("product.add")}</DialogTitle>
           <DialogDescription>
-            {editing ? "Update product details." : "Fill in the details to create a new product."}
+            {editing ? t("product.edit.desc") : t("product.add.desc")}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="grid gap-4 py-2">
           <div className="grid gap-4 sm:grid-cols-2">
            <div className="grid gap-2">
-  <Label className="text-[#1D2D44]">Name *</Label>
+  <Label className="text-[#1D2D44]">{t("product.name")} *</Label>
   <Input 
     value={form.name} 
     onChange={(e) => {
@@ -2090,16 +2145,16 @@ function ProductDialog({
         parcel_barcode: editing ? form.parcel_barcode : toBarcode(name, true) 
       });
     }} 
-    placeholder="Product name" 
+    placeholder={t("product.name_placeholder")} 
     required 
     className="text-[#1D2D44] placeholder:text-[#1D2D44]/50 focus:text-[#1D2D44]"
   />
 </div> <div className="grid gap-2">
-  <Label className="text-[#1D2D44]">Brand *</Label>
+  <Label className="text-[#1D2D44]">{t("product.brand")} *</Label>
   <Input 
     value={form.brand} 
     onChange={(e) => setForm({ ...form, brand: e.target.value })} 
-    placeholder="Brand name" 
+    placeholder={t("product.brand_placeholder")} 
     required 
     className="text-[#1D2D44] placeholder:text-[#1D2D44]/50 focus:text-[#1D2D44]"
   />
@@ -2107,17 +2162,17 @@ function ProductDialog({
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-    <Label className="text-[#1D2D44]">Type *</Label>
+    <Label className="text-[#1D2D44]">{t("product.type")} *</Label>
     <Input 
       value={form.type} 
       onChange={(e) => setForm({ ...form, type: e.target.value })} 
-      placeholder="e.g. Electronics" 
+      placeholder={t("product.type_placeholder")} 
       required 
       className="text-[#1D2D44] placeholder:text-[#1D2D44]/50 focus:text-[#1D2D44]"
     />
   </div>
             <div className="grid gap-2">
-    <Label className="text-[#1D2D44]">Units per packing *</Label>
+    <Label className="text-[#1D2D44]">{t("product.units_per_packing")} *</Label>
     <Input 
       type="number" 
       min={1} 
@@ -2129,17 +2184,17 @@ function ProductDialog({
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-              <Label className="text-[#1D2D44]">Piece barcode</Label>
-              <Input value={form.piece_barcode} readOnly placeholder="Auto-generated from name" className="bg-gray-100 text-gray-500 cursor-not-allowed" />
+              <Label className="text-[#1D2D44]">{t("product.barcode")}</Label>
+              <Input value={form.piece_barcode} readOnly placeholder={t("product.barcode_auto")} className="bg-gray-100 text-gray-500 cursor-not-allowed" />
             </div>
             <div className="grid gap-2">
-              <Label className="text-[#1D2D44]">Parcel barcode</Label>
-              <Input value={form.parcel_barcode} readOnly placeholder="Auto-generated from name" className="bg-gray-100 text-gray-500 cursor-not-allowed" />
+              <Label className="text-[#1D2D44]">{t("product.parcel_barcode")}</Label>
+              <Input value={form.parcel_barcode} readOnly placeholder={t("product.barcode_auto")} className="bg-gray-100 text-gray-500 cursor-not-allowed" />
             </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-    <Label className="text-[#1D2D44]">Purchase price ($) *</Label>
+    <Label className="text-[#1D2D44]">{t("product.purchase_price")} ($) *</Label>
     <Input 
       type="number" 
       min={0} 
@@ -2150,7 +2205,7 @@ function ProductDialog({
     />
   </div>
   <div className="grid gap-2">
-    <Label className="text-[#1D2D44]">Selling price ($) *</Label>
+    <Label className="text-[#1D2D44]">{t("product.selling_price")} ($) *</Label>
     <Input 
       type="number" 
       min={0} 
@@ -2165,7 +2220,7 @@ function ProductDialog({
 {/* Dimension Fields */}
 <div className="grid gap-4 sm:grid-cols-3">
   <div className="grid gap-2">
-    <Label className="text-[#1D2D44]">Parcel length (cm)</Label>
+    <Label className="text-[#1D2D44]">{t("product.parcel_length")} (cm)</Label>
     <Input 
       type="number" 
       min={0} 
@@ -2176,7 +2231,7 @@ function ProductDialog({
     />
   </div>
   <div className="grid gap-2">
-    <Label className="text-[#1D2D44]">Parcel width (cm)</Label>
+    <Label className="text-[#1D2D44]">{t("product.parcel_width")} (cm)</Label>
     <Input 
       type="number" 
       min={0} 
@@ -2187,7 +2242,7 @@ function ProductDialog({
     />
   </div>
   <div className="grid gap-2">
-    <Label className="text-[#1D2D44]">Parcel height (cm)</Label>
+    <Label className="text-[#1D2D44]">{t("product.parcel_height")} (cm)</Label>
     <Input 
       type="number" 
       min={0} 
@@ -2204,10 +2259,10 @@ function ProductDialog({
     onClick={() => onOpenChange(false)} 
     className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#E2DDD3] border border-[#1D2D44]/20"
   >
-    Cancel
+    {t("common.cancel")}
   </Button>
   <Button type="submit" disabled={saving} className="bg-navy text-cream hover:bg-navy/90">
-    {saving ? "Saving..." : editing ? "Save changes" : "Add product"}
+    {saving ? t("common.saving") : editing ? t("common.save_changes") : t("product.add")}
   </Button>
 </DialogFooter>
         </form>

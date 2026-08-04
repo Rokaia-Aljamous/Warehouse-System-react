@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Camera, Trash2, Upload, ZoomIn, ZoomOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export function ProfilePictureUpload({ role, fallback = "U" }: Props) {
+  const { t } = useTranslation();
   const [src, setSrc] = useState<string | null>(null);
   const [pending, setPending] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -18,8 +20,8 @@ export function ProfilePictureUpload({ role, fallback = "U" }: Props) {
   useEffect(() => { setSrc(getProfilePic(role)); }, [role]);
 
   const onFile = (f: File) => {
-    if (!f.type.match(/image\/(jpeg|png|gif)/)) { toast.error("Use JPG, PNG or GIF"); return; }
-    if (f.size > 4 * 1024 * 1024) { toast.error("Max 4MB"); return; }
+    if (!f.type.match(/image\/(jpeg|png|gif)/)) { toast.error(t("profile_pic.type_error")); return; }
+    if (f.size > 4 * 1024 * 1024) { toast.error(t("profile_pic.size_error")); return; }
     const r = new FileReader();
     r.onload = () => { setPending(r.result as string); setZoom(1); };
     r.readAsDataURL(f);
@@ -30,14 +32,14 @@ export function ProfilePictureUpload({ role, fallback = "U" }: Props) {
     setProfilePic(role, pending);
     setSrc(pending);
     setPending(null);
-    toast.success("Profile picture updated");
+    toast.success(t("profile_pic.updated"));
   };
 
   const remove = () => {
     setProfilePic(role, null);
     setSrc(null);
     setPending(null);
-    toast.success("Profile picture removed");
+    toast.success(t("profile_pic.removed"));
   };
 
   const preview = pending ?? src;
@@ -49,7 +51,7 @@ export function ProfilePictureUpload({ role, fallback = "U" }: Props) {
           {preview ? (
             <img
               src={preview}
-              alt="Profile"
+              alt={t("profile_pic.alt")}
               className="h-full w-full object-cover transition-transform"
               style={{ transform: `scale(${zoom})` }}
             />
@@ -68,11 +70,11 @@ export function ProfilePictureUpload({ role, fallback = "U" }: Props) {
             onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
           />
           <Button type="button" size="sm" variant="outline" onClick={() => inputRef.current?.click()}>
-            <Upload className="size-4" /> Upload
+            <Upload className="size-4" /> {t("profile_pic.upload")}
           </Button>
           {src && (
             <Button type="button" size="sm" variant="outline" onClick={remove}>
-              <Trash2 className="size-4" /> Remove
+              <Trash2 className="size-4" /> {t("profile_pic.remove")}
             </Button>
           )}
         </div>
@@ -80,7 +82,7 @@ export function ProfilePictureUpload({ role, fallback = "U" }: Props) {
 
       {pending && (
         <div className="rounded-xl border border-white/15 bg-white/5 p-3">
-          <p className="mb-2 text-xs text-cream/70">Adjust zoom and save</p>
+          <p className="mb-2 text-xs text-cream/70">{t("profile_pic.zoom_hint")}</p>
           <div className="flex items-center gap-2">
             <Button type="button" size="icon" variant="ghost" onClick={() => setZoom((z) => Math.max(1, +(z - 0.1).toFixed(2)))}>
               <ZoomOut className="size-4" />
@@ -94,12 +96,12 @@ export function ProfilePictureUpload({ role, fallback = "U" }: Props) {
             </Button>
           </div>
           <div className="mt-3 flex justify-end gap-2">
-            <Button type="button" size="sm" variant="ghost" onClick={() => setPending(null)}>Cancel</Button>
-            <Button type="button" size="sm" onClick={save}><Camera className="size-4" /> Save</Button>
+            <Button type="button" size="sm" variant="ghost" onClick={() => setPending(null)}>{t("common.cancel")}</Button>
+            <Button type="button" size="sm" onClick={save}><Camera className="size-4" /> {t("common.save")}</Button>
           </div>
         </div>
       )}
-      <p className="text-xs text-cream/50">JPG, PNG or GIF · up to 4MB</p>
+      <p className="text-xs text-cream/50">{t("profile_pic.hint")}</p>
     </div>
   );
 }
