@@ -15,6 +15,7 @@ import { Route as SignupRouteImport } from './routes/signup'
 import { Route as ManagerRegisterRouteImport } from './routes/manager-register'
 import { Route as ManagerLoginRouteImport } from './routes/manager-login'
 import { Route as ManagerRouteImport } from './routes/manager'
+import { Route as ForcePasswordChangeRouteImport } from './routes/force-password-change'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TenantSetupRouteImport } from './routes/tenant.setup'
@@ -52,6 +53,11 @@ const ManagerLoginRoute = ManagerLoginRouteImport.update({
 const ManagerRoute = ManagerRouteImport.update({
   id: '/manager',
   path: '/manager',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForcePasswordChangeRoute = ForcePasswordChangeRouteImport.update({
+  id: '/force-password-change',
+  path: '/force-password-change',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -98,6 +104,7 @@ const CheckoutCancelRoute = CheckoutCancelRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRouteWithChildren
+  '/force-password-change': typeof ForcePasswordChangeRoute
   '/manager': typeof ManagerRouteWithChildren
   '/manager-login': typeof ManagerLoginRoute
   '/manager-register': typeof ManagerRegisterRoute
@@ -114,6 +121,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRouteWithChildren
+  '/force-password-change': typeof ForcePasswordChangeRoute
   '/manager': typeof ManagerRouteWithChildren
   '/manager-login': typeof ManagerLoginRoute
   '/manager-register': typeof ManagerRegisterRoute
@@ -131,6 +139,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRouteWithChildren
+  '/force-password-change': typeof ForcePasswordChangeRoute
   '/manager': typeof ManagerRouteWithChildren
   '/manager-login': typeof ManagerLoginRoute
   '/manager-register': typeof ManagerRegisterRoute
@@ -149,6 +158,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/dashboard'
+    | '/force-password-change'
     | '/manager'
     | '/manager-login'
     | '/manager-register'
@@ -165,6 +175,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/dashboard'
+    | '/force-password-change'
     | '/manager'
     | '/manager-login'
     | '/manager-register'
@@ -181,6 +192,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/dashboard'
+    | '/force-password-change'
     | '/manager'
     | '/manager-login'
     | '/manager-register'
@@ -198,6 +210,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRouteWithChildren
+  ForcePasswordChangeRoute: typeof ForcePasswordChangeRoute
   ManagerRoute: typeof ManagerRouteWithChildren
   ManagerLoginRoute: typeof ManagerLoginRoute
   ManagerRegisterRoute: typeof ManagerRegisterRoute
@@ -252,6 +265,13 @@ declare module '@tanstack/react-router' {
       path: '/manager'
       fullPath: '/manager'
       preLoaderRoute: typeof ManagerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/force-password-change': {
+      id: '/force-password-change'
+      path: '/force-password-change'
+      fullPath: '/force-password-change'
+      preLoaderRoute: typeof ForcePasswordChangeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -339,6 +359,7 @@ const ManagerRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRouteWithChildren,
+  ForcePasswordChangeRoute: ForcePasswordChangeRoute,
   ManagerRoute: ManagerRouteWithChildren,
   ManagerLoginRoute: ManagerLoginRoute,
   ManagerRegisterRoute: ManagerRegisterRoute,

@@ -170,10 +170,17 @@ function CheckoutSuccess() {
                 value={t("checkout.summary.warehouses_count", { count: tenant.warehouses_count })}
               />
               <SummaryRow
-                icon={CreditCard}
-                label={t("checkout.summary.amount_paid")}
-                value={`$${plan ? (parseFloat(plan.price_per_warehouse) || 0).toFixed(2) : "0.00"}`}
-              />
+  icon={CreditCard}
+  label={t("checkout.summary.amount_paid")}
+  value={`$${
+    plan
+      ? (
+          (parseFloat(plan.price_per_warehouse) || 0) *
+          (Number(tenant?.warehouses_count) || 1)
+        ).toFixed(2)
+      : "0.00"
+  }`}
+/>
               <SummaryRow
                 icon={Calendar}
                 label={t("checkout.summary.valid_until")}

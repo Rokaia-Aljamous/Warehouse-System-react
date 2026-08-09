@@ -150,7 +150,7 @@ function TenantSetup() {
 
         <form onSubmit={onSubmit} className="rounded-3xl bg-[#f0ecdb] p-6 sm:p-8 shadow-2xl space-y-4">
           {renderField("full_name", t("tenant.setup.name"), { placeholder: t("placeholder.jane_doe"), icon: User })}
-          {renderField("phone_number", t("tenant.setup.phone"), { placeholder: "+1 234 567 890", icon: Phone })}
+          {renderField("phone_number", t("tenant.setup.phone"), { placeholder: "09XXXXXXXX", icon: Phone })}
           {renderField("user_name", t("tenant.setup.username"), { placeholder: "jane_admin", icon: AtSign })}
           {renderField("birthday", t("tenant.setup.birthdate"), { placeholder: "YYYY-MM-DD", icon: Calendar })}
           {renderField("password", t("tenant.setup.password"), {

@@ -62,7 +62,7 @@ export const Route = createFileRoute("/")({
 // Relax typing for NAV to allow extension without regenerating route tree here.
 const NAV: any = [
   { to: "/dashboard", label: "nav.admin_dashboard", icon: LayoutDashboard },
-  { to: "/manager", label: "nav.manager_portal", icon: UserCog },
+  { to: "/manager-login", label: "nav.manager_portal", icon: UserCog },
   { to: "/supervisor/dashboard", label: "nav.supervisor", icon: Users },
   { to: "/", label: "nav.stockyard_landing", icon: Warehouse },
 ] as const;

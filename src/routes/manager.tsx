@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate, Outlet, useRouterState } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
@@ -8,6 +8,7 @@ import {
   Plus, Trash2, QrCode, AlertTriangle, ArrowUpRight, ArrowDownRight,
   CheckCircle2, Clock, Truck, Download, Printer, Loader2, ChevronLeft, ChevronRight,
   Warehouse as WarehouseIcon, Wallet as WalletIcon, Sparkles, CreditCard,
+  RefreshCw,
 } from "lucide-react";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -41,9 +42,9 @@ import { cn } from "@/lib/utils";
 
 import {
   CURRENT_WAREHOUSE, ALL_WAREHOUSES,
-  initialWorkers, initialProducts, initialMovements, initialOrders, initialTransfers,
-  dailyVolume, monthlyVolume, peakHours, attendanceTrend, generateWorkerId,
-  type Worker, type WorkerSection, type Product, type Order, type OrderStatus,
+  initialProducts, initialMovements, initialTransfers,
+  dailyVolume, monthlyVolume, peakHours, attendanceTrend,
+  type Worker, type Product,
   type Transfer, type TransferStatus,
 } from "@/lib/manager-data";
 import { ProfilePictureUpload } from "@/components/ProfilePictureUpload";
@@ -51,6 +52,7 @@ import { SubscriptionForm } from "@/components/SubscriptionForm";
 import { getProfilePic, subscribeProfilePic } from "@/lib/profile-storage";
 import { subscriptionStore, type SubscriptionRequest } from "@/lib/subscription-data";
 import { LanguageToggle } from "@/components/LanguageToggle";
+import { fetchMe, fetchManagerEmployees, fetchManagerOrders, createManagerWorker, type ManagerEmployee, type ManagerOrder } from "@/lib/manager-api";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 
@@ -79,6 +81,17 @@ const NAV: { id: SectionId; label: string; icon: React.ComponentType<{ className
   { id: "wallet", label: "sidebar.wallet", icon: WalletIcon },
   { id: "settings", label: "sidebar.settings", icon: SettingsIcon },
 ];
+
+type StoredManagerSession = {
+  id?: number;
+  full_name?: string;
+  name?: string;
+  whmId?: string;
+  phone_number?: string;
+  warehouse_id?: number | null;
+  must_change_password?: boolean;
+  tenant?: { url_slug?: string };
+};
 
 function ManagerLayout() {
   const routerState = useRouterState();
@@ -229,14 +242,16 @@ function ManagerApp() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   // shared state
-  const [workers, setWorkers] = useState<Worker[]>(initialWorkers);
+  const [workers, setWorkers] = useState<Worker[]>([]);
   const [products, setProducts] = useState<Product[]>(initialProducts);
-  const [orders, setOrders] = useState<Order[]>(initialOrders);
+  const [orders, setOrders] = useState<ManagerOrder[]>([]);
   const [transfers, setTransfers] = useState<Transfer[]>(initialTransfers);
 
-  type Session = { whmId: string; name: string; warehouseId?: string; isFirstLogin?: boolean };
+  type Session = { whmId: string; name: string; warehouseId?: string };
   const [user, setUser] = useState<Session | null>(null);
-  const [firstLoginOpen, setFirstLoginOpen] = useState(false);
+  const [slug, setSlug] = useState<string | null>(null);
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [checking, setChecking] = useState(true);
   const [avatar, setAvatar] = useState<string | null>(null);
 
   useEffect(() => {
@@ -246,27 +261,74 @@ function ManagerApp() {
 
   useEffect(() => {
     const raw = typeof window !== "undefined" ? localStorage.getItem("stockyard.manager") : null;
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      setUser({ whmId: parsed.whmId ?? parsed.id?.toString?.() ?? "WHM-000", name: parsed.name ?? parsed.full_name });
-      if (parsed.isFirstLogin) setFirstLoginOpen(true);
-    } else {
-      setUser({ whmId: "WHM-000", name: "Avery Lin" });
+    if (!raw) {
+      navigate({ to: "/manager-login", replace: true });
+      return;
     }
-  }, []);
+    let parsed: StoredManagerSession;
+    try {
+      parsed = JSON.parse(raw) as StoredManagerSession;
+    } catch {
+      localStorage.removeItem("stockyard.manager");
+      navigate({ to: "/manager-login", replace: true });
+      return;
+    }
+    if (parsed.must_change_password) {
+      navigate({ to: "/force-password-change", replace: true });
+      return;
+    }
+    setUser({
+      whmId: parsed.whmId ?? parsed.id?.toString?.() ?? "WHM-000",
+      name: parsed.name ?? parsed.full_name ?? "",
+      warehouseId: parsed.warehouse_id?.toString?.(),
+    });
+    setSlug(parsed.tenant?.url_slug ?? null);
+    if (parsed.tenant?.url_slug) {
+      fetchMe(parsed.tenant.url_slug)
+        .then((me) => {
+          if (me.role !== "manager") {
+            localStorage.removeItem("stockyard.manager");
+            navigate({ to: "/manager-login", replace: true });
+            return;
+          }
+          setPhoneNumber(me.phone_number ?? "");
+          setChecking(false);
+        })
+        .catch((err: unknown) => {
+          const status = (err as { response?: { status?: number } })?.response?.status;
+          if (status === 403) {
+            navigate({ to: "/force-password-change", replace: true });
+            return;
+          }
+          localStorage.removeItem("stockyard.manager");
+          navigate({ to: "/manager-login", replace: true });
+        });
+    } else {
+      setChecking(false);
+    }
+  }, [navigate]);
 
-  const completeFirstLogin = (newPw: string) => {
-    if (!user) return;
-    const overridesRaw = localStorage.getItem("stockyard.manager.overrides");
-    const overrides = overridesRaw ? JSON.parse(overridesRaw) : {};
-    overrides[user.whmId] = { password: newPw, isTempPassword: false, lastPasswordChange: new Date().toISOString().slice(0, 10) };
-    localStorage.setItem("stockyard.manager.overrides", JSON.stringify(overrides));
-    const updated = { ...user, isFirstLogin: false };
-    localStorage.setItem("stockyard.manager", JSON.stringify(updated));
-    setUser(updated);
-    setFirstLoginOpen(false);
-    toast.success(t("settings.password_changed"));
-  };
+  useEffect(() => {
+    if (!slug || !user?.warehouseId) {
+      setWorkers([]);
+      return;
+    }
+    fetchManagerEmployees(slug, Number(user.warehouseId))
+      .then(({ employees }) => setWorkers(employees.map(workerFromBackendEmployee)))
+      .catch(() => setWorkers([]));
+  }, [slug, user?.warehouseId]);
+
+  const loadOrders = useCallback(() => {
+    if (!slug) {
+      setOrders([]);
+      return;
+    }
+    fetchManagerOrders(slug)
+      .then(({ orders: backendOrders }) => setOrders(backendOrders))
+      .catch(() => setOrders([]));
+  }, [slug]);
+
+  useEffect(() => { loadOrders(); }, [loadOrders]);
 
   const logout = () => {
     localStorage.removeItem("stockyard.manager");
@@ -359,6 +421,14 @@ function ManagerApp() {
   );
 
 
+  if (checking) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-navy">
+        <Loader2 className="h-8 w-8 animate-spin text-cream" />
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen w-full">
       {/* Desktop sidebar */}
@@ -431,13 +501,18 @@ function ManagerApp() {
                 <Overview workers={workers} products={products} orders={orders} />
               )}
               {section === "workers" && (
-                <WorkersSection workers={workers} setWorkers={setWorkers} />
+                <WorkersSection
+                  workers={workers}
+                  setWorkers={setWorkers}
+                  slug={slug}
+                  warehouseId={user?.warehouseId ? Number(user.warehouseId) : null}
+                />
               )}
               {section === "inventory" && (
                 <InventorySection products={products} setProducts={setProducts} />
               )}
               {section === "orders" && (
-                <OrdersSection orders={orders} setOrders={setOrders} workers={workers} />
+                <OrdersSection orders={orders} onRefresh={loadOrders} />
               )}
               {section === "transfers" && (
                 <TransfersSection transfers={transfers} setTransfers={setTransfers} products={products} />
@@ -448,50 +523,13 @@ function ManagerApp() {
                 <WalletSection user={user} />
               )}
               {section === "settings" && user && (
-                <SettingsSection user={user} whmId={user.whmId} />
+                <SettingsSection user={user} whmId={user.whmId} phone={phoneNumber} />
               )}
             </motion.div>
           </AnimatePresence>
         </div>
       </main>
-
-      <FirstLoginDialog open={firstLoginOpen} onComplete={completeFirstLogin} />
     </div>
-  );
-}
-
-function FirstLoginDialog({ open, onComplete }: { open: boolean; onComplete: (newPw: string) => void }) {
-  const { t } = useTranslation();
-  const [current, setCurrent] = useState("");
-  const [next, setNext] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (next.length < 8) { toast.error(t("settings.password_min_length")); return; }
-    if (next !== confirm) { toast.error(t("settings.password_mismatch")); return; }
-    if (!current) { toast.error(t("manager.enter_temporary_password")); return; }
-    onComplete(next);
-    setCurrent(""); setNext(""); setConfirm("");
-  };
-  return (
-    <Dialog open={open} onOpenChange={() => { /* blocking */ }}>
-      <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
-        <DialogHeader>
-          <DialogTitle>{t("manager.set_new_password")}</DialogTitle>
-          <DialogDescription>
-            {t("manager.first_login_desc")}
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={submit} className="space-y-3">
-          <div className="space-y-2"><Label>{t("manager.current_temp_password")}</Label><Input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} required /></div>
-          <div className="space-y-2"><Label>{t("settings.new_password")}</Label><Input type="password" value={next} onChange={(e) => setNext(e.target.value)} required /></div>
-          <div className="space-y-2"><Label>{t("settings.confirm_new_password")}</Label><Input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required /></div>
-          <DialogFooter>
-            <Button type="submit" className="w-full">{t("manager.change_password_continue")}</Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
   );
 }
 
@@ -543,12 +581,12 @@ function statusBadge(s: string) {
 
 /* ---------- Overview ---------- */
 
-function Overview({ workers, products, orders }: { workers: Worker[]; products: Product[]; orders: Order[] }) {
+function Overview({ workers, products, orders }: { workers: Worker[]; products: Product[]; orders: ManagerOrder[] }) {
   const { t } = useTranslation();
   const totalWorkers = workers.length;
   const inventoryValue = products.reduce((s, p) => s + p.quantity * p.unitPrice, 0);
-  const pendingOrders = orders.filter((o) => o.status === "Pending").length;
-  const completedToday = orders.filter((o) => o.status === "Delivered" || o.status === "Shipped").length;
+  const pendingOrders = orders.filter((o) => o.status === "pending").length;
+  const completedToday = orders.filter((o) => o.status === "delivered" || o.status === "shipped").length;
   const lowStock = products.filter((p) => p.quantity < p.reorderLevel);
 
   const cards = [
@@ -640,7 +678,14 @@ function Overview({ workers, products, orders }: { workers: Worker[]; products: 
 
 /* ---------- Workers ---------- */
 
-function WorkersSection({ workers, setWorkers }: { workers: Worker[]; setWorkers: React.Dispatch<React.SetStateAction<Worker[]>> }) {
+function WorkersSection({
+  workers, setWorkers, slug, warehouseId,
+}: {
+  workers: Worker[];
+  setWorkers: React.Dispatch<React.SetStateAction<Worker[]>>;
+  slug: string | null;
+  warehouseId: number | null;
+}) {
   const { t } = useTranslation();
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -795,6 +840,8 @@ function WorkersSection({ workers, setWorkers }: { workers: Worker[]; setWorkers
         open={addOpen}
         onOpenChange={setAddOpen}
         onAdd={(w) => setWorkers((prev) => [w, ...prev])}
+        slug={slug}
+        warehouseId={warehouseId}
       />
 
       <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
@@ -816,92 +863,185 @@ function WorkersSection({ workers, setWorkers }: { workers: Worker[]; setWorkers
   );
 }
 
+const WORKER_ROLES = ["warehouse_secretary", "staff", "driver"] as const;
+type WorkerRole = (typeof WORKER_ROLES)[number];
+
+type WorkerFormState = {
+  full_name: string;
+  birthday: string;
+  phone_number: string;
+  user_name: string;
+  role: WorkerRole;
+  status: "available" | "busy";
+  salary: number;
+};
+
+const WORKER_FORM_INITIAL: WorkerFormState = {
+  full_name: "",
+  birthday: "",
+  phone_number: "",
+  user_name: "",
+  role: "staff",
+  status: "available",
+  salary: 0,
+};
+
+function workerFromBackendEmployee(emp: ManagerEmployee): Worker {
+  return {
+    id: String(emp.id),
+    workerId: `WRK-${String(emp.system_user_id).padStart(4, "0")}`,
+    name: emp.system_user.full_name,
+    email: emp.system_user.user_name,
+    phone: emp.system_user.phone_number,
+    section: "Receiving",
+    status: emp.status === "busy" ? "pending" : "active",
+    lastActive: "—",
+    ordersProcessed: 0,
+    avgHandlingMin: 0,
+  };
+}
+
 function AddWorkerDialog({
-  open, onOpenChange, onAdd,
-}: { open: boolean; onOpenChange: (o: boolean) => void; onAdd: (w: Worker) => void }) {
+  open, onOpenChange, onAdd, slug, warehouseId,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  onAdd: (w: Worker) => void;
+  slug: string | null;
+  warehouseId: number | null;
+}) {
   const { t } = useTranslation();
-  const [form, setForm] = useState({ name: "", email: "", phone: "", section: "Receiving" as WorkerSection });
-  const submit = () => {
-    if (!form.name || !form.email || !form.phone) {
+  const [form, setForm] = useState<WorkerFormState>(WORKER_FORM_INITIAL);
+  const [submitting, setSubmitting] = useState(false);
+
+  const set = (patch: Partial<WorkerFormState>) => setForm((prev) => ({ ...prev, ...patch }));
+
+  const submit = async () => {
+    if (!form.full_name.trim() || !form.phone_number.trim() || !form.user_name.trim()) {
       toast.error(t("common.fields_required"));
       return;
     }
-    const wid = generateWorkerId();
-    onAdd({
-      id: crypto.randomUUID(),
-      workerId: wid,
-      name: form.name,
-      email: form.email,
-      phone: form.phone,
-      section: form.section,
-      status: "pending",
-      lastActive: "—",
-      ordersProcessed: 0,
-      avgHandlingMin: 0,
-    });
-    toast.success(t("worker.added_id", { id: wid }));
-    setForm({ name: "", email: "", phone: "", section: "Receiving" });
-    onOpenChange(false);
+    setSubmitting(true);
+    try {
+      if (slug && warehouseId) {
+        const res = await createManagerWorker(slug, warehouseId, {
+          full_name: form.full_name.trim(),
+          birthday: form.birthday || null,
+          phone_number: form.phone_number.trim(),
+          user_name: form.user_name.trim(),
+          role: form.role,
+          status: form.status,
+          salary: form.salary,
+        });
+        onAdd(workerFromBackendEmployee(res.worker));
+        if (res.password) toast.success(t("worker.created_with_password", { password: res.password }));
+        else toast.success(t("worker.created"));
+      } else {
+        toast.error(t("worker.save_failed"));
+        return;
+      }
+      setForm(WORKER_FORM_INITIAL);
+      onOpenChange(false);
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { message?: string; errors?: Record<string, string[]> } } };
+      const firstError = e.response?.data?.errors?.[Object.keys(e.response?.data?.errors ?? {})[0]]?.[0];
+      toast.error(e.response?.data?.message || firstError || t("worker.save_failed"));
+    } finally {
+      setSubmitting(false);
+    }
   };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-[#1D2D44]">{t("worker.add")}</DialogTitle>
           <DialogDescription>{t("worker.auto_id")}</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-2">
-    <Label className="text-[#1D2D44]">{t("worker.name")}</Label>
-    <Input 
-      value={form.name} 
-      onChange={(e) => setForm({ ...form, name: e.target.value })} 
-      className="text-[#1D2D44] placeholder:text-[#1D2D44]/50" 
-    />
-  </div>
-
-  <div className="space-y-2">
-    <Label className="text-[#1D2D44]">{t("worker.email")}</Label>
-    <Input 
-      type="email" 
-      value={form.email} 
-      onChange={(e) => setForm({ ...form, email: e.target.value })} 
-      className="text-[#1D2D44] placeholder:text-[#1D2D44]/50" 
-    />
-  </div>
-
-  <div className="space-y-2">
-    <Label className="text-[#1D2D44]">{t("worker.phone")}</Label>
-    <Input 
-      value={form.phone} 
-      onChange={(e) => setForm({ ...form, phone: e.target.value })} 
-      className="text-[#1D2D44] placeholder:text-[#1D2D44]/50" 
-    />
-  </div>
+            <Label className="text-[#1D2D44]">{t("worker.name")}</Label>
+            <Input
+              value={form.full_name}
+              onChange={(e) => set({ full_name: e.target.value })}
+              className="text-[#1D2D44] placeholder:text-[#1D2D44]/50"
+            />
+          </div>
           <div className="space-y-2">
-           <Label className="text-[#1D2D44]">{t("worker.section")}</Label>
-  <Select value={form.section} onValueChange={(v) => setForm({ ...form, section: v as WorkerSection })}>
-    <SelectTrigger className="text-[#1D2D44] placeholder:text-[#1D2D44]/50">
-      <SelectValue />
-    </SelectTrigger>
-    <SelectContent>
-      <SelectItem value="Receiving">{t("worker.section.receiving")}</SelectItem>
-      <SelectItem value="Picking">{t("worker.section.picking")}</SelectItem>
-      <SelectItem value="Packing">{t("worker.section.packing")}</SelectItem>
-      <SelectItem value="Shipping">{t("worker.section.shipping")}</SelectItem>
-    </SelectContent>
-  </Select>
+            <Label className="text-[#1D2D44]">{t("worker.username")}</Label>
+            <Input
+              value={form.user_name}
+              onChange={(e) => set({ user_name: e.target.value })}
+              className="text-[#1D2D44] placeholder:text-[#1D2D44]/50"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-[#1D2D44]">{t("worker.phone")}</Label>
+            <Input
+              value={form.phone_number}
+              onChange={(e) => set({ phone_number: e.target.value })}
+              placeholder={t("worker.phone_hint")}
+              className="text-[#1D2D44] placeholder:text-[#1D2D44]/50"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label className="text-[#1D2D44]">{t("worker.birthday")}</Label>
+              <Input
+                type="date"
+                value={form.birthday}
+                onChange={(e) => set({ birthday: e.target.value })}
+                className="text-[#1D2D44]"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[#1D2D44]">{t("worker.salary")}</Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.salary}
+                onChange={(e) => set({ salary: parseFloat(e.target.value) || 0 })}
+                className="text-[#1D2D44] placeholder:text-[#1D2D44]/50"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label className="text-[#1D2D44]">{t("worker.role")}</Label>
+              <Select value={form.role} onValueChange={(v) => set({ role: v as WorkerRole })}>
+                <SelectTrigger className="text-[#1D2D44] placeholder:text-[#1D2D44]/50"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {WORKER_ROLES.map((r) => (
+                    <SelectItem key={r} value={r}>{t(`worker.role.${r}`)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[#1D2D44]">{t("worker.status")}</Label>
+              <Select value={form.status} onValueChange={(v) => set({ status: v as "available" | "busy" })}>
+                <SelectTrigger className="text-[#1D2D44] placeholder:text-[#1D2D44]/50"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="available">{t("worker.status.available")}</SelectItem>
+                  <SelectItem value="busy">{t("worker.status.busy")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
         <DialogFooter>
-          <Button 
-  type="button" 
-  onClick={() => onOpenChange(false)} 
-  className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#f2a618] border border-[#1D2D44]/20"
->
-  {t("common.cancel")}
-</Button>
-          <Button onClick={submit}>{t("worker.add")}</Button>
+          <Button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#f2a618] border border-[#1D2D44]/20"
+          >
+            {t("common.cancel")}
+          </Button>
+          <Button onClick={submit} disabled={submitting}>
+            {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+            {t("worker.add")}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -1040,37 +1180,60 @@ function InventorySection({ products, setProducts }: { products: Product[]; setP
 
 /* ---------- Orders ---------- */
 
-const ORDER_TABS: OrderStatus[] = ["Pending", "Processing", "Shipped", "Delivered", "Cancelled"];
+const ORDER_TABS: ManagerOrder["status"][] = [
+  "pending", "approved", "in_preparation", "shipped", "delivered", "rejected", "cancelled",
+];
 
-function OrdersSection({ orders, setOrders, workers }: { orders: Order[]; setOrders: React.Dispatch<React.SetStateAction<Order[]>>; workers: Worker[] }) {
+const formatOrderMoney = (v: string | number) =>
+  `$${Number(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const formatOrderDate = (iso: string) => {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+};
+
+const orderStatusBadge = (s: ManagerOrder["status"]) => {
+  const map: Record<ManagerOrder["status"], string> = {
+    pending: "bg-amber-500/15 text-amber-400 border-amber-300/40",
+    approved: "bg-sky-500/15 text-sky-400 border-sky-300/40",
+    in_preparation: "bg-violet-500/15 text-violet-400 border-violet-300/40",
+    shipped: "bg-blue-500/15 text-blue-400 border-blue-300/40",
+    delivered: "bg-emerald-500/15 text-emerald-400 border-emerald-300/40",
+    rejected: "bg-rose-500/15 text-rose-400 border-rose-300/40",
+    cancelled: "bg-gray-500/15 text-gray-400 border-gray-300/40",
+  };
+  return map[s] ?? "bg-gray-500/15 text-gray-400 border-gray-300/40";
+};
+
+function OrdersSection({ orders, onRefresh }: { orders: ManagerOrder[]; onRefresh: () => void }) {
   const { t } = useTranslation();
-  const [tab, setTab] = useState<OrderStatus>("Pending");
-  const [openOrder, setOpenOrder] = useState<Order | null>(null);
-  const [cancelId, setCancelId] = useState<string | null>(null);
-
-  const list = orders.filter((o) => o.status === tab);
-
-  const updateStatus = (id: string, status: OrderStatus) => {
-    setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status } : o)));
-    toast.success(t("order.status_changed", { id, status }));
-  };
-  const assign = (id: string, workerId: string) => {
-    setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, assignedTo: workerId } : o)));
-    toast.success(t("order.assigned_to", { worker: workerId }));
-  };
+  const [openOrder, setOpenOrder] = useState<ManagerOrder | null>(null);
+  const sorted = [...orders].sort((a, b) => b.id - a.id);
 
   return (
     <div className="space-y-6">
-      <SectionHeader title={t("order.title")} desc={t("order.desc", { name: CURRENT_WAREHOUSE.name })} />
-      <Tabs value={tab} onValueChange={(v) => setTab(v as OrderStatus)}>
-        <TabsList className="bg-white/10 text-cream">
-          {ORDER_TABS.map((s) => (
-            <TabsTrigger key={s} value={s} className="data-[state=active]:bg-cream data-[state=active]:text-foreground">
-              {s} ({orders.filter((o) => o.status === s).length})
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
+      <SectionHeader title={t("order.title")} desc={t("order.desc", { name: CURRENT_WAREHOUSE.name })}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onRefresh}
+          className="bg-[#eeebdd] text-[#1D2D44] hover:bg-[#eeebff] hover:text-[#1D2D44] border border-[#1D2D44]/20"
+        >
+          <RefreshCw className="h-4 w-4" />
+          {t("common.refresh")}
+        </Button>
+      </SectionHeader>
+
+      <div className="flex flex-wrap gap-2">
+        {ORDER_TABS.map((s) => {
+          const count = orders.filter((o) => o.status === s).length;
+          return (
+            <span key={s} className={cn("rounded-full border px-3 py-1 text-xs", orderStatusBadge(s))}>
+              {t(`order.status.${s}`)} ({count})
+            </span>
+          );
+        })}
+      </div>
 
       <GlassCard className="p-4">
         <div className="overflow-hidden rounded-xl border border-white/10">
@@ -1079,41 +1242,44 @@ function OrdersSection({ orders, setOrders, workers }: { orders: Order[]; setOrd
               <TableRow className="border-white/10 hover:bg-transparent">
                 <TableHead className="text-cream/70">{t("order.order")}</TableHead>
                 <TableHead className="text-cream/70">{t("order.customer")}</TableHead>
+                <TableHead className="text-cream/70">{t("order.warehouse")}</TableHead>
                 <TableHead className="text-cream/70">{t("order.items")}</TableHead>
                 <TableHead className="text-cream/70">{t("order.total")}</TableHead>
-                <TableHead className="text-cream/70">{t("order.assigned")}</TableHead>
+                <TableHead className="text-cream/70">{t("order.status")}</TableHead>
+                <TableHead className="text-cream/70">{t("order.date")}</TableHead>
                 <TableHead className="text-end text-cream/70">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {list.map((o) => (
+              {sorted.map((o) => (
                 <TableRow key={o.id} className="border-white/10 text-cream hover:bg-white/5">
-                  <TableCell className="font-mono text-xs">{o.id}</TableCell>
-                  <TableCell>{o.customer}</TableCell>
-                  <TableCell>{o.items} ({t("common.units", { count: o.qty })})</TableCell>
-                  <TableCell>${o.total.toLocaleString()}</TableCell>
-                  <TableCell className="text-cream/70">{o.assignedTo ?? "—"}</TableCell>
+                  <TableCell className="font-mono text-xs">#{o.id}</TableCell>
+                  <TableCell>
+                    <div className="font-medium">{o.customer.full_name}</div>
+                    <div className="text-xs text-cream/60">{o.customer.phone_number}</div>
+                  </TableCell>
+                  <TableCell className="text-cream/80">{o.warehouse.warehouse_name}</TableCell>
+                  <TableCell>{o.items_count}</TableCell>
+                  <TableCell>{formatOrderMoney(o.total_price)}</TableCell>
+                  <TableCell>
+                    <Badge className={cn("border", orderStatusBadge(o.status))}>{t(`order.status.${o.status}`)}</Badge>
+                  </TableCell>
+                  <TableCell className="text-sm text-cream/70">{formatOrderDate(o.order_date)}</TableCell>
                   <TableCell className="text-end">
-                    <div className="flex items-center justify-end gap-2">
-                      <Select value={o.status} onValueChange={(v) => updateStatus(o.id, v as OrderStatus)}>
-                        <SelectTrigger className="h-8 w-[130px] border-white/15 bg-white/5 text-xs text-cream"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {ORDER_TABS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-<Button 
-  size="sm" 
-  variant="outline" 
-  className="bg-[#eeebdd] text-[#1D2D44] hover:bg-[#eeebff] hover:text-[#1D2D44] border border-[#1D2D44]/20" 
-  onClick={() => setOpenOrder(o)}
->
-  {t("order.details")}
-</Button>                      <Button size="sm" variant="ghost" className="text-rose-300 hover:bg-rose-500/10" onClick={() => setCancelId(o.id)}>{t("common.cancel")}</Button>
-                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="bg-[#eeebdd] text-[#1D2D44] hover:bg-[#eeebff] hover:text-[#1D2D44] border border-[#1D2D44]/20"
+                      onClick={() => setOpenOrder(o)}
+                    >
+                      {t("order.details")}
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
-              {list.length === 0 && <TableRow><TableCell colSpan={6} className="py-10 text-center text-cream/60">{t("order.no_orders_in", { status: tab })}</TableCell></TableRow>}
+              {sorted.length === 0 && (
+                <TableRow><TableCell colSpan={8} className="py-12 text-center text-cream/60">{t("order.no_orders")}</TableCell></TableRow>
+              )}
             </TableBody>
           </Table>
         </div>
@@ -1123,75 +1289,38 @@ function OrdersSection({ orders, setOrders, workers }: { orders: Order[]; setOrd
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="text-[#1D2D44]">{t("order.detail_title", { id: openOrder?.id })}</DialogTitle>
-            <DialogDescription>{t("order.created_at", { date: openOrder?.createdAt })}</DialogDescription>
+            <DialogDescription>{t("order.created_at", { date: openOrder ? formatOrderDate(openOrder.order_date) : "" })}</DialogDescription>
           </DialogHeader>
           {openOrder && (
             <div className="space-y-3 text-sm">
-             <div className="flex justify-between">
-    <span className="text-[#1D2D44] font-medium">{t("order.customer")}</span>
-    <span className="font-semibold text-[#1D2D44]">{openOrder.customer}</span>
-  </div>
-
-  <div className="flex justify-between">
-    <span className="text-[#1D2D44] font-medium">{t("order.items")}</span>
-    <span className="text-[#1D2D44]">{openOrder.items} ({t("common.units", { count: openOrder.qty })})</span>
-  </div>
-
-  <div className="flex justify-between">
-    <span className="text-[#1D2D44] font-medium">{t("order.total")}</span>
-    <span className="font-bold text-[#1D2D44]">${openOrder.total.toLocaleString()}</span>
-  </div>
-
-  <div className="flex justify-between items-center">
-    <span className="text-[#1D2D44] font-medium">{t("order.status")}</span>
-    <Badge className="bg-[#1D2D44] text-[#eeebdd] hover:bg-[#1D2D44]/90">
-      {openOrder.status}
-    </Badge>
-  </div>
-              <div className="space-y-2 pt-2">
-                <Label className="text-[#1D2D44]">{t("order.assign_worker")}</Label>
-               <Select 
-    value={openOrder.assignedTo} 
-    onValueChange={(v) => { assign(openOrder.id, v); setOpenOrder({ ...openOrder, assignedTo: v }); }}
-  >
-    <SelectTrigger className="text-[#1D2D44] border-[#1D2D44]/20 bg-transparent focus:ring-[#1D2D44]">
-      <SelectValue placeholder={t("placeholder.select_worker")} className="text-[#1D2D44] placeholder:text-[#1D2D44]/50" />
-    </SelectTrigger>
-    
-    <SelectContent className="bg-[#eeebdd] text-[#1D2D44] border-[#1D2D44]/20">
-      {workers.filter((w) => w.status === "active").map((w) => (
-        <SelectItem 
-          key={w.id} 
-          value={w.workerId}
-          className="text-[#1D2D44] focus:bg-[#f2a618] focus:text-[#1D2D44] cursor-pointer"
-        >
-          {w.name} ({w.workerId})
-        </SelectItem>
-      ))}
-    </SelectContent>
-  </Select>
+              <div className="flex justify-between">
+                <span className="font-medium text-[#1D2D44]">{t("order.customer")}</span>
+                <span className="font-semibold text-[#1D2D44]">{openOrder.customer.full_name} ({openOrder.customer.phone_number})</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-medium text-[#1D2D44]">{t("order.warehouse")}</span>
+                <span className="text-[#1D2D44]">{openOrder.warehouse.warehouse_name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-medium text-[#1D2D44]">{t("order.items")}</span>
+                <span className="text-[#1D2D44]">{openOrder.items_count}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-medium text-[#1D2D44]">{t("order.total")}</span>
+                <span className="font-bold text-[#1D2D44]">{formatOrderMoney(openOrder.total_price)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-medium text-[#1D2D44]">{t("order.location")}</span>
+                <span className="text-end text-[#1D2D44]">{openOrder.customer_location}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="font-medium text-[#1D2D44]">{t("order.status")}</span>
+                <Badge className="bg-[#1D2D44] text-[#eeebdd] hover:bg-[#1D2D44]/90">{t(`order.status.${openOrder.status}`)}</Badge>
               </div>
             </div>
           )}
         </DialogContent>
       </Dialog>
-
-      <AlertDialog open={!!cancelId} onOpenChange={(o) => !o && setCancelId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-[#1D2D44]">{t("order.cancel_confirm")}</AlertDialogTitle>
-            <AlertDialogDescription>{t("order.cancel_desc")}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-          <AlertDialogCancel 
-             className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#d99415] hover:text-[#1D2D44] border border-[#1D2D44]/20">{t("order.keep")}
-          </AlertDialogCancel>   
-         <AlertDialogAction onClick={() => { if (cancelId) updateStatus(cancelId, "Cancelled"); setCancelId(null); }}>
-              {t("order.cancel_order")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
@@ -1670,9 +1799,9 @@ function ReportsSection() {
 
 /* ---------- Settings ---------- */
 
-function SettingsSection({ user, whmId }: { user: { name: string; whmId: string }; whmId: string }) {
+function SettingsSection({ user, whmId, phone }: { user: { name: string; whmId: string }; whmId: string; phone: string }) {
   const { t } = useTranslation();
-  const [form, setForm] = useState({ name: user.name, phone: "+1 415 555 0101" });
+  const [form, setForm] = useState({ name: user.name, phone });
   const [pw, setPw] = useState({ current: "", next: "", confirm: "" });
   const [twoFA, setTwoFA] = useState(false);
   const [emailNotif, setEmailNotif] = useState(true);

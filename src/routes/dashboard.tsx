@@ -44,7 +44,7 @@ import {
 
 import {
   initialManagers, initialWarehouseTypes, inventoryTrend, shipmentsData,
-  recentActivity, walletTransactions, generateWhmId,
+  recentActivity, walletTransactions,
   type Manager, type WarehouseType,
 } from "@/lib/demo-data";
 import { ProfilePictureUpload } from "@/components/ProfilePictureUpload";
@@ -56,6 +56,7 @@ import {
   getStoredUser, setStoredUser, clearStoredUser,
   getCsrfCookie, loginDashboard, logoutDashboard,
 } from "@/lib/api";
+import { fetchMe } from "@/lib/manager-api";
 import {
   fetchWarehouses, createWarehouse, updateWarehouse, deleteWarehouse,
   fetchDeleteWarehouseInfo, type DeleteWarehouseInfo,
@@ -100,10 +101,11 @@ export function DashboardPage() {
   const { t } = useTranslation();
   const [section, setSection] = useState<SectionId>("dashboard");
   const [collapsed, setCollapsed] = useState(false);
-  const [managers, setManagers] = useState<Manager[]>(initialManagers);
+  const [managers, setManagers] = useState<Manager[]>([]);
   const [types, setTypes] = useState<WarehouseType[]>(initialWarehouseTypes);
   const [avatar, setAvatar] = useState<string | null>(null);
   const [slug, setSlug] = useState<string | null>(getStoredUser()?.tenant?.url_slug ?? null);
+  const [checking, setChecking] = useState(false);
   const storedUser = getStoredUser();
   const userInitials = storedUser?.full_name
     ? storedUser.full_name.split(" ").map((s: string) => s[0]).join("").toUpperCase().slice(0, 2)
@@ -129,6 +131,38 @@ export function DashboardPage() {
     setAvatar(getProfilePic("admin"));
     return subscribeProfilePic("admin", setAvatar);
   }, []);
+
+  useEffect(() => {
+    const initialSlug = getStoredUser()?.tenant?.url_slug;
+    if (!initialSlug) return;
+    let cancelled = false;
+    setChecking(true);
+    fetchMe(initialSlug)
+      .then((me) => {
+        if (cancelled) return;
+        if (me.role !== "owner") {
+          clearStoredUser();
+          setSlug(null);
+        }
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        clearStoredUser();
+        setSlug(null);
+      })
+      .finally(() => {
+        if (!cancelled) setChecking(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  if (checking) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#0f1b2d]">
+        <Loader2 className="size-6 animate-spin text-[#f3a523]" />
+      </div>
+    );
+  }
 
   if (!slug) {
     return (
@@ -508,36 +542,49 @@ function ManagersSection({
   slug?: string | null; managers: Manager[]; setManagers: React.Dispatch<React.SetStateAction<Manager[]>>; types: WarehouseType[];
 }) {
   const { t } = useTranslation();
+  const [realTypes, setRealTypes] = useState<WarehouseType[]>([]);
   useEffect(() => {
     if (!slug) return;
-    const load = async () => {
-      try {
-        const wRes = await fetchWarehouses(slug);
-        const all: Manager[] = [];
-        for (const w of wRes.warehouses) {
-          const eRes = await fetchEmployees(slug, w.id);
-          for (const emp of eRes.employees) {
-            if (emp.role !== "manager" && emp.role !== "warehouse_secretary") continue;
-            all.push({
-              id: `emp_${emp.id}`,
-              whmId: emp.system_user.user_name,
-              name: emp.system_user.full_name,
-              age: 0,
-              password: "password",
-              warehouseId: w.id.toString(),
-              status: emp.status === "available" ? "active" : "inactive",
-              isTempPassword: emp.system_user.must_change_password,
-              lastPasswordChange: "—",
-              role: "Manager" as const,
-              email: emp.system_user.user_name + "@warehouse.io",
-            });
-          }
-        }
-        if (all.length > 0) setManagers(all);
-      } catch { /* ignore */ }
-    };
     load();
   }, [slug]);
+  const load = async () => {
+    if (!slug) return;
+    try {
+      const wRes = await fetchWarehouses(slug);
+      setRealTypes(wRes.warehouses.map((w) => ({
+        id: String(w.id),
+        name: w.warehouse_name,
+        description: w.location ?? "",
+        color: getTypeStyle(w.type).color,
+        icon: getTypeStyle(w.type).icon,
+        status: "active",
+      })));
+      const all: Manager[] = [];
+      for (const w of wRes.warehouses) {
+        const eRes = await fetchEmployees(slug, w.id);
+        for (const emp of eRes.employees) {
+          if (emp.role !== "manager" && emp.role !== "warehouse_secretary") continue;
+          all.push({
+            id: `emp_${emp.id}`,
+            whmId: emp.system_user.user_name,
+            name: emp.system_user.full_name,
+            age: 0,
+            password: "password",
+            warehouseId: w.id.toString(),
+            status: emp.status === "available" ? "active" : "inactive",
+            isTempPassword: emp.system_user.must_change_password,
+            lastPasswordChange: "—",
+            role: "Manager" as const,
+            email: emp.system_user.user_name + "@warehouse.io",
+            phone: emp.system_user.phone_number,
+            salary: emp.salary,
+          });
+        }
+      }
+      setManagers(all);
+    } catch { /* ignore */ }
+  };
+  const effectiveTypes = slug ? realTypes : types;
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 5;
@@ -552,49 +599,81 @@ function ManagersSection({
     const q = query.trim().toLowerCase();
     if (!q) return managers;
     return managers.filter((m) => {
-      const wh = types.find((t) => t.id === m.warehouseId)?.name ?? "";
+      const wh = effectiveTypes.find((t) => t.id === m.warehouseId)?.name ?? "";
       return m.name.toLowerCase().includes(q) || wh.toLowerCase().includes(q) || m.whmId.toLowerCase().includes(q);
     });
-  }, [managers, query, types]);
+  }, [managers, query, effectiveTypes]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const pageItems = filtered.slice((page - 1) * pageSize, page * pageSize);
 
-  const handleSave = (data: { id?: string; name: string; age: number; warehouseId: string; password: string; status: Manager["status"] }) => {
+  const [created, setCreated] = useState<{ user_name: string; password: string } | null>(null);
+
+  const handleSave = async (data: { id?: string; name: string; user_name: string; phone_number: string; salary: number; warehouseId: string; status: Manager["status"] }) => {
+    if (!slug) {
+      setLoading(true);
+      toast.error(t("common.operation_failed"));
+      setLoading(false);
+      return;
+    }
     setLoading(true);
-    setTimeout(() => {
-      const today = new Date().toISOString().slice(0, 10);
+    try {
+      const warehouseId = parseInt(data.warehouseId, 10);
+      const status = data.status === "active" ? "available" : "busy";
       if (data.id) {
-        setManagers((prev) => prev.map((m) => (m.id === data.id ? { ...m, name: data.name, age: data.age, warehouseId: data.warehouseId, status: data.status } as Manager : m)));
+        const employeeId = parseInt(data.id.replace("emp_", ""), 10);
+        await updateEmployee(slug, warehouseId, employeeId, {
+          full_name: data.name,
+          user_name: data.user_name,
+          phone_number: data.phone_number,
+          salary: data.salary,
+          status,
+        });
         toast.success(t("manager.toast_updated"));
       } else {
-        const whmId = generateWhmId(managers);
-        const newM: Manager = {
-          id: `m${Date.now()}`,
-          whmId,
-          name: data.name,
-          age: data.age,
-          password: data.password,
-          warehouseId: data.warehouseId,
-          status: data.status,
-          isTempPassword: true,
-          lastPasswordChange: today,
-          role: "Manager",
-        };
-        setManagers((prev) => [newM, ...prev]);
-        toast.success(t("manager.toast_added", { id: whmId }));
+        const res = await createEmployee(slug, warehouseId, {
+          full_name: data.name,
+          user_name: data.user_name,
+          phone_number: data.phone_number,
+          salary: data.salary,
+          role: "manager",
+          status,
+        });
+        setCreated({ user_name: res.employee.system_user.user_name, password: res.password ?? "" });
+        toast.success(t("manager.toast_added", { id: res.employee.system_user.user_name }));
       }
-      setLoading(false);
       setOpen(false);
       setEditing(null);
-    }, 600);
+      load();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || t("common.operation_failed"));
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deleteId) return;
-    setManagers((prev) => prev.filter((m) => m.id !== deleteId));
-    toast.success(t("manager.toast_removed"));
-    setDeleteId(null);
+    if (!slug) {
+      setDeleteId(null);
+      toast.error(t("common.operation_failed"));
+      return;
+    }
+    setLoading(true);
+    try {
+      const manager = managers.find((m) => m.id === deleteId);
+      const employeeId = parseInt(deleteId.replace("emp_", ""), 10);
+      const warehouseId = manager ? parseInt(manager.warehouseId, 10) : 0;
+      await deleteEmployee(slug, warehouseId, employeeId);
+      setManagers((prev) => prev.filter((m) => m.id !== deleteId));
+      load();
+      toast.success(t("manager.toast_removed"));
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || t("common.operation_failed"));
+    } finally {
+      setLoading(false);
+      setDeleteId(null);
+    }
   };
 
   const handleForceReset = () => {
@@ -622,11 +701,18 @@ function ManagersSection({
         </div>
         <Button
           onClick={() => { setEditing(null); setOpen(true); }}
+          disabled={!!slug && effectiveTypes.length === 0}
           className="bg-navy text-cream hover:bg-navy/90"
         >
           <Plus className="size-4" /> {t("manager.add")}
         </Button>
       </div>
+
+      {!!slug && effectiveTypes.length === 0 && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-700">
+          {t("manager.no_warehouses_hint")}
+        </div>
+      )}
 
       <GlassCard className="p-0 overflow-hidden">
         {filtered.length === 0 ? (
@@ -646,7 +732,7 @@ function ManagersSection({
             </TableHeader>
             <TableBody>
               {pageItems.map((m) => {
-                const wh = types.find((t) => t.id === m.warehouseId);
+                const wh = effectiveTypes.find((t) => t.id === m.warehouseId);
                 return (
                   <TableRow key={m.id} className="border-white/40">
                     <TableCell className="font-mono text-xs">{m.whmId}</TableCell>
@@ -730,10 +816,36 @@ function ManagersSection({
         open={open}
         onOpenChange={setOpen}
         editing={editing}
-        types={types}
+        types={effectiveTypes}
         onSave={handleSave}
         loading={loading}
       />
+
+      <Dialog open={!!created} onOpenChange={(o) => !o && setCreated(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="size-5 text-emerald-600" /> {t("manager.created")}
+            </DialogTitle>
+            <DialogDescription>
+              {t("manager.created.desc")}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 py-2">
+            <div className="grid gap-1.5">
+              <Label className="text-[#1D2D44]">{t("manager.login.username")}</Label>
+              <div className="rounded-lg border bg-muted px-3 py-2 font-mono text-sm text-[#1D2D44]">{created?.user_name}</div>
+            </div>
+            <div className="grid gap-1.5">
+              <Label className="text-[#1D2D44]">{t("manager.temporary_password")}</Label>
+              <div className="rounded-lg border bg-muted px-3 py-2 font-mono text-sm text-[#1D2D44]">{created?.password}</div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setCreated(null)} className="bg-navy text-cream hover:bg-navy/90">{t("common.ok")}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
         <AlertDialogContent>
@@ -781,44 +893,56 @@ function ManagerDialog({
 }: {
   open: boolean; onOpenChange: (o: boolean) => void;
   editing: Manager | null; types: WarehouseType[];
-  onSave: (m: { id?: string; name: string; age: number; warehouseId: string; password: string; status: Manager["status"] }) => void;
+  onSave: (m: { id?: string; name: string; user_name: string; phone_number: string; salary: number; warehouseId: string; status: Manager["status"] }) => void;
   loading: boolean;
 }) {
   const { t } = useTranslation();
   const [form, setForm] = useState({
-    name: "", age: 30, password: "",
+    name: "", user_name: "", phone_number: "", salary: 0,
     warehouseId: types[0]?.id ?? "", status: "active" as Manager["status"],
   });
 
   useMemo(() => {
     if (editing) {
       setForm({
-        name: editing.name, age: editing.age, password: "",
-        warehouseId: editing.warehouseId, status: editing.status,
+        name: editing.name,
+        user_name: editing.whmId,
+        phone_number: editing.phone ?? "",
+        salary: editing.salary ?? 0,
+        warehouseId: editing.warehouseId,
+        status: editing.status,
       });
     } else {
-      setForm({ name: "", age: 30, password: "", warehouseId: types[0]?.id ?? "", status: "active" });
+      setForm({ name: "", user_name: "", phone_number: "", salary: 0, warehouseId: types[0]?.id ?? "", status: "active" });
     }
   }, [editing, types]);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name || !form.warehouseId) {
+    if (!form.name || !form.user_name || !form.phone_number || !form.warehouseId) {
       toast.error(t("manager.toast_required_fields"));
       return;
     }
-    if (!editing && form.password.length < 6) {
-      toast.error(t("manager.toast_password_short"));
+    if (!editing && form.user_name.length < 3) {
+      toast.error(t("manager.toast_username_short"));
       return;
     }
-    if (form.age < 18 || form.age > 70) {
-      toast.error(t("manager.toast_age_range"));
+    if (!/^09[0-9]{8}$/.test(form.phone_number)) {
+      toast.error(t("manager.toast_phone_invalid"));
+      return;
+    }
+    if (form.salary < 0) {
+      toast.error(t("manager.toast_salary_negative"));
       return;
     }
     onSave({
       ...(editing ? { id: editing.id } : {}),
-      name: form.name, age: form.age, password: form.password,
-      warehouseId: form.warehouseId, status: form.status,
+      name: form.name,
+      user_name: form.user_name,
+      phone_number: form.phone_number,
+      salary: form.salary,
+      warehouseId: form.warehouseId,
+      status: form.status,
     });
   };
 
@@ -834,7 +958,7 @@ function ManagerDialog({
         <form onSubmit={submit} className="grid gap-4 py-2">
           <div className="grid gap-4 sm:grid-cols-2">
            <div className="grid gap-2">
-    <Label className="text-[#1D2D44]">{t("manager.name_username")}</Label>
+    <Label className="text-[#1D2D44]">{t("common.name")}</Label>
     <Input 
       value={form.name} 
       onChange={(e) => setForm({ ...form, name: e.target.value })} 
@@ -845,17 +969,41 @@ function ManagerDialog({
   </div>
 
   <div className="grid gap-2">
-    <Label className="text-[#1D2D44]">{t("common.age")}</Label>
+    <Label className="text-[#1D2D44]">{t("manager.login.username")}</Label>
     <Input 
-      type="number" 
-      min={18} 
-      max={70} 
-      value={form.age} 
-      onChange={(e) => setForm({ ...form, age: Number(e.target.value) })} 
+      value={form.user_name} 
+      onChange={(e) => setForm({ ...form, user_name: e.target.value })} 
+      placeholder={t("manager.username_placeholder")} 
       required 
       className="text-[#1D2D44] placeholder:text-[#1D2D44]/50 focus:text-[#1D2D44]"
     />
   </div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <Label className="text-[#1D2D44]">{t("common.phone")}</Label>
+              <Input
+                value={form.phone_number}
+                onChange={(e) => setForm({ ...form, phone_number: e.target.value })}
+                placeholder={t("manager.phone_placeholder")}
+                required
+                inputMode="numeric"
+                className="text-[#1D2D44] placeholder:text-[#1D2D44]/50 focus:text-[#1D2D44]"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label className="text-[#1D2D44]">{t("manager.salary")}</Label>
+              <Input
+                type="number"
+                min={0}
+                step={1}
+                value={form.salary}
+                onChange={(e) => setForm({ ...form, salary: Number(e.target.value) })}
+                placeholder="0"
+                required
+                className="text-[#1D2D44] placeholder:text-[#1D2D44]/50 focus:text-[#1D2D44]"
+              />
+            </div>
           </div>
          <div className="grid gap-2">
   <Label className="text-[#1D2D44]">{t("manager.assign_warehouse")}</Label>
@@ -871,16 +1019,8 @@ function ManagerDialog({
   </Select>
 </div>
           {!editing && (
-            <div className="grid gap-2">
-              <Label className="text-[#1D2D44]">{t("manager.temporary_password")}</Label>
-<Input
-  type="text"
-  value={form.password}
-  onChange={(e) => setForm({ ...form, password: e.target.value })}
-  placeholder={t("manager.min_6_characters")}
-  className="text-[#1D2D44]"
-  required
-/>              <p className="text-xs text-[#1a2942]/70">{t("manager.temp_pw_hint")}</p>
+            <div className="rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              {t("manager.first_login_desc")}
             </div>
           )}
           <div className="grid gap-2">
@@ -1235,17 +1375,19 @@ function WarehouseDialog({
             />
           </div>
 
-          <div className="grid gap-2">
-            <Label className="text-[#1D2D44]">{t("warehouse.type")} *</Label>
-            <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
-              <SelectTrigger className="text-[#1D2D44]"><SelectValue placeholder={t("warehouse.select_type")} /></SelectTrigger>
-              <SelectContent>
-                {allTypes.map((type) => (
-                  <SelectItem key={type} value={type}>{type}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+         <div className="grid gap-2">
+  <Label htmlFor="warehouse-type" className="text-[#1D2D44]">
+    {t("warehouse.type")} *
+  </Label>
+  <Input
+    id="warehouse-type"
+    value={form.type}
+    onChange={(e) => setForm({ ...form, type: e.target.value })}
+    placeholder={t("warehouse.select_type")}
+    className="text-[#1D2D44]"
+    required
+  />
+</div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">

@@ -42,13 +42,7 @@ export function PendingScreen({ onBack }: { onBack: () => void }) {
         {t("signup.pending_auto")}
       </p>
 
-      <Button
-        variant="ghost"
-        onClick={onBack}
-        className="mt-6 text-[oklch(0.35_0.03_252)] hover:bg-white/40 hover:text-[oklch(0.28_0.04_252)]"
-      >
-        {t("signup.pending_back")}
-      </Button>
+      
     </div>
   );
 }

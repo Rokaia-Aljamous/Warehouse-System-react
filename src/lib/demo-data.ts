@@ -20,6 +20,7 @@ export type Manager = {
   // legacy / optional
   email?: string;
   phone?: string;
+  salary?: number;
   joinDate?: string;
   role?: "Manager" | "Supervisor" | "Lead";
 };

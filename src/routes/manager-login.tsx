@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { getCsrfCookie } from "@/lib/api";
-import { loginManager, fetchMe } from "@/lib/manager-api";
+import { loginManager, fetchMe, type DashboardUser } from "@/lib/manager-api";
 import i18n from "@/lib/i18n";
 
 export const Route = createFileRoute("/manager-login")({
@@ -32,10 +32,14 @@ function ManagerLogin() {
     if (!stored) return;
     try {
       const parsed = JSON.parse(stored);
+      if (parsed.must_change_password) {
+        navigate({ to: "/force-password-change", replace: true });
+        return;
+      }
       if (parsed.tenant?.url_slug) {
         fetchMe(parsed.tenant.url_slug).then((me) => {
           if (me.role === "manager") {
-            navigate({ to: `/manager/${parsed.tenant.url_slug}`, replace: true });
+            navigate({ to: "/manager", replace: true });
           }
         }).catch(() => {
           localStorage.removeItem(SESSION_KEY);
@@ -45,6 +49,21 @@ function ManagerLogin() {
       localStorage.removeItem(SESSION_KEY);
     }
   }, [navigate]);
+
+  const storeSession = (user: DashboardUser) => {
+    localStorage.setItem(SESSION_KEY, JSON.stringify({
+      id: user.id,
+      full_name: user.full_name,
+      role: user.role,
+      owner_id: user.owner_id,
+      employee_id: user.employee_id,
+      warehouse_id: user.warehouse_id,
+      tenant: user.tenant,
+      user_name: user.user_name,
+      must_change_password: user.must_change_password,
+    }));
+    navigate({ to: user.must_change_password ? "/force-password-change" : "/manager" });
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,67 +82,9 @@ function ManagerLogin() {
         return;
       }
 
-      localStorage.setItem(SESSION_KEY, JSON.stringify({
-        id: res.dashboard_user.id,
-        full_name: res.dashboard_user.full_name,
-        role: res.dashboard_user.role,
-        owner_id: res.dashboard_user.owner_id,
-        employee_id: res.dashboard_user.employee_id,
-        warehouse_id: res.dashboard_user.warehouse_id,
-        tenant: res.dashboard_user.tenant,
-        user_name: res.dashboard_user.user_name,
-        must_change_password: res.dashboard_user.must_change_password,
-      }));
-
+      storeSession(res.dashboard_user);
       toast.success(t("manager.login.welcome", { name: res.dashboard_user.full_name }));
-      navigate({ to: `/manager/${slug.trim()}` });
     } catch (err: any) {
-      if (err.response?.status === 409) {
-        try {
-          const me = await fetchMe(slug.trim());
-          if (me.role !== "manager") {
-            toast.error(t("manager.login.owner_dashboard"));
-            setLoading(false);
-            return;
-          }
-          localStorage.setItem(SESSION_KEY, JSON.stringify({
-            id: me.id,
-            full_name: me.full_name,
-            role: me.role,
-            owner_id: me.owner_id,
-            employee_id: me.employee_id,
-            warehouse_id: me.warehouse_id,
-            tenant: me.tenant,
-            user_name: me.user_name,
-            must_change_password: me.must_change_password,
-          }));
-          toast.success(t("manager.login.welcome_back", { name: me.full_name }));
-          navigate({ to: `/manager/${slug.trim()}` });
-          return;
-        } catch {
-          await getCsrfCookie();
-          const res = await loginManager(slug.trim(), userName.trim(), password);
-          if (res.dashboard_user.role !== "manager") {
-            toast.error(t("manager.login.no_access"));
-            setLoading(false);
-            return;
-          }
-          localStorage.setItem(SESSION_KEY, JSON.stringify({
-            id: res.dashboard_user.id,
-            full_name: res.dashboard_user.full_name,
-            role: res.dashboard_user.role,
-            owner_id: res.dashboard_user.owner_id,
-            employee_id: res.dashboard_user.employee_id,
-            warehouse_id: res.dashboard_user.warehouse_id,
-            tenant: res.dashboard_user.tenant,
-            user_name: res.dashboard_user.user_name,
-            must_change_password: res.dashboard_user.must_change_password,
-          }));
-          toast.success(t("manager.login.welcome", { name: res.dashboard_user.full_name }));
-          navigate({ to: `/manager/${slug.trim()}` });
-          return;
-        }
-      }
       const msg = err.response?.data?.message
         || err.response?.data?.errors?.[Object.keys(err.response?.data?.errors ?? {})[0]]?.[0]
         || t("manager.login.invalid");

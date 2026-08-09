@@ -54,6 +54,14 @@ export const fetchMe = async (slug: string): Promise<DashboardUser> => {
   return response.data.dashboard_user;
 };
 
+export const forceChangePassword = async (slug: string, password: string, password_confirmation: string): Promise<{ message: string }> => {
+  const response = await api.post<{ message: string }>(`/${slug}/force-password-change`, {
+    password,
+    password_confirmation,
+  });
+  return response.data;
+};
+
 /* ===== Sections ===== */
 
 export interface SectionProduct {
@@ -346,6 +354,36 @@ export const receiveManagerShipment = async (slug: string, id: number): Promise<
   return response.data;
 };
 
+/* ===== Orders (manager views incoming customer orders) ===== */
+
+export interface ManagerOrderCustomer {
+  id: number;
+  full_name: string;
+  phone_number: string;
+}
+
+export interface ManagerOrderWarehouse {
+  id: number;
+  warehouse_name: string;
+}
+
+export interface ManagerOrder {
+  id: number;
+  customer: ManagerOrderCustomer;
+  warehouse: ManagerOrderWarehouse;
+  status: "pending" | "approved" | "in_preparation" | "shipped" | "delivered" | "rejected" | "cancelled";
+  total_price: string;
+  order_date: string;
+  customer_location: string;
+  order_qr_code: string;
+  items_count: number;
+}
+
+export const fetchManagerOrders = async (slug: string): Promise<{ orders: ManagerOrder[] }> => {
+  const response = await api.get<{ orders: ManagerOrder[] }>(`/${slug}/manager/orders`);
+  return response.data;
+};
+
 /* ===== Employees (manager can manage non-manager roles) ===== */
 
 export interface ManagerEmployeeSystemUser {
@@ -398,6 +436,33 @@ export const deleteManagerEmployee = async (slug: string, warehouseId: number, e
 
 export const logoutManagerEmployee = async (slug: string, warehouseId: number, employeeId: number): Promise<void> => {
   await api.post(`/${slug}/warehouses/${warehouseId}/employees/${employeeId}/logout`);
+};
+
+/* ===== Workers (manager creates workers in their warehouse) ===== */
+
+export interface ManagerWorkerInput {
+  full_name: string;
+  birthday?: string | null;
+  phone_number: string;
+  user_name: string;
+  role: "manager" | "warehouse_secretary" | "staff" | "driver";
+  status: "available" | "busy";
+  salary: number;
+}
+
+export interface ManagerWorkerResponse {
+  message: string;
+  worker: ManagerEmployee;
+  password?: string | null;
+}
+
+export const createManagerWorker = async (
+  slug: string,
+  warehouseId: number,
+  data: ManagerWorkerInput,
+): Promise<ManagerWorkerResponse> => {
+  const response = await api.post<ManagerWorkerResponse>(`/${slug}/manager/workers/${warehouseId}`, data);
+  return response.data;
 };
 
 /* ===== Tasks ===== */
