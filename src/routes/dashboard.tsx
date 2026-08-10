@@ -61,12 +61,12 @@ import {
   fetchWarehouses, createWarehouse, updateWarehouse, deleteWarehouse,
   fetchDeleteWarehouseInfo, type DeleteWarehouseInfo,
   fetchProducts, createProduct, updateProduct, deleteProduct,
-  fetchShipments, receiveShipment,
+  fetchShipments, receiveShipment, createShipment,
   fetchEmployees, createEmployee, updateEmployee, deleteEmployee, logoutEmployee,
   getTypeStyle,
   type Warehouse as BackendWarehouse, type WarehouseInput,
   type Product, type ProductInput,
-  type Shipment, type ShipmentStatus,
+  type Shipment, type ShipmentStatus, type ShipmentInput, type ShipmentItemInput,
   type Employee, type EmployeeInput,
 } from "@/lib/dashboard-api";
 
@@ -2108,6 +2108,12 @@ function ShipmentsSection({ slug }: { slug?: string | null }) {
   const { t } = useTranslation();
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [warehouses, setWarehouses] = useState<BackendWarehouse[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [form, setForm] = useState({ warehouse_id: "", factory_name: "", arrival_date: "" });
+  const [items, setItems] = useState<ShipmentItemInput[]>([{ product_id: 0, quantity: 1, purchase_price: 0 }]);
 
   const load = async () => {
     if (!slug) return;
@@ -2121,6 +2127,12 @@ function ShipmentsSection({ slug }: { slug?: string | null }) {
 
   useEffect(() => { load(); }, [slug]);
 
+  useEffect(() => {
+    if (!slug) return;
+    fetchWarehouses(slug).then((res) => setWarehouses(res.warehouses)).catch(() => {});
+    fetchProducts(slug).then((res) => setProducts(res.products)).catch(() => {});
+  }, [slug]);
+
   const handleReceive = async (id: number) => {
     if (!slug) return;
     try {
@@ -2129,6 +2141,50 @@ function ShipmentsSection({ slug }: { slug?: string | null }) {
       load();
     } catch (err: any) {
       toast.error(err.response?.data?.message || t("shipment.toast_receive_failed"));
+    }
+  };
+
+  const updateItem = (index: number, patch: Partial<ShipmentItemInput>) => {
+    setItems((prev) => prev.map((it, i) => (i === index ? { ...it, ...patch } : it)));
+  };
+
+  const handleProductChange = (index: number, productId: number) => {
+    const product = products.find((p) => p.id === productId);
+    updateItem(index, { product_id: productId, purchase_price: product?.current_purchase_price ?? 0 });
+  };
+
+  const addItem = () => setItems((prev) => [...prev, { product_id: 0, quantity: 1, purchase_price: 0 }]);
+
+  const removeItem = (index: number) => setItems((prev) => prev.filter((_, i) => i !== index));
+
+  const handleCreate = async () => {
+    if (!slug) return;
+    if (!form.warehouse_id) { toast.error(t("shipment.err_warehouse")); return; }
+    if (!form.factory_name.trim()) { toast.error(t("shipment.err_factory")); return; }
+    if (!form.arrival_date) { toast.error(t("shipment.err_arrival")); return; }
+    const payloadItems = items.filter((it) => it.product_id > 0 && it.quantity >= 1);
+    if (payloadItems.length === 0) { toast.error(t("shipment.err_items")); return; }
+    setSaving(true);
+    try {
+      await createShipment(slug, {
+        warehouse_id: Number(form.warehouse_id),
+        factory_name: form.factory_name.trim(),
+        arrival_date: form.arrival_date,
+        items: payloadItems.map((it) => ({
+          product_id: it.product_id,
+          quantity: it.quantity,
+          purchase_price: it.purchase_price,
+        })),
+      });
+      toast.success(t("shipment.created"));
+      setOpen(false);
+      setForm({ warehouse_id: "", factory_name: "", arrival_date: "" });
+      setItems([{ product_id: 0, quantity: 1, purchase_price: 0 }]);
+      load();
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || t("common.operation_failed"));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -2147,7 +2203,12 @@ function ShipmentsSection({ slug }: { slug?: string | null }) {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-cream/80">{t("shipment.count", { count: shipments.length })}</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-cream/80">{t("shipment.count", { count: shipments.length })}</p>
+        <Button onClick={() => setOpen(true)} className="bg-navy text-cream hover:bg-navy/90">
+          <Plus className="size-4" /> {t("shipment.add")}
+        </Button>
+      </div>
 
       {loading ? (
         <GlassCard><Skeleton className="h-40 w-full bg-white/20" /></GlassCard>
@@ -2195,6 +2256,87 @@ function ShipmentsSection({ slug }: { slug?: string | null }) {
           </Table>
         </GlassCard>
       )}
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-[#1D2D44]">{t("shipment.add")}</DialogTitle>
+            <DialogDescription>{t("shipment.add.desc")}</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="grid gap-2">
+              <Label className="text-[#1D2D44]">{t("shipment.warehouse")} *</Label>
+              <Select value={form.warehouse_id} onValueChange={(v) => setForm({ ...form, warehouse_id: v })}>
+                <SelectTrigger className="text-[#1D2D44]"><SelectValue placeholder={t("shipment.select_warehouse")} /></SelectTrigger>
+                <SelectContent>
+                  {warehouses.map((w) => (
+                    <SelectItem key={w.id} value={String(w.id)}>{w.warehouse_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label className="text-[#1D2D44]">{t("shipment.factory_name")} *</Label>
+                <Input
+                  value={form.factory_name}
+                  onChange={(e) => setForm({ ...form, factory_name: e.target.value })}
+                  placeholder={t("shipment.factory_name")}
+                  className="text-[#1D2D44] placeholder:text-[#1D2D44]/50 focus:text-[#1D2D44]"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label className="text-[#1D2D44]">{t("shipment.arrival_date")} *</Label>
+                <Input type="date" value={form.arrival_date} onChange={(e) => setForm({ ...form, arrival_date: e.target.value })} className="text-[#1D2D44]" />
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-[#1D2D44]">{t("shipment.items")} *</Label>
+                <Button type="button" variant="outline" size="sm" onClick={addItem} className="h-8 text-xs">
+                  <Plus className="size-3.5 me-1" /> {t("shipment.add_item")}
+                </Button>
+              </div>
+              {items.map((item, index) => (
+                <div key={index} className="grid gap-2 rounded-lg border border-slate-200 p-3 sm:grid-cols-[1fr_5.5rem_7rem_auto]">
+                  <div className="grid gap-1">
+                    <Label className="text-xs text-[#1D2D44]">{t("shipment.product")}</Label>
+                    <Select value={item.product_id ? String(item.product_id) : ""} onValueChange={(v) => handleProductChange(index, Number(v))}>
+                      <SelectTrigger className="h-9 text-[#1D2D44]"><SelectValue placeholder={t("shipment.select_product")} /></SelectTrigger>
+                      <SelectContent>
+                        {products.map((p) => (
+                          <SelectItem key={p.id} value={String(p.id)}>{p.name} — {p.brand}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-1">
+                    <Label className="text-xs text-[#1D2D44]">{t("shipment.quantity")}</Label>
+                    <Input type="number" min={1} value={item.quantity} onChange={(e) => updateItem(index, { quantity: Number(e.target.value) })} className="h-9 text-[#1D2D44]" />
+                  </div>
+                  <div className="grid gap-1">
+                    <Label className="text-xs text-[#1D2D44]">{t("shipment.purchase_price")}</Label>
+                    <Input type="number" min={0} step={0.01} value={item.purchase_price} onChange={(e) => updateItem(index, { purchase_price: Number(e.target.value) })} className="h-9 text-[#1D2D44]" />
+                  </div>
+                  <div className="flex items-end">
+                    <Button type="button" variant="ghost" size="sm" onClick={() => removeItem(index)} disabled={items.length === 1} className="h-9 px-2 text-red-600 hover:text-red-700">
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>{t("common.cancel")}</Button>
+            <Button onClick={handleCreate} disabled={saving} className="bg-navy text-cream hover:bg-navy/90">
+              {saving ? <Loader2 className="size-4 animate-spin me-1" /> : <Send className="size-4 me-1" />} {t("shipment.create")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

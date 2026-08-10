@@ -288,24 +288,39 @@ export const fetchInventoryMovements = async (slug: string, params?: {
 export interface ManagerProduct {
   id: number;
   name: string;
-  brand: string;
-  type: string;
-  piece_barcode: string | null;
-  parcel_barcode: string | null;
-  units_per_packing: number;
-  current_purchase_price: number;
-  selling_price: number;
-  parcel_length: number;
-  parcel_width: number;
-  parcel_height: number;
+  brand?: string;
+  type?: string;
+  piece_barcode?: string | null;
+  parcel_barcode?: string | null;
+  units_per_packing?: number;
+  current_purchase_price?: number;
+  selling_price?: number;
+  parcel_length?: number;
+  parcel_width?: number;
+  parcel_height?: number;
   warehouses_count?: number;
-  created_at: string | null;
-  updated_at: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
-export const fetchManagerProducts = async (slug: string): Promise<{ products: ManagerProduct[] }> => {
-  const response = await api.get<{ products: ManagerProduct[] }>(`/${slug}/products`);
-  return response.data;
+export interface ManagerInventoryItem {
+  product_id: number;
+  name: string;
+  pivot: { quantity: number; minimum_stock: number } | null;
+}
+
+export const fetchManagerProducts = async (
+  slug: string,
+): Promise<{ products: ManagerProduct[] }> => {
+  const response = await api.get<{ inventory: ManagerInventoryItem[] }>(
+    `/${slug}/manager/inventory`,
+  );
+  return {
+    products: (response.data.inventory ?? []).map((item) => ({
+      id: item.product_id,
+      name: item.name,
+    })),
+  };
 };
 
 /* ===== Shipments (view + receive for manager) ===== */
@@ -407,17 +422,20 @@ export interface ManagerEmployee {
 }
 
 export const fetchManagerEmployees = async (slug: string, warehouseId: number): Promise<{ employees: ManagerEmployee[] }> => {
-  const response = await api.get<{ employees: ManagerEmployee[] }>(`/${slug}/warehouses/${warehouseId}/employees`);
+  const response = await api.get<{ employees: ManagerEmployee[] }>(`/${slug}/manager/workers/${warehouseId}`);
   return response.data;
 };
 
 export const createManagerEmployee = async (
   slug: string,
   warehouseId: number,
-  data: { full_name: string; phone_number: string; user_name: string; password?: string; role: string; salary: number }
+  data: { full_name: string; phone_number: string; user_name: string; role: string; salary: number; status?: string }
 ): Promise<{ message: string; employee: ManagerEmployee; password?: string }> => {
-  const response = await api.post(`/${slug}/warehouses/${warehouseId}/employees`, data);
-  return response.data;
+  const response = await api.post<{ message: string; worker: ManagerEmployee; password?: string }>(
+    `/${slug}/manager/workers/${warehouseId}`,
+    { ...data, status: data.status ?? "available" },
+  );
+  return { message: response.data.message, employee: response.data.worker, password: response.data.password };
 };
 
 export const updateManagerEmployee = async (
@@ -426,16 +444,16 @@ export const updateManagerEmployee = async (
   employeeId: number,
   data: Partial<{ full_name: string; phone_number: string; user_name: string; role: string; salary: number; status: string }>
 ): Promise<{ message: string; employee: ManagerEmployee }> => {
-  const response = await api.patch(`/${slug}/warehouses/${warehouseId}/employees/${employeeId}`, data);
-  return response.data;
+  const response = await api.patch<{ message: string; worker: ManagerEmployee }>(`/${slug}/manager/workers/${warehouseId}/${employeeId}`, data);
+  return { message: response.data.message, employee: response.data.worker };
 };
 
 export const deleteManagerEmployee = async (slug: string, warehouseId: number, employeeId: number): Promise<void> => {
-  await api.delete(`/${slug}/warehouses/${warehouseId}/employees/${employeeId}`);
+  await api.delete(`/${slug}/manager/workers/${warehouseId}/${employeeId}`);
 };
 
 export const logoutManagerEmployee = async (slug: string, warehouseId: number, employeeId: number): Promise<void> => {
-  await api.post(`/${slug}/warehouses/${warehouseId}/employees/${employeeId}/logout`);
+  await api.post(`/${slug}/manager/workers/${warehouseId}/${employeeId}/logout`);
 };
 
 /* ===== Workers (manager creates workers in their warehouse) ===== */

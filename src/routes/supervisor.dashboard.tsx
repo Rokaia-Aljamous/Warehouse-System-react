@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
@@ -31,6 +31,7 @@ import { cn } from "@/lib/utils";
 import i18n from "@/lib/i18n";
 import { useTranslation } from "react-i18next";
 import { LanguageToggle } from "@/components/LanguageToggle";
+import { fetchMe, logoutManager } from "@/lib/manager-api";
 
 export const Route = createFileRoute("/supervisor/dashboard")({
   component: SupervisorApp,
@@ -115,6 +116,55 @@ function SupervisorApp() {
   const [section, setSection] = useState<SectionId>("overview");
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [checking, setChecking] = useState(true);
+  const [slug, setSlug] = useState<string | null>(null);
+  const [fullName, setFullName] = useState("");
+
+  useEffect(() => {
+    const raw = typeof window !== "undefined" ? localStorage.getItem("stockyard.manager") : null;
+    if (!raw) {
+      navigate({ to: "/supervisor-login", replace: true });
+      return;
+    }
+    let parsed: { must_change_password?: boolean; full_name?: string; tenant?: { url_slug?: string } };
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      localStorage.removeItem("stockyard.manager");
+      navigate({ to: "/supervisor-login", replace: true });
+      return;
+    }
+    if (parsed.must_change_password) {
+      navigate({ to: "/force-password-change", replace: true });
+      return;
+    }
+    setFullName(parsed.full_name ?? "");
+    const tenantSlug = parsed.tenant?.url_slug;
+    if (!tenantSlug) {
+      navigate({ to: "/supervisor-login", replace: true });
+      return;
+    }
+    setSlug(tenantSlug);
+    fetchMe(tenantSlug)
+      .then((me) => {
+        if (me.role !== "warehouse_secretary") {
+          localStorage.removeItem("stockyard.manager");
+          navigate({ to: "/supervisor-login", replace: true });
+          return;
+        }
+        setFullName(me.full_name ?? "");
+        setChecking(false);
+      })
+      .catch((err: unknown) => {
+        const status = (err as { response?: { status?: number } })?.response?.status;
+        if (status === 403) {
+          navigate({ to: "/force-password-change", replace: true });
+          return;
+        }
+        localStorage.removeItem("stockyard.manager");
+        navigate({ to: "/supervisor-login", replace: true });
+      });
+  }, [navigate]);
 
   const [workers, setWorkers] = useState<SWorker[]>(seedWorkers);
   const [orders, setOrders] = useState<COrder[]>(seedOrders);
@@ -133,11 +183,22 @@ function SupervisorApp() {
     availableDrivers: drivers.filter(d => d.status === "available").length,
   }), [orders, returns, shipments, workers, drivers]);
 
-  const logout = () => {
-    if (typeof window !== "undefined") localStorage.removeItem("stockyard.manager");
+  const logout = async () => {
+    if (slug) {
+      try { await logoutManager(slug); } catch { /* ignore */ }
+    }
+    localStorage.removeItem("stockyard.manager");
     toast.success(t("supervisor.toast_signed_out"));
-    navigate({ to: "/manager-login" });
+    navigate({ to: "/supervisor-login" });
   };
+
+  if (checking) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-navy">
+        <Loader2 className="h-8 w-8 animate-spin text-cream" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen text-cream">
@@ -220,6 +281,7 @@ function SupervisorApp() {
               <span className="absolute end-1 top-1 size-2 rounded-full bg-[oklch(0.78_0.16_75)]" />
             </button>
             <Link to="/" className="rounded-full border border-cream/20 bg-white/5 px-3 py-1.5 text-xs hover:bg-white/15">{t("common.home")}</Link>
+            {fullName && <span className="hidden sm:inline text-xs font-medium text-cream/80">{fullName}</span>}
             <LanguageToggle variant="header" />
           </div>
         </header>

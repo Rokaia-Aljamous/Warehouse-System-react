@@ -37,7 +37,11 @@ function ForcePasswordChange() {
     try {
       const parsed = JSON.parse(raw);
       if (parsed.must_change_password === false) {
-        navigate({ to: "/manager", replace: true });
+        if (parsed.role === "warehouse_secretary") {
+          navigate({ to: "/supervisor/dashboard", replace: true });
+        } else {
+          navigate({ to: "/manager", replace: true });
+        }
         return;
       }
       if (parsed.tenant?.url_slug) {
@@ -78,14 +82,20 @@ function ForcePasswordChange() {
     try {
       await getCsrfCookie();
       await forceChangePassword(slug, password, confirm);
+      let redirectRole: string | undefined;
       const raw = localStorage.getItem(SESSION_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
         parsed.must_change_password = false;
         localStorage.setItem(SESSION_KEY, JSON.stringify(parsed));
+        redirectRole = parsed.role;
       }
       toast.success(t("settings.password_changed"));
-      navigate({ to: "/manager", replace: true });
+      if (redirectRole === "warehouse_secretary") {
+        navigate({ to: "/supervisor/dashboard", replace: true });
+      } else {
+        navigate({ to: "/manager", replace: true });
+      }
     } catch (err: any) {
       const msg = err.response?.data?.message
         || err.response?.data?.errors?.[Object.keys(err.response?.data?.errors ?? {})[0]]?.[0]
