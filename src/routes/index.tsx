@@ -54,7 +54,9 @@ export const Route = createFileRoute("/")({
         name: "description",
         content: i18n.t("title.index_desc"),
       },
-      <link rel="icon" type="image/svg+xml" href="/logo?v=2" />
+    ],
+    links: [
+      { rel: "icon", type: "image/svg+xml", href: "/logo.svg?v=2" },
     ],
   }),
 });

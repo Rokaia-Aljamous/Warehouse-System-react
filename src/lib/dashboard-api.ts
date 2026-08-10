@@ -64,22 +64,22 @@ export function getTypeStyle(type: string): { color: string; icon: string } {
 }
 
 export const fetchWarehouses = async (slug: string): Promise<WarehouseListResponse> => {
-  const response = await api.get<WarehouseListResponse>(`/${slug}/owner/warehouses`);
+  const response = await api.get<WarehouseListResponse>(`/${slug}/warehouses`);
   return response.data;
 };
 
 export const createWarehouse = async (slug: string, data: WarehouseInput): Promise<WarehouseStoreResponse> => {
-  const response = await api.post<WarehouseStoreResponse>(`/${slug}/owner/warehouses`, data);
+  const response = await api.post<WarehouseStoreResponse>(`/${slug}/warehouses`, data);
   return response.data;
 };
 
 export const updateWarehouse = async (slug: string, id: number, data: Partial<WarehouseInput>): Promise<WarehouseStoreResponse> => {
-  const response = await api.patch<WarehouseStoreResponse>(`/${slug}/owner/warehouses/${id}`, data);
+  const response = await api.patch<WarehouseStoreResponse>(`/${slug}/warehouses/${id}`, data);
   return response.data;
 };
 
 export const deleteWarehouse = async (slug: string, id: number): Promise<void> => {
-  await api.delete(`/${slug}/owner/warehouses/${id}`);
+  await api.delete(`/${slug}/warehouses/${id}`);
 };
 
 export interface DeleteWarehouseInfo {
@@ -90,7 +90,7 @@ export interface DeleteWarehouseInfo {
 }
 
 export const fetchDeleteWarehouseInfo = async (slug: string, id: number): Promise<DeleteWarehouseInfo> => {
-  const response = await api.get<DeleteWarehouseInfo>(`/${slug}/owner/warehouses/${id}/delete-info`);
+  const response = await api.get<DeleteWarehouseInfo>(`/${slug}/warehouses/${id}/delete-info`);
   return response.data;
 };
 
@@ -150,31 +150,31 @@ export interface ProductInput {
 }
 
 export const fetchProducts = async (slug: string): Promise<ProductListResponse> => {
-  const response = await api.get<ProductListResponse>(`/${slug}/owner/products`);
+  const response = await api.get<ProductListResponse>(`/${slug}/products`);
   return response.data;
 };
 
 export const createProduct = async (slug: string, data: ProductInput): Promise<ProductStoreResponse> => {
-  const response = await api.post<ProductStoreResponse>(`/${slug}/owner/products`, data);
+  const response = await api.post<ProductStoreResponse>(`/${slug}/products`, data);
   return response.data;
 };
 
 export const updateProduct = async (slug: string, id: number, data: Partial<ProductInput>): Promise<ProductStoreResponse> => {
-  const response = await api.patch<ProductStoreResponse>(`/${slug}/owner/products/${id}`, data);
+  const response = await api.patch<ProductStoreResponse>(`/${slug}/products/${id}`, data);
   return response.data;
 };
 
 export const deleteProduct = async (slug: string, id: number): Promise<void> => {
-  await api.delete(`/${slug}/owner/products/${id}`);
+  await api.delete(`/${slug}/products/${id}`);
 };
 
 export const updateProductStock = async (slug: string, warehouseId: number, productId: number, data: { minimum_stock: number }): Promise<ProductStoreResponse> => {
-  const response = await api.patch<ProductStoreResponse>(`/${slug}/owner/warehouses/${warehouseId}/products/${productId}/stock`, data);
+  const response = await api.patch<ProductStoreResponse>(`/${slug}/warehouses/${warehouseId}/products/${productId}/stock`, data);
   return response.data;
 };
 
 export const updateProductQuantity = async (slug: string, warehouseId: number, productId: number, quantity: number): Promise<ProductStoreResponse> => {
-  const response = await api.patch<ProductStoreResponse>(`/${slug}/owner/warehouses/${warehouseId}/products/${productId}/quantity`, { quantity });
+  const response = await api.patch<ProductStoreResponse>(`/${slug}/warehouses/${warehouseId}/products/${productId}/quantity`, { quantity });
   return response.data;
 };
 
@@ -253,26 +253,26 @@ export interface ShipmentItemInput {
 }
 
 export const fetchShipments = async (slug: string): Promise<ShipmentListResponse> => {
-  const response = await api.get<ShipmentListResponse>(`/${slug}/owner/shipments`);
+  const response = await api.get<ShipmentListResponse>(`/${slug}/shipments`);
   return response.data;
 };
 
 export const createShipment = async (slug: string, data: ShipmentInput): Promise<ShipmentStoreResponse> => {
-  const response = await api.post<ShipmentStoreResponse>(`/${slug}/owner/shipments`, data);
+  const response = await api.post<ShipmentStoreResponse>(`/${slug}/shipments`, data);
   return response.data;
 };
 
 export const updateShipment = async (slug: string, id: number, data: Partial<ShipmentInput>): Promise<ShipmentStoreResponse> => {
-  const response = await api.patch<ShipmentStoreResponse>(`/${slug}/owner/shipments/${id}`, data);
+  const response = await api.patch<ShipmentStoreResponse>(`/${slug}/shipments/${id}`, data);
   return response.data;
 };
 
 export const deleteShipment = async (slug: string, id: number): Promise<void> => {
-  await api.delete(`/${slug}/owner/shipments/${id}`);
+  await api.delete(`/${slug}/shipments/${id}`);
 };
 
 export const receiveShipment = async (slug: string, id: number): Promise<ShipmentStoreResponse> => {
-  const response = await api.post<ShipmentStoreResponse>(`/${slug}/owner/shipments/${id}/receive`);
+  const response = await api.post<ShipmentStoreResponse>(`/${slug}/shipments/${id}/receive`);
   return response.data;
 };
 
@@ -321,24 +321,24 @@ export interface EmployeeInput {
 }
 
 export const fetchEmployees = async (slug: string, warehouseId: number): Promise<EmployeeListResponse> => {
-  const response = await api.get<EmployeeListResponse>(`/${slug}/owner/warehouses/${warehouseId}/employees`);
+  const response = await api.get<EmployeeListResponse>(`/${slug}/warehouses/${warehouseId}/employees`);
   return response.data;
 };
 
 export const createEmployee = async (slug: string, warehouseId: number, data: EmployeeInput): Promise<EmployeeStoreResponse> => {
-  const response = await api.post<EmployeeStoreResponse>(`/${slug}/owner/warehouses/${warehouseId}/employees`, data);
+  const response = await api.post<EmployeeStoreResponse>(`/${slug}/warehouses/${warehouseId}/employees`, data);
   return response.data;
 };
 
 export const updateEmployee = async (slug: string, warehouseId: number, employeeId: number, data: Partial<EmployeeInput>): Promise<EmployeeStoreResponse> => {
-  const response = await api.patch<EmployeeStoreResponse>(`/${slug}/owner/warehouses/${warehouseId}/employees/${employeeId}`, data);
+  const response = await api.patch<EmployeeStoreResponse>(`/${slug}/warehouses/${warehouseId}/employees/${employeeId}`, data);
   return response.data;
 };
 
 export const deleteEmployee = async (slug: string, warehouseId: number, employeeId: number): Promise<void> => {
-  await api.delete(`/${slug}/owner/warehouses/${warehouseId}/employees/${employeeId}`);
+  await api.delete(`/${slug}/warehouses/${warehouseId}/employees/${employeeId}`);
 };
 
 export const logoutEmployee = async (slug: string, warehouseId: number, employeeId: number): Promise<void> => {
-  await api.post(`/${slug}/owner/warehouses/${warehouseId}/employees/${employeeId}/logout`);
+  await api.post(`/${slug}/warehouses/${warehouseId}/employees/${employeeId}/logout`);
 };
