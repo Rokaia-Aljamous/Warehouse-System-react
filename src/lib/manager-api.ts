@@ -530,6 +530,73 @@ export const updateTaskStatus = async (slug: string, taskId: number, data: Updat
   return response.data;
 };
 
+/* ===== Inter-Warehouse Transfer Requests ===== */
+
+export type TransferRequestStatus = "pending" | "accepted" | "fulfilled" | "cancelled";
+
+export interface TransferRequestWarehouse {
+  id: number;
+  warehouse_name: string;
+  type: string;
+  location: string;
+}
+
+export interface TransferRequestItem {
+  id: number;
+  product_id: number;
+  product_name: string;
+  quantity: number;
+}
+
+export interface TransferRequest {
+  id: number;
+  owner_id: number;
+  warehouse_id: number;
+  requested_by_name: string;
+  requested_by_user_id: number;
+  status: TransferRequestStatus;
+  status_label: string;
+  origin_warehouse: TransferRequestWarehouse;
+  accepted_by_warehouse: TransferRequestWarehouse | null;
+  items: TransferRequestItem[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateTransferRequestInput {
+  items: { product_id: number; quantity: number }[];
+  note?: string;
+}
+
+export interface TransferRequestListResponse {
+  transfer_requests: TransferRequest[];
+}
+
+export interface TransferRequestResponse {
+  message: string;
+  transfer_request: TransferRequest;
+}
+
+export const fetchAvailableTransferRequests = async (slug: string): Promise<TransferRequestListResponse> => {
+  const response = await api.get<TransferRequestListResponse>(`/${slug}/manager/transfer-requests/available`);
+  return response.data;
+};
+
+export const fetchMyTransferRequests = async (slug: string): Promise<TransferRequestListResponse> => {
+  const response = await api.get<TransferRequestListResponse>(`/${slug}/manager/transfer-requests/mine`);
+  return response.data;
+};
+
+export const createTransferRequest = async (slug: string, data: CreateTransferRequestInput): Promise<TransferRequestResponse> => {
+  const response = await api.post<TransferRequestResponse>(`/${slug}/manager/transfer-requests`, data);
+  return response.data;
+};
+
+export const acceptTransferRequest = async (slug: string, requestId: number): Promise<TransferRequestResponse> => {
+  const response = await api.post<TransferRequestResponse>(`/${slug}/manager/transfer-requests/${requestId}/accept`);
+  return response.data;
+};
+
 /* ===== Warehouse (manager sees only their own) ===== */
 
 export interface ManagerWarehouseDetail {

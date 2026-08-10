@@ -5,7 +5,7 @@ import { Warehouse, User, Phone, AtSign, Lock, Eye, EyeOff, Calendar, Loader2 } 
 import { toast } from "sonner";
 import { z } from "zod";
 import { LanguageToggle } from "@/components/LanguageToggle";
-import { getCsrfCookie, setupTenantOwner, getStoredUser } from "@/lib/api";
+import { getCsrfCookie, setupTenantOwner, getStoredUser, setStoredUser } from "@/lib/api";
 import { DashboardPage } from "./dashboard";
 
 export const Route = createFileRoute("/tenant/setup")({
@@ -83,6 +83,14 @@ function TenantSetup() {
 
       toast.success(res.message || t("tenant.setup.success"));
       toast.success(t("tenant.setup.success") + " " + t("tenant.setup.login_at") + "/" + (slug || res.owner.tenant.url_slug) + "/login");
+      setStoredUser({
+        id: res.owner.system_user.id,
+        full_name: res.owner.system_user.full_name,
+        email: res.owner.system_user.email ?? res.owner.system_user.user_name + "@warehouse.io",
+        birthday: form.birthday || null,
+        tenant: res.owner.tenant,
+        is_admin: true,
+      });
       setDone(true);
     } catch (error: any) {
       if (error.response?.status === 422) {
