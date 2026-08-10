@@ -1,12 +1,17 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { XCircle, Warehouse, ChevronRight, ArrowLeft } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { LanguageToggle } from "@/components/LanguageToggle";
+import i18n from "@/lib/i18n";
 
 export const Route = createFileRoute("/checkout/cancel")({
   component: CheckoutCancel,
+  head: () => ({ meta: [{ title: `${i18n.t("checkout.cancel.title")} — Stockyard` }] }),
 });
 
 function StepIndicator({ current }: { current: 2 }) {
-  const steps = ["Registered", "Subscribe", "Set up"];
+  const { t } = useTranslation();
+  const steps = [t("steps.registered"), t("steps.subscribe"), t("steps.set_up")];
   return (
     <div className="flex items-center justify-center gap-0">
       {steps.map((label, i) => {
@@ -48,6 +53,7 @@ function StepIndicator({ current }: { current: 2 }) {
 }
 
 function CheckoutCancel() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   return (
@@ -57,7 +63,8 @@ function CheckoutCancel() {
           <div className="flex size-9 items-center justify-center rounded-xl bg-[#f3a523] shadow-lg shadow-[#f3a523]/30">
             <Warehouse className="size-5 text-[#1a2942]" />
           </div>
-          <span className="text-lg font-bold tracking-tight text-[#f0ecdb]">Stockyard</span>
+          <span className="text-lg font-bold tracking-tight text-[#f0ecdb]">{t("app.name")}</span>
+          <div className="ms-auto"><LanguageToggle variant="header" /></div>
         </div>
       </header>
 
@@ -70,15 +77,15 @@ function CheckoutCancel() {
           <div className="mx-auto mb-4 flex size-20 items-center justify-center rounded-full bg-amber-100 shadow-lg shadow-amber-500/20">
             <XCircle className="size-10 text-amber-600" />
           </div>
-          <h2 className="text-xl font-bold text-[#1a2942]">Payment Cancelled</h2>
+          <h2 className="text-xl font-bold text-[#1a2942]">{t("checkout.cancel.title")}</h2>
           <p className="mt-2 text-sm leading-relaxed text-[#1a2942]/60">
-            Your PayPal payment was cancelled. No charges were made.
+            {t("checkout.cancel.desc")}
           </p>
 
           <div className="mx-0 my-6 border-t border-[#1a2942]/10" />
 
           <p className="text-sm text-[#1a2942]/60">
-            You can return to the plans page and try again whenever you're ready.
+            {t("checkout.cancel.hint")}
           </p>
 
           <div className="mt-4 flex flex-col gap-3">
@@ -86,8 +93,8 @@ function CheckoutCancel() {
               onClick={() => navigate({ to: "/" })}
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a2942] py-3 font-semibold text-[#f0ecdb] shadow-lg transition hover:bg-[#26384c]"
             >
-              <ArrowLeft className="size-4" />
-              Back to plans
+              <ArrowLeft className="size-4 rtl:rotate-180" />
+              {t("checkout.cancel.return_home")}
             </button>
           </div>
         </div>

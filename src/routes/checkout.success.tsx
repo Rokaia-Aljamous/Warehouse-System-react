@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   CheckCircle2,
   XCircle,
@@ -14,16 +15,20 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { completePayPalOrder, type TenantResource } from "@/lib/api";
+import { LanguageToggle } from "@/components/LanguageToggle";
+import i18n from "@/lib/i18n";
 
 export const Route = createFileRoute("/checkout/success")({
   component: CheckoutSuccess,
   validateSearch: (search: Record<string, unknown>) => ({
     token: (search.token as string) || "",
   }),
+  head: () => ({ meta: [{ title: `${i18n.t("title.checkout_success")} — Stockyard` }] }),
 });
 
 function StepIndicator({ current }: { current: 1 | 2 | 3 }) {
-  const steps = ["Registered", "Subscribe", "Set up"];
+  const { t } = useTranslation();
+  const steps = [t("steps.registered"), t("steps.subscribe"), t("steps.set_up")];
   return (
     <div className="flex items-center justify-center gap-0">
       {steps.map((label, i) => {
@@ -81,6 +86,7 @@ function SummaryRow({ icon: Icon, label, value }: { icon: React.ElementType; lab
 }
 
 function CheckoutSuccess() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { token } = Route.useSearch();
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
@@ -90,7 +96,7 @@ function CheckoutSuccess() {
   useEffect(() => {
     if (!token) {
       setStatus("error");
-      setMessage("No payment token received from PayPal.");
+      setMessage(i18n.t("checkout.success.no_token"));
       return;
     }
 
@@ -102,7 +108,7 @@ function CheckoutSuccess() {
       })
       .catch((err) => {
         setStatus("error");
-        setMessage(err.response?.data?.message || err.response?.data?.payment?.[0] || "Payment processing failed.");
+        setMessage(err.response?.data?.message || err.response?.data?.payment?.[0] || i18n.t("checkout.success.payment_failed"));
       });
   }, [token]);
 
@@ -115,7 +121,8 @@ function CheckoutSuccess() {
           <div className="flex size-9 items-center justify-center rounded-xl bg-[#f3a523] shadow-lg shadow-[#f3a523]/30">
             <Warehouse className="size-5 text-[#1a2942]" />
           </div>
-          <span className="text-lg font-bold tracking-tight text-[#f0ecdb]">Stockyard</span>
+          <span className="text-lg font-bold tracking-tight text-[#f0ecdb]">{t("app.name")}</span>
+          <div className="ms-auto"><LanguageToggle variant="header" /></div>
         </div>
       </header>
 
@@ -129,9 +136,9 @@ function CheckoutSuccess() {
             <div className="mx-auto mb-5 flex size-20 items-center justify-center rounded-full bg-[#1a2942]/5">
               <Loader2 className="size-10 animate-spin text-[#f3a523]" />
             </div>
-            <h2 className="text-xl font-bold text-[#1a2942]">Processing payment…</h2>
+            <h2 className="text-xl font-bold text-[#1a2942]">{t("checkout.success.processing")}</h2>
             <p className="mt-2 text-sm text-[#1a2942]/60">
-              Please wait while we confirm your payment with PayPal.
+              {t("checkout.success.waiting")}
             </p>
             <div className="mt-6 space-y-2">
               <div className="h-2 animate-pulse rounded-full bg-[#1a2942]/10" />
@@ -146,33 +153,40 @@ function CheckoutSuccess() {
               <div className="mx-auto mb-4 flex size-20 items-center justify-center rounded-full bg-emerald-100 shadow-lg shadow-emerald-500/20">
                 <CheckCircle2 className="size-10 text-emerald-600" />
               </div>
-              <h2 className="text-2xl font-bold text-[#1a2942]">Payment Successful!</h2>
-              <p className="mt-1.5 text-sm text-[#1a2942]/60">{message || "Your subscription is now active."}</p>
+              <h2 className="text-2xl font-bold text-[#1a2942]">{t("checkout.success.title")}</h2>
+              <p className="mt-1.5 text-sm text-[#1a2942]/60">{message || t("checkout.success.desc")}</p>
             </div>
 
             <div className="mx-0 my-6 border-t border-[#1a2942]/10" />
 
             <div className="space-y-3">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-[#1a2942]/50">Order Summary</h3>
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-[#1a2942]/50">{t("subscribe.order_summary")}</h3>
 
-              <SummaryRow icon={Building2} label="Company" value={tenant.company_name} />
-              <SummaryRow icon={Package} label="Plan" value={plan?.name || "—"} />
+              <SummaryRow icon={Building2} label={t("checkout.summary.company")} value={tenant.company_name} />
+              <SummaryRow icon={Package} label={t("checkout.summary.plan")} value={plan?.name || "—"} />
               <SummaryRow
                 icon={Warehouse}
-                label="Warehouses"
-                value={`${tenant.warehouses_count} ${tenant.warehouses_count === 1 ? "warehouse" : "warehouses"}`}
+                label={t("checkout.summary.warehouses")}
+                value={t("checkout.summary.warehouses_count", { count: tenant.warehouses_count })}
               />
               <SummaryRow
-                icon={CreditCard}
-                label="Amount paid"
-                value={`$${plan ? (parseFloat(plan.price_per_warehouse) || 0).toFixed(2) : "0.00"}`}
-              />
+  icon={CreditCard}
+  label={t("checkout.summary.amount_paid")}
+  value={`$${
+    plan
+      ? (
+          (parseFloat(plan.price_per_warehouse) || 0) *
+          (Number(tenant?.warehouses_count) || 1)
+        ).toFixed(2)
+      : "0.00"
+  }`}
+/>
               <SummaryRow
                 icon={Calendar}
-                label="Valid until"
+                label={t("checkout.summary.valid_until")}
                 value={
                   tenant.subscription_end_date
-                    ? new Date(tenant.subscription_end_date).toLocaleDateString("en-US", {
+                    ? new Date(tenant.subscription_end_date).toLocaleDateString(i18n.language === "ar" ? "ar-EG" : "en-US", {
                         month: "short",
                         day: "numeric",
                         year: "numeric",
@@ -190,10 +204,9 @@ function CheckoutSuccess() {
                   <Sparkles className="size-4 text-[#1a2942]" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-[#1a2942]">Next step: Set up your dashboard</h3>
+                  <h3 className="font-semibold text-[#1a2942]">{t("checkout.success.next_step")}</h3>
                   <p className="mt-1 text-sm leading-relaxed text-[#1a2942]/65">
-                    Your warehouse is ready. Create an admin account to start managing
-                    {" "}<span className="font-medium text-[#1a2942]">{tenant.company_name}</span>.
+                    {t("checkout.success.setup_desc", { company: tenant.company_name })}
                   </p>
                 </div>
               </div>
@@ -201,8 +214,8 @@ function CheckoutSuccess() {
                 onClick={() => navigate({ to: "/tenant/setup", search: { slug: tenant.url_slug } })}
                 className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a2942] py-3 font-semibold text-[#f0ecdb] shadow-lg transition hover:bg-[#26384c]"
               >
-                Set up your dashboard
-                <ArrowRight className="size-4" />
+                {t("checkout.success.setup_button")}
+                <ArrowRight className="size-4 rtl:rotate-180" />
               </button>
             </div>
           </div>
@@ -213,24 +226,24 @@ function CheckoutSuccess() {
             <div className="mx-auto mb-4 flex size-20 items-center justify-center rounded-full bg-red-100 shadow-lg shadow-red-500/20">
               <XCircle className="size-10 text-red-600" />
             </div>
-            <h2 className="text-xl font-bold text-[#1a2942]">Payment Failed</h2>
+            <h2 className="text-xl font-bold text-[#1a2942]">{t("checkout.success.error_title")}</h2>
             <p className="mt-2 text-sm leading-relaxed text-red-700">{message}</p>
             <div className="mx-0 my-6 border-t border-[#1a2942]/10" />
             <p className="text-sm text-[#1a2942]/60">
-              Your card was not charged. You can try again or contact support if the issue persists.
+              {t("checkout.success.error_desc")}
             </p>
             <div className="mt-4 flex flex-col gap-3">
               <button
                 onClick={() => navigate({ to: "/" })}
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a2942] py-3 font-semibold text-[#f0ecdb] shadow-lg transition hover:bg-[#26384c]"
               >
-                Back to plans
+                {t("common.go_home")}
               </button>
               <button
                 onClick={() => window.location.reload()}
                 className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-[#1a2942]/20 bg-transparent py-3 font-semibold text-[#1a2942] transition hover:bg-[#1a2942]/5"
               >
-                Try again
+                {t("common.try_again")}
               </button>
             </div>
           </div>

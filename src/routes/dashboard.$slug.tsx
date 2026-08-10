@@ -1,16 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   LayoutDashboard, Users, Warehouse, BarChart3, Wallet, Settings as SettingsIcon,
   Search, Bell, Menu, Plus, Pencil, Trash2, ChevronLeft, ChevronRight,
-  Snowflake, Package, Flame, Truck, AlertTriangle, TrendingUp, Activity,
-  CreditCard, ArrowUpRight, ArrowDownRight, CheckCircle2, Boxes,
+  Snowflake, Package, Flame, Truck, AlertTriangle, Activity,
+  CreditCard, ArrowUpRight, CheckCircle2, Boxes,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid,
-  Tooltip as RTooltip, BarChart, Bar, Legend, PieChart, Pie, Cell,
+  Tooltip as RTooltip,
 } from "recharts";
 
 import { Button } from "@/components/ui/button";
@@ -29,37 +30,39 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
 
-import { initialManagers, inventoryTrend, shipmentsData, walletTransactions, type Manager } from "@/lib/demo-data";
 import { getStoredUser } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import i18n from "@/lib/i18n";
+import { LanguageToggle } from "@/components/LanguageToggle";
+import { fetchInventoryMovements, type InventoryMovement } from "@/lib/manager-api";
+import { OwnerAnalytics } from "@/components/analytics/OwnerAnalytics";
+import { formatNumber, formatMoney } from "@/lib/analytics-api";
 import {
   fetchWarehouses, createWarehouse, updateWarehouse, deleteWarehouse,
+  fetchProducts, fetchShipments, fetchEmployees,
   getTypeStyle, type Warehouse as BackendWarehouse, type WarehouseInput,
 } from "@/lib/dashboard-api";
 
 export const Route = createFileRoute("/dashboard/$slug")({
   component: TenantDashboardPage,
-  head: ({ params }) => ({
+  head: () => ({
     meta: [
-      { title: `Dashboard — ${params.slug}` },
-      { name: "description", content: `Manage ${params.slug} warehouses, managers, and analytics.` },
+      { title: i18n.t("title.dashboard_detail") },
+      { name: "description", content: i18n.t("title.dashboard_detail_desc") },
     ],
   }),
 });
 
 type SectionId = "dashboard" | "managers" | "warehouses" | "analytics" | "wallet" | "settings";
 
-const NAV: { id: SectionId; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { id: "managers", label: "Managers", icon: Users },
-  { id: "warehouses", label: "Warehouses", icon: Warehouse },
-  { id: "analytics", label: "Analytics", icon: BarChart3 },
-  { id: "wallet", label: "Wallet", icon: Wallet },
-  { id: "settings", label: "Settings", icon: SettingsIcon },
+const NAV: { id: SectionId; labelKey: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { id: "dashboard", labelKey: "sidebar.dashboard", icon: LayoutDashboard },
+  { id: "managers", labelKey: "dashboard.managers", icon: Users },
+  { id: "warehouses", labelKey: "sidebar.warehouses", icon: Warehouse },
+  { id: "analytics", labelKey: "feature.analytics", icon: BarChart3 },
+  { id: "wallet", labelKey: "dashboard.wallet", icon: Wallet },
+  { id: "settings", labelKey: "sidebar.settings", icon: SettingsIcon },
 ];
 
 const ICON_MAP: Record<string, React.ComponentType<React.SVGProps<SVGSVGElement>>> = {
@@ -67,10 +70,10 @@ const ICON_MAP: Record<string, React.ComponentType<React.SVGProps<SVGSVGElement>
 };
 
 function TenantDashboardPage() {
+  const { t } = useTranslation();
   const { slug } = Route.useParams();
   const [section, setSection] = useState<SectionId>("dashboard");
   const [collapsed, setCollapsed] = useState(false);
-  const [managers] = useState<Manager[]>(initialManagers);
 
   const user = getStoredUser();
   const displayName = user?.full_name || user?.tenant?.company_name || slug;
@@ -80,7 +83,7 @@ function TenantDashboardPage() {
     <div className="flex min-h-screen w-full">
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-white/10 bg-navy text-cream transition-all duration-300 md:flex",
+          "fixed inset-y-0 start-0 z-30 hidden flex-col border-e border-white/10 bg-navy text-cream transition-all duration-300 md:flex",
           collapsed ? "w-[72px]" : "w-64",
         )}
       >
@@ -94,7 +97,7 @@ function TenantDashboardPage() {
           <button
             onClick={() => setCollapsed((c) => !c)}
             className="rounded-lg p-1.5 text-cream/70 transition hover:bg-white/10 hover:text-cream"
-            aria-label="Toggle sidebar"
+            aria-label={t("dashboard.toggle_sidebar")}
           >
             {collapsed ? <ChevronRight className="size-4" /> : <ChevronLeft className="size-4" />}
           </button>
@@ -117,10 +120,10 @@ function TenantDashboardPage() {
                     )}
                   >
                     <Icon className={cn("size-4 shrink-0 transition", active && "text-[oklch(0.85_0.16_75)]")} />
-                    {!collapsed && <span>{item.label}</span>}
+                    {!collapsed && <span>{t(item.labelKey)}</span>}
                   </button>
                 </TooltipTrigger>
-                {collapsed && <TooltipContent side="right">{item.label}</TooltipContent>}
+                {collapsed && <TooltipContent side="right">{t(item.labelKey)}</TooltipContent>}
               </Tooltip>
             );
           })}
@@ -138,32 +141,33 @@ function TenantDashboardPage() {
         </div>
       </aside>
 
-      <div className={cn("flex min-h-screen flex-1 flex-col transition-all duration-300", collapsed ? "md:pl-[72px]" : "md:pl-64")}>
+      <div className={cn("flex min-h-screen flex-1 flex-col transition-all duration-300", collapsed ? "md:ps-[72px]" : "md:ps-64")}>
         <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-white/10 bg-navy/80 px-4 text-cream backdrop-blur-xl md:px-6">
-          <button className="rounded-lg p-2 text-cream/70 hover:bg-white/10 md:hidden" aria-label="Menu">
+          <button className="rounded-lg p-2 text-cream/70 hover:bg-white/10 md:hidden" aria-label={t("dashboard.menu")}>
             <Menu className="size-5" />
           </button>
           <h1 className="text-base font-semibold capitalize md:text-lg">
-            {NAV.find((n) => n.id === section)?.label}
+            {t(NAV.find((n) => n.id === section)?.labelKey ?? "")}
           </h1>
-          <div className="ml-auto flex items-center gap-2 md:gap-3">
+          <div className="ms-auto flex items-center gap-2 md:gap-3">
+            <LanguageToggle variant="header" />
             <div className="relative hidden md:block">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-cream/50" />
+              <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-cream/50" />
               <input
-                placeholder="Search anything..."
-                className="h-9 w-64 rounded-full border border-white/15 bg-white/5 pl-9 pr-3 text-sm text-cream placeholder:text-cream/40 outline-none transition focus:w-72 focus:border-[oklch(0.78_0.16_75)]/60"
+                placeholder={t("placeholder.search_anything")}
+                className="h-9 w-64 rounded-full border border-white/15 bg-white/5 ps-9 pe-3 text-sm text-cream placeholder:text-cream/40 outline-none transition focus:w-72 focus:border-[oklch(0.78_0.16_75)]/60"
               />
             </div>
             <Tooltip>
               <TooltipTrigger asChild>
                 <button className="relative rounded-full p-2 text-cream/80 transition hover:bg-white/10">
                   <Bell className="size-4" />
-                  <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-[oklch(0.78_0.16_75)]" />
+                  <span className="absolute end-1.5 top-1.5 size-2 rounded-full bg-[oklch(0.78_0.16_75)]" />
                 </button>
               </TooltipTrigger>
-              <TooltipContent>3 new notifications</TooltipContent>
+              <TooltipContent>{t("dashboard.new_notifications", { count: 3 })}</TooltipContent>
             </Tooltip>
-            <div className="flex items-center gap-2 rounded-full border border-white/15 bg-white/5 py-1 pl-1 pr-3">
+            <div className="flex items-center gap-2 rounded-full border border-white/15 bg-white/5 py-1 ps-1 pe-3">
               <div className="flex size-7 items-center justify-center overflow-hidden rounded-full bg-[oklch(0.78_0.16_75)] text-xs font-bold text-navy">
                 {initials}
               </div>
@@ -181,14 +185,12 @@ function TenantDashboardPage() {
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.25 }}
             >
-              {section === "dashboard" && <TenantOverview managers={managers} />}
-              {section === "managers" && (
-                <TenantManagersSection managers={managers} />
-              )}
+              {section === "dashboard" && <TenantOverview slug={slug} />}
+              {section === "managers" && <TenantManagersSection slug={slug} />}
               {section === "warehouses" && (
-                <TenantWarehousesSection slug={slug} managers={managers} />
+                <TenantWarehousesSection slug={slug} />
               )}
-              {section === "analytics" && <TenantAnalyticsSection managers={managers} />}
+              {section === "analytics" && <TenantAnalyticsSection slug={slug} />}
               {section === "wallet" && <TenantWalletSection />}
               {section === "settings" && <TenantSettingsSection />}
             </motion.div>
@@ -220,13 +222,89 @@ function EmptyState({ icon: Icon, title, subtitle }: { icon: React.ComponentType
 }
 
 /* -------------------- Overview -------------------- */
-function TenantOverview({ managers }: { managers: Manager[] }) {
+function TenantOverview({ slug }: { slug: string }) {
+  const { t } = useTranslation();
+  const [data, setData] = useState<{
+    warehouses: number;
+    products: number;
+    shipments: number;
+    pendingShipments: number;
+    inventoryUnits: number;
+    employees: number;
+    activeManagers: number;
+    movements: InventoryMovement[];
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const [wRes, pRes, sRes, mRes] = await Promise.all([
+        fetchWarehouses(slug).catch(() => ({ warehouses: [], allowed_warehouses_count: 0, current_warehouses_count: 0 })),
+        fetchProducts(slug).catch(() => ({ products: [] })),
+        fetchShipments(slug).catch(() => ({ shipments: [] })),
+        fetchInventoryMovements(slug).catch(() => ({
+          inventory_movements: [],
+          meta: { current_page: 1, per_page: 1, total: 0, last_page: 1 },
+        })),
+      ]);
+
+      const employeeResults = await Promise.all(
+        wRes.warehouses.map((w) => fetchEmployees(slug, w.id).catch(() => ({ employees: [] }))),
+      );
+      const employees = employeeResults.flatMap((r) => r.employees);
+      const activeManagers = employees.filter((e) =>
+        (e.role === "manager" || e.role === "warehouse_secretary") && e.status === "available",
+      ).length;
+
+      const now = new Date();
+      const inventoryUnits = wRes.warehouses.reduce(
+        (sum, w) => sum + (w.products ?? []).reduce((s, p) => s + (p.pivot.quantity ?? 0), 0),
+        0,
+      );
+
+      if (cancelled) return;
+      setData({
+        warehouses: wRes.warehouses.length,
+        products: pRes.products.length,
+        shipments: sRes.shipments.filter((s) => {
+          if (!s.created_at) return false;
+          const d = new Date(s.created_at);
+          return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        }).length,
+        pendingShipments: sRes.shipments.filter((s) => s.status !== "received").length,
+        inventoryUnits,
+        employees: employees.length,
+        activeManagers,
+        movements: mRes.inventory_movements,
+      });
+    })();
+    return () => { cancelled = true; };
+  }, [slug]);
+
+  const chartData = (data?.movements ?? []).slice(-30).reduce<{ date: string; incoming: number; outgoing: number }[]>((acc, m) => {
+    const date = m.created_at?.slice(0, 10) ?? "";
+    const isInbound = m.movement_type === "section_fill" || m.movement_type === "shipment_received";
+    const existing = acc.find((d) => d.date === date);
+    if (existing) {
+      if (isInbound) existing.incoming += m.quantity_units;
+      else existing.outgoing += m.quantity_units;
+    } else {
+      acc.push({
+        date,
+        incoming: isInbound ? m.quantity_units : 0,
+        outgoing: isInbound ? 0 : m.quantity_units,
+      });
+    }
+    return acc;
+  }, []);
+
   const stats = [
-    { label: "Total inventory", value: "48,210", icon: Boxes, trend: "+4.2%" },
-    { label: "Active managers", value: managers.filter((m) => m.status === "active").length.toString(), icon: Users, trend: "+1" },
-    { label: "Monthly shipments", value: "2,184", icon: Truck, trend: "+8.1%" },
-    { label: "Capacity used", value: "72%", icon: Activity, trend: "+3%" },
+    { label: t("sidebar.warehouses"), value: data ? formatNumber(data.warehouses) : "—", icon: Warehouse },
+    { label: t("sidebar.products"), value: data ? formatNumber(data.products) : "—", icon: Boxes, sub: data ? `${formatNumber(data.inventoryUnits)} ${t("analytics.units")}` : "" },
+    { label: t("dashboard.stat_monthly_shipments"), value: data ? formatNumber(data.shipments) : "—", icon: Truck, sub: data ? t("manager.awaiting_receipt", { count: data.pendingShipments }) : "" },
+    { label: t("dashboard.stat_active_managers"), value: data ? formatNumber(data.activeManagers) : "—", icon: Users, sub: data ? t("manager.active_of", { count: data.activeManagers, total: data.employees }) : "" },
   ];
+
   return (
     <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -237,10 +315,8 @@ function TenantOverview({ managers }: { managers: Manager[] }) {
                 <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{s.label}</p>
                 <s.icon className="size-4 text-[oklch(0.74_0.02_252)]" />
               </div>
-              <p className="mt-2 text-3xl font-bold">{s.value}</p>
-              <span className="inline-flex items-center gap-1 text-xs text-emerald-600">
-                <TrendingUp className="size-3" /> {s.trend} from last month
-              </span>
+              <p className="mt-3 text-3xl font-bold">{s.value}</p>
+              {s.sub && <p className="mt-1 text-xs font-semibold text-emerald-600">{s.sub}</p>}
             </GlassCard>
           </motion.div>
         ))}
@@ -248,35 +324,43 @@ function TenantOverview({ managers }: { managers: Manager[] }) {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <GlassCard>
-          <h4 className="mb-4 text-sm font-semibold">Inventory trend</h4>
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={inventoryTrend}>
-              <defs>
-                <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#1D2D44" stopOpacity={0.3} />
-                  <stop offset="100%" stopColor="#1D2D44" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#A7B3C355" />
-              <XAxis dataKey="day" stroke="#1D2D44" fontSize={11} />
-              <YAxis stroke="#1D2D44" fontSize={11} />
-              <RTooltip />
-              <Area type="monotone" dataKey="inventory" stroke="#1D2D44" strokeWidth={2} fill="url(#g1)" />
-            </AreaChart>
-          </ResponsiveContainer>
+          <h4 className="mb-4 text-sm font-semibold">{t("manager.inventory_trend")}</h4>
+          {chartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="incomingGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#10B981" stopOpacity={0.3} /><stop offset="100%" stopColor="#10B981" stopOpacity={0} /></linearGradient>
+                  <linearGradient id="outgoingGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#6366f1" stopOpacity={0.3} /><stop offset="100%" stopColor="#6366f1" stopOpacity={0} /></linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#A7B3C355" />
+                <XAxis dataKey="date" stroke="#1D2D44" fontSize={11} />
+                <YAxis stroke="#1D2D44" fontSize={11} />
+                <RTooltip />
+                <Area type="monotone" dataKey="incoming" stroke="#10B981" fill="url(#incomingGrad)" name={t("manager.incoming")} />
+                <Area type="monotone" dataKey="outgoing" stroke="#6366f1" fill="url(#outgoingGrad)" name={t("manager.outgoing")} />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="py-8 text-center text-sm text-muted-foreground">{t("manager.no_movement_data")}</p>
+          )}
         </GlassCard>
 
         <GlassCard>
-          <h4 className="mb-4 text-sm font-semibold">Monthly shipments</h4>
-          <div className="grid grid-cols-2 gap-3">
-            {shipmentsData.slice(-4).map((s) => (
-              <div key={s.month} className="rounded-xl border border-white/40 bg-white/40 p-3">
-                <p className="text-xs text-muted-foreground">{s.month}</p>
-                <p className="text-lg font-bold">{s.incoming + s.outgoing}</p>
-                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">{s.incoming} in / {s.outgoing} out</span>
+          <h4 className="mb-4 text-sm font-semibold">{t("dashboard.stat_monthly_shipments")}</h4>
+          {data && data.shipments > 0 ? (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-xl border border-white/40 bg-white/40 p-3">
+                <p className="text-xs text-muted-foreground">{t("manager.total_count", { count: data.shipments })}</p>
+                <p className="text-lg font-bold">{formatNumber(data.shipments)}</p>
               </div>
-            ))}
-          </div>
+              <div className="rounded-xl border border-white/40 bg-white/40 p-3">
+                <p className="text-xs text-muted-foreground">{t("manager.pending_shipments")}</p>
+                <p className="text-lg font-bold">{formatNumber(data.pendingShipments)}</p>
+              </div>
+            </div>
+          ) : (
+            <p className="py-8 text-center text-sm text-muted-foreground">{t("manager.no_movement_data")}</p>
+          )}
         </GlassCard>
       </div>
     </div>
@@ -284,16 +368,76 @@ function TenantOverview({ managers }: { managers: Manager[] }) {
 }
 
 /* -------------------- Managers -------------------- */
-function TenantManagersSection({ managers }: { managers: Manager[] }) {
+type ManagerStatus = "active" | "inactive";
+
+interface ManagerItem {
+  id: string;
+  whmId: string;
+  name: string;
+  warehouseId: string;
+  status: ManagerStatus;
+  email?: string;
+  phone?: string;
+}
+
+function TenantManagersSection({ slug }: { slug: string }) {
+  const { t } = useTranslation();
+  const [managers, setManagers] = useState<ManagerItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const wRes = await fetchWarehouses(slug);
+        const all: ManagerItem[] = [];
+        for (const w of wRes.warehouses) {
+          const eRes = await fetchEmployees(slug, w.id);
+          for (const emp of eRes.employees) {
+            if (emp.role !== "manager" && emp.role !== "warehouse_secretary") continue;
+            all.push({
+              id: `emp_${emp.id}`,
+              whmId: emp.system_user.user_name,
+              name: emp.system_user.full_name,
+              warehouseId: w.id.toString(),
+              status: emp.status === "available" ? "active" : "inactive",
+              email: emp.system_user.user_name + "@warehouse.io",
+              phone: emp.system_user.phone_number,
+            });
+          }
+        }
+        if (!cancelled) setManagers(all);
+      } catch { /* ignore */ } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [slug]);
+
+  if (loading) {
+    return (
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {[1, 2, 3].map((i) => (
+          <GlassCard key={i}>
+            <div className="space-y-3">
+              <Skeleton className="h-5 w-32 bg-white/20" />
+              <Skeleton className="h-4 w-48 bg-white/20" />
+            </div>
+          </GlassCard>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-cream/80">All warehouse managers under your tenancy.</p>
-        <Button className="bg-navy text-cream hover:bg-navy/90"><Plus className="size-4" /> Add manager</Button>
+        <p className="text-sm text-cream/80">{t("dashboard.managers_desc")}</p>
       </div>
 
       {managers.length === 0 ? (
-        <GlassCard><EmptyState icon={Users} title="No managers yet" subtitle="Invite your first warehouse manager." /></GlassCard>
+        <GlassCard><EmptyState icon={Users} title={t("dashboard.no_managers")} subtitle={t("dashboard.no_managers_desc")} /></GlassCard>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {managers.map((m, i) => (
@@ -307,7 +451,7 @@ function TenantManagersSection({ managers }: { managers: Manager[] }) {
                     <p className="text-sm font-semibold">{m.name}</p>
                     <p className="text-xs text-muted-foreground">{m.email}</p>
                   </div>
-                  <Badge variant="secondary" className={cn("ml-auto text-[10px]", m.status === "active" ? "bg-emerald-500/15 text-emerald-700" : "bg-amber-500/15 text-amber-700")}>
+                  <Badge variant="secondary" className={cn("ms-auto text-[10px]", m.status === "active" ? "bg-emerald-500/15 text-emerald-700" : "bg-amber-500/15 text-amber-700")}>
                     {m.status}
                   </Badge>
                 </div>
@@ -321,7 +465,8 @@ function TenantManagersSection({ managers }: { managers: Manager[] }) {
 }
 
 /* -------------------- Warehouses -------------------- */
-function TenantWarehousesSection({ slug, managers }: { slug: string; managers: Manager[] }) {
+function TenantWarehousesSection({ slug }: { slug: string }) {
+  const { t } = useTranslation();
   const [warehouses, setWarehouses] = useState<BackendWarehouse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -337,7 +482,7 @@ function TenantWarehousesSection({ slug, managers }: { slug: string; managers: M
       const res = await fetchWarehouses(slug);
       setWarehouses(res.warehouses);
     } catch (err: any) {
-      setError(err.response?.data?.message || "Failed to load warehouses");
+      setError(err.response?.data?.message || t("warehouse.toast_load_failed"));
     } finally {
       setLoading(false);
     }
@@ -350,16 +495,16 @@ function TenantWarehousesSection({ slug, managers }: { slug: string; managers: M
     try {
       if (data.id) {
         await updateWarehouse(slug, data.id, data);
-        toast.success("Warehouse updated");
+        toast.success(t("warehouse.toast_updated"));
       } else {
         await createWarehouse(slug, data);
-        toast.success("Warehouse added");
+        toast.success(t("warehouse.toast_added"));
       }
       setOpen(false);
       setEditing(null);
       load();
     } catch (err: any) {
-      toast.error(err.response?.data?.message || "Operation failed");
+      toast.error(err.response?.data?.message || t("common.operation_failed"));
     } finally {
       setSaving(false);
     }
@@ -369,11 +514,11 @@ function TenantWarehousesSection({ slug, managers }: { slug: string; managers: M
     if (deleteId === null) return;
     try {
       await deleteWarehouse(slug, deleteId);
-      toast.success("Warehouse deleted");
+      toast.success(t("warehouse.toast_deleted"));
       setDeleteId(null);
       load();
     } catch (err: any) {
-      toast.error(err.response?.data?.message || "Delete failed");
+      toast.error(err.response?.data?.message || t("warehouse.toast_delete_failed"));
     }
   };
 
@@ -383,7 +528,7 @@ function TenantWarehousesSection({ slug, managers }: { slug: string; managers: M
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <p className="text-sm text-cream/80">Manage your warehouses.</p>
+          <p className="text-sm text-cream/80">{t("dashboard.manage_warehouses")}</p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3].map((i) => (
@@ -406,7 +551,7 @@ function TenantWarehousesSection({ slug, managers }: { slug: string; managers: M
         <div className="flex flex-col items-center gap-2 py-8 text-center">
           <AlertTriangle className="size-8 text-red-400" />
           <p className="text-sm text-red-400">{error}</p>
-          <Button variant="outline" onClick={load} className="mt-2">Retry</Button>
+          <Button variant="outline" onClick={load} className="mt-2">{t("common.try_again")}</Button>
         </div>
       </GlassCard>
     );
@@ -415,14 +560,14 @@ function TenantWarehousesSection({ slug, managers }: { slug: string; managers: M
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-cream/80">Manage your warehouses.</p>
+        <p className="text-sm text-cream/80">{t("dashboard.manage_warehouses")}</p>
         <Button onClick={() => { setEditing(null); setOpen(true); }} className="bg-navy text-cream hover:bg-navy/90">
-          <Plus className="size-4" /> Add warehouse
+          <Plus className="size-4" /> {t("warehouse.add")}
         </Button>
       </div>
 
       {warehouses.length === 0 ? (
-        <GlassCard><EmptyState icon={Warehouse} title="No warehouses yet" subtitle="Add your first warehouse to get started." /></GlassCard>
+        <GlassCard><EmptyState icon={Warehouse} title={t("warehouse.no_warehouses_title")} subtitle={t("warehouse.no_warehouses_desc")} /></GlassCard>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {warehouses.map((w, i) => {
@@ -437,17 +582,17 @@ function TenantWarehousesSection({ slug, managers }: { slug: string; managers: M
                     </div>
                     <Badge variant="secondary" className="text-[10px]">{w.type}</Badge>
                   </div>
-                  <h4 className="mt-3 text-base font-semibold">{w.warehouse_name}</h4>
-                  <p className="mt-1 text-sm text-muted-foreground">{w.location}, {w.governorate}</p>
+                  <h4 className="mt-3 text-base font-bold">{w.warehouse_name}</h4>
+                  <p className="mt-1 text-sm font-semibold text-[#1a2942]/80">{w.location}, {w.governorate}</p>
                   <div className="mt-4 flex items-center justify-between border-t border-white/40 pt-3">
-                    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#1a2942]/80">
                       <Activity className="size-3.5" /> {w.area} m&sup2; &middot; ${w.financial_budgets.toLocaleString()}
                     </span>
                     <div className="flex gap-1 opacity-0 transition group-hover:opacity-100">
-                      <Button size="sm" variant="ghost" onClick={() => { setEditing(w); setOpen(true); }}>
+                      <Button size="sm" variant="ghost" className="text-navy hover:text-navy/80 hover:bg-white/60" onClick={() => { setEditing(w); setOpen(true); }}>
                         <Pencil className="size-3.5" />
                       </Button>
-                      <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setDeleteId(w.id)}>
+                      <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => setDeleteId(w.id)}>
                         <Trash2 className="size-3.5" />
                       </Button>
                     </div>
@@ -471,13 +616,13 @@ function TenantWarehousesSection({ slug, managers }: { slug: string; managers: M
       <AlertDialog open={deleteId !== null} onOpenChange={(o) => !o && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete warehouse?</AlertDialogTitle>
-            <AlertDialogDescription>This will permanently remove this warehouse and its associated data.</AlertDialogDescription>
+            <AlertDialogTitle>{t("warehouse.confirm_delete_title")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("warehouse.confirm_delete_desc")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">
-              Delete
+              {t("common.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -499,6 +644,7 @@ function WarehouseDialog({
   editing: BackendWarehouse | null; onSave: (d: WarehouseInput & { id?: number }) => void;
   saving: boolean; existingTypes: string[];
 }) {
+  const { t } = useTranslation();
   const allTypes = [...new Set([...WAREHOUSE_TYPE_OPTIONS, ...existingTypes])];
   const [form, setForm] = useState<WarehouseInput & { id?: number }>({
     warehouse_name: "", type: allTypes[0] ?? "Cold Storage",
@@ -529,7 +675,7 @@ function WarehouseDialog({
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.warehouse_name || !form.type || !form.location || !form.governorate || form.area <= 0) {
-      toast.error("Please fill in all required fields");
+      toast.error(t("common.required_fields"));
       return;
     }
     onSave(form);
@@ -539,18 +685,18 @@ function WarehouseDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{editing ? "Edit warehouse" : "Add warehouse"}</DialogTitle>
+          <DialogTitle>{editing ? t("warehouse.edit_warehouse") : t("warehouse.add")}</DialogTitle>
           <DialogDescription>
-            {editing ? "Update warehouse details." : "Fill in the details to create a new warehouse."}
+            {editing ? t("warehouse.update_details") : t("warehouse.create_details")}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="grid gap-4 py-2">
           <div className="grid gap-2">
-            <Label>Warehouse name *</Label>
-            <Input value={form.warehouse_name} onChange={(e) => setForm({ ...form, warehouse_name: e.target.value })} placeholder="e.g. Cold Storage A" required />
+            <Label>{t("warehouse.name")} *</Label>
+            <Input value={form.warehouse_name} onChange={(e) => setForm({ ...form, warehouse_name: e.target.value })} placeholder={t("placeholder.cold_storage_a")} required />
           </div>
           <div className="grid gap-2">
-            <Label>Type *</Label>
+            <Label>{t("warehouse.type")} *</Label>
             <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -562,11 +708,11 @@ function WarehouseDialog({
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-              <Label>Location *</Label>
-              <Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="e.g. Industrial Zone" required />
+              <Label>{t("warehouse.location")} *</Label>
+              <Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder={t("placeholder.industrial_zone")} required />
             </div>
             <div className="grid gap-2">
-              <Label>Governorate *</Label>
+              <Label>{t("warehouse.governorate")} *</Label>
               <Select value={form.governorate} onValueChange={(v) => setForm({ ...form, governorate: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -579,18 +725,18 @@ function WarehouseDialog({
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-              <Label>Area (m&sup2;) *</Label>
-              <Input type="number" min={0} step={0.01} value={form.area} onChange={(e) => setForm({ ...form, area: Number(e.target.value) })} placeholder="e.g. 500" required />
+              <Label>{t("warehouse.area")} (m&sup2;) *</Label>
+              <Input type="number" min={0} step={0.01} value={form.area} onChange={(e) => setForm({ ...form, area: Number(e.target.value) })} placeholder={t("placeholder.area_500")} required />
             </div>
             <div className="grid gap-2">
-              <Label>Financial budget ($) *</Label>
-              <Input type="number" min={0} step={0.01} value={form.financial_budgets} onChange={(e) => setForm({ ...form, financial_budgets: Number(e.target.value) })} placeholder="e.g. 10000" required />
+              <Label>{t("warehouse.budget")} ($) *</Label>
+              <Input type="number" min={0} step={0.01} value={form.financial_budgets} onChange={(e) => setForm({ ...form, financial_budgets: Number(e.target.value) })} placeholder={t("placeholder.budget_10000")} required />
             </div>
           </div>
           <DialogFooter className="mt-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{t("common.cancel")}</Button>
             <Button type="submit" disabled={saving} className="bg-navy text-cream hover:bg-navy/90">
-              {saving ? "Saving..." : editing ? "Save changes" : "Add warehouse"}
+              {saving ? t("common.saving") : editing ? t("common.save_changes") : t("warehouse.add_warehouse")}
             </Button>
           </DialogFooter>
         </form>
@@ -600,131 +746,41 @@ function WarehouseDialog({
 }
 
 /* -------------------- Analytics -------------------- */
-function TenantAnalyticsSection({ managers }: { managers: Manager[] }) {
-  const [selected, setSelected] = useState("");
-  const wh = managers.find((m) => m.warehouseId === selected);
-  const assigned = managers.filter((m) => m.warehouseId === selected).length;
-
-  const capacity = [
-    { name: "Used", value: 72, color: "#1D2D44" },
-    { name: "Free", value: 28, color: "#A7B3C3" },
-  ];
-
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h3 className="text-lg font-semibold text-cream">Warehouse analytics</h3>
-          <p className="text-sm text-muted-foreground">Monitor usage, capacity and manager distribution.</p>
-        </div>
-        <Select value={selected} onValueChange={setSelected}>
-          <SelectTrigger className="w-56"><SelectValue placeholder="Select a warehouse type" /></SelectTrigger>
-          <SelectContent>
-            {[...new Set(managers.map((m) => m.warehouseId))].map((id) => (
-              <SelectItem key={id} value={id}>{id}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        <GlassCard>
-          <h4 className="mb-3 text-sm font-semibold">Capacity split</h4>
-          <ResponsiveContainer width="100%" height={200}>
-            <PieChart>
-              <Pie data={capacity} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={70} innerRadius={40}>
-                {capacity.map((e) => <Cell key={e.name} fill={e.color} />)}
-              </Pie>
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
-        </GlassCard>
-
-        <GlassCard>
-          <h4 className="mb-3 text-sm font-semibold">Manager distribution</h4>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={managers}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#A7B3C355" />
-              <XAxis dataKey="warehouseId" stroke="#1D2D44" fontSize={11} />
-              <YAxis stroke="#1D2D44" fontSize={11} />
-              <RTooltip />
-              <Bar dataKey="status === 'active'" fill="#1D2D44" radius={[6, 6, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </GlassCard>
-
-        <GlassCard>
-          <h4 className="text-sm font-semibold">Selected warehouse type</h4>
-          {wh ? (
-            <div className="mt-3 space-y-2 text-sm">
-              <p><span className="text-muted-foreground">Assigned managers:</span> <strong>{assigned}</strong></p>
-              <p><span className="text-muted-foreground">Status:</span> <Badge variant="secondary">{wh.status}</Badge></p>
-            </div>
-          ) : (
-            <p className="mt-3 text-sm text-muted-foreground">Pick a type from the dropdown.</p>
-          )}
-        </GlassCard>
-      </div>
-    </div>
-  );
+function TenantAnalyticsSection({ slug }: { slug: string }) {
+  return <OwnerAnalytics slug={slug} />;
 }
 
 /* -------------------- Wallet -------------------- */
 function TenantWalletSection() {
+  const { t } = useTranslation();
   return (
     <div className="space-y-6">
       <div className="grid gap-4 lg:grid-cols-3">
         <GlassCard className="relative overflow-hidden lg:col-span-2">
-          <div className="absolute -right-20 -top-20 size-64 rounded-full bg-[oklch(0.78_0.16_75)]/30 blur-3xl" />
+          <div className="absolute -end-20 -top-20 size-64 rounded-full bg-[oklch(0.78_0.16_75)]/30 blur-3xl" />
           <div className="relative">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">Available balance</p>
-            <p className="mt-2 text-4xl font-bold">$24,820.45</p>
-            <p className="mt-1 text-xs text-muted-foreground">Updated just now</p>
+            <p className="text-xs uppercase tracking-wider text-muted-foreground">{t("wallet.available_balance")}</p>
+            <p className="mt-2 text-4xl font-bold">{formatMoney(0, "USD")}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{t("wallet.updated_just_now")}</p>
             <div className="mt-6 flex flex-wrap gap-2">
-              <Button className="bg-navy text-cream hover:bg-navy/90"><Plus className="size-4" /> Top up</Button>
-              <Button variant="outline"><CreditCard className="size-4" /> Manage cards</Button>
-              <Button variant="outline"><ArrowUpRight className="size-4" /> Send</Button>
+              <Button className="bg-navy text-cream hover:bg-navy/90"><Plus className="size-4" /> {t("wallet.top_up")}</Button>
+              <Button variant="outline"><CreditCard className="size-4" /> {t("wallet.manage_cards")}</Button>
+              <Button variant="outline"><ArrowUpRight className="size-4" /> {t("wallet.send")}</Button>
             </div>
           </div>
         </GlassCard>
         <GlassCard>
-          <p className="text-xs uppercase tracking-wider text-muted-foreground">This month</p>
+          <p className="text-xs uppercase tracking-wider text-muted-foreground">{t("wallet.this_month")}</p>
           <div className="mt-2 space-y-3 text-sm">
-            <div className="flex justify-between"><span className="text-muted-foreground">Income</span><span className="font-semibold text-emerald-600">+ $7,090</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Spending</span><span className="font-semibold text-rose-600">− $2,369</span></div>
-            <div className="flex justify-between border-t border-white/40 pt-2"><span>Net</span><span className="font-bold">+ $4,721</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">{t("wallet.income")}</span><span className="font-semibold text-emerald-600">{formatMoney(0, "USD")}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">{t("wallet.spending")}</span><span className="font-semibold text-rose-600">{formatMoney(0, "USD")}</span></div>
+            <div className="flex justify-between border-t border-white/40 pt-2"><span>{t("wallet.net")}</span><span className="font-bold">{formatMoney(0, "USD")}</span></div>
           </div>
         </GlassCard>
       </div>
 
-      <GlassCard className="overflow-hidden p-0">
-        <div className="flex items-center justify-between border-b border-white/40 px-5 py-3">
-          <h4 className="text-sm font-semibold">Recent transactions</h4>
-          <Button size="sm" variant="ghost">View all</Button>
-        </div>
-        <Table>
-          <TableHeader>
-            <TableRow className="border-white/40 hover:bg-transparent">
-              <TableHead>Date</TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {walletTransactions.map((t) => (
-              <TableRow key={t.id} className="border-white/40">
-                <TableCell className="text-muted-foreground">{t.date}</TableCell>
-                <TableCell className="font-medium">{t.description}</TableCell>
-                <TableCell className="text-right">
-                  <span className={cn("inline-flex items-center gap-1 font-semibold", t.amount > 0 ? "text-emerald-600" : "text-rose-600")}>
-                    {t.amount > 0 ? <ArrowUpRight className="size-3" /> : <ArrowDownRight className="size-3" />}
-                    {t.amount > 0 ? "+" : "−"}${Math.abs(t.amount).toLocaleString()}
-                  </span>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+      <GlassCard>
+        <EmptyState icon={CreditCard} title={t("wallet.no_transactions")} subtitle={t("wallet.no_transactions_desc")} />
       </GlassCard>
     </div>
   );
@@ -732,22 +788,24 @@ function TenantWalletSection() {
 
 /* -------------------- Settings -------------------- */
 function TenantSettingsSection() {
+  const { t } = useTranslation();
+  const user = getStoredUser();
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <GlassCard>
-        <h4 className="text-sm font-semibold">Account</h4>
-        <p className="mb-4 text-xs text-muted-foreground">Update your personal info.</p>
+        <h4 className="text-sm font-semibold">{t("settings.account")}</h4>
+        <p className="mb-4 text-xs text-muted-foreground">{t("settings.account_desc")}</p>
         <div className="space-y-3">
-          <div className="grid gap-2"><Label>Full name</Label><Input defaultValue="Tenant User" /></div>
-          <div className="grid gap-2"><Label>Email</Label><Input defaultValue="user@tenant.io" /></div>
-          <Button onClick={() => toast.success("Profile saved")} className="bg-navy text-cream hover:bg-navy/90">Save changes</Button>
+          <div className="grid gap-2"><Label>{t("settings.full_name")}</Label><Input defaultValue={user?.full_name ?? ""} /></div>
+          <div className="grid gap-2"><Label>{t("settings.email")}</Label><Input defaultValue={user?.email ?? ""} /></div>
+          <Button onClick={() => toast.success(t("settings.profile_saved"))} className="bg-navy text-cream hover:bg-navy/90">{t("common.save_changes")}</Button>
         </div>
       </GlassCard>
       <GlassCard>
-        <h4 className="text-sm font-semibold">Notifications</h4>
-        <p className="mb-4 text-xs text-muted-foreground">Control what you hear about.</p>
+        <h4 className="text-sm font-semibold">{t("settings.notifications")}</h4>
+        <p className="mb-4 text-xs text-muted-foreground">{t("settings.notifications_desc")}</p>
         <div className="grid gap-3 text-sm">
-          {["New shipments", "Manager updates", "Low inventory alerts", "Wallet activity"].map((n) => (
+          {[t("settings.notif_new_shipments"), t("settings.notif_manager_updates"), t("settings.notif_low_inventory"), t("settings.notif_wallet_activity")].map((n) => (
             <label key={n} className="flex items-center justify-between rounded-xl border border-white/40 bg-white/40 px-4 py-3">
               <span>{n}</span>
               <input type="checkbox" defaultChecked className="size-4 accent-[oklch(0.28_0.04_252)]" />
@@ -758,5 +816,3 @@ function TenantSettingsSection() {
     </div>
   );
 }
-
-void Skeleton;

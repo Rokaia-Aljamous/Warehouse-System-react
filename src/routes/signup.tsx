@@ -1,7 +1,9 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Warehouse, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
+import { LanguageToggle } from "@/components/LanguageToggle";
 import { getStoredUser } from "@/lib/api";
 import {
   saveUser,
@@ -9,10 +11,11 @@ import {
   WAREHOUSE_IMG,
   findUserByEmail,
 } from "@/lib/stockyard-store";
+import i18n from "@/lib/i18n";
 
 export const Route = createFileRoute("/signup")({
   component: SignupPage,
-  head: () => ({ meta: [{ title: "Sign Up — Stockyard" }] }),
+  head: () => ({ meta: [{ title: `${i18n.t("title.signup")} — Stockyard` }] }),
 });
 
 const COUNTRIES = [
@@ -25,6 +28,7 @@ const COUNTRIES = [
 ];
 
 function SignupPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const user = getStoredUser();
 
@@ -55,11 +59,11 @@ function SignupPage() {
       !form.birthdate ||
       !form.password
     )
-      return toast.error("Please fill out every field");
-    if (form.password.length < 6) return toast.error("Password must be 6+ chars");
-    if (form.password !== form.confirm) return toast.error("Passwords don't match");
+      return toast.error(t("signup.fill_all"));
+    if (form.password.length < 6) return toast.error(t("signup.password_min"));
+    if (form.password !== form.confirm) return toast.error(t("signup.password_mismatch"));
     if (findUserByEmail(form.email))
-      return toast.error("That email is already registered");
+      return toast.error(t("signup.email_taken"));
     const id = `u_${Date.now()}`;
     saveUser({
       id,
@@ -69,24 +73,27 @@ function SignupPage() {
       password: form.password,
     });
     setSession({ userId: id });
-    toast.success("Account created");
+    toast.success(t("signup.account_created"));
     navigate({ to: "/stockyard" });
   };
 
   return (
     <main className="grid min-h-screen bg-[#F0EBD8] text-[#1D2D44] lg:grid-cols-2">
       <div className="flex flex-col justify-center px-6 py-10 sm:px-12">
-        <Link to="/stockyard" className="mb-8 flex items-center gap-2">
-          <div className="flex size-9 items-center justify-center rounded-xl bg-[#1D2D44]">
-            <Warehouse className="size-5 text-[#F0EBD8]" />
-          </div>
-          <span className="text-lg font-bold">Stockyard</span>
-        </Link>
-        <h1 className="text-3xl font-bold">Create your account</h1>
+        <div className="mb-8 flex items-center justify-between">
+          <Link to="/stockyard" className="flex items-center gap-2">
+            <div className="flex size-9 items-center justify-center rounded-xl bg-[#1D2D44]">
+              <Warehouse className="size-5 text-[#F0EBD8]" />
+            </div>
+            <span className="text-lg font-bold">{t("app.name")}</span>
+          </Link>
+          <LanguageToggle variant="header" />
+        </div>
+        <h1 className="text-3xl font-bold">{t("signup.title")}</h1>
         <p className="mt-1 text-sm text-[#1D2D44]/70">
-          Already have one?{" "}
+          {t("signup.have_account")}{" "}
           <a href="/?login=1" className="font-semibold underline">
-            Log in
+            {t("auth.log_in")}
           </a>
         </p>
 
@@ -94,7 +101,7 @@ function SignupPage() {
           onSubmit={submit}
           className="mt-6 max-w-md space-y-4 rounded-2xl border border-[#A7B3C3]/50 bg-white p-6 shadow-lg"
         >
-          <Field label="Full Name">
+          <Field label={t("signup.name")}>
             <input
               value={form.fullName}
               onChange={(e) => setForm({ ...form, fullName: e.target.value })}
@@ -102,7 +109,7 @@ function SignupPage() {
               placeholder="Jane Cooper"
             />
           </Field>
-          <Field label="Email Address">
+          <Field label={t("auth.email")}>
             <input
               type="email"
               value={form.email}
@@ -111,7 +118,7 @@ function SignupPage() {
               placeholder="jane@company.com"
             />
           </Field>
-          <Field label="Phone Number">
+          <Field label={t("signup.phone")}>
             <div className="flex gap-2">
               <select
                 value={form.cc}
@@ -134,7 +141,7 @@ function SignupPage() {
               />
             </div>
           </Field>
-          <Field label="Birthdate">
+          <Field label={t("signup.birthdate")}>
             <input
               type="date"
               value={form.birthdate}
@@ -142,29 +149,31 @@ function SignupPage() {
               className={inputCls}
             />
           </Field>
-          <Field label="Password">
+          <Field label={t("signup.password")}>
             <PwdInput
               value={form.password}
               onChange={(v) => setForm({ ...form, password: v })}
               show={showPwd}
               toggle={() => setShowPwd((s) => !s)}
+              t={t}
             />
           </Field>
-          <Field label="Confirm Password">
+          <Field label={t("signup.confirm_password")}>
             <PwdInput
               value={form.confirm}
               onChange={(v) => setForm({ ...form, confirm: v })}
               show={showConfirm}
               toggle={() => setShowConfirm((s) => !s)}
+              t={t}
             />
           </Field>
           <button className="w-full rounded-xl bg-[#1D2D44] py-3 font-semibold text-[#F0EBD8] hover:opacity-90">
-            Sign Up
+            {t("signup.submit")}
           </button>
         </form>
       </div>
       <div className="hidden lg:block">
-        <img src={WAREHOUSE_IMG} alt="Warehouse" className="h-full w-full object-cover" />
+        <img src={WAREHOUSE_IMG} alt={t("signup.warehouse_alt")} className="h-full w-full object-cover" />
       </div>
     </main>
   );
@@ -187,11 +196,13 @@ function PwdInput({
   onChange,
   show,
   toggle,
+  t,
 }: {
   value: string;
   onChange: (v: string) => void;
   show: boolean;
   toggle: () => void;
+  t: (k: string) => string;
 }) {
   return (
     <div className="relative">
@@ -199,13 +210,13 @@ function PwdInput({
         type={show ? "text" : "password"}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className={`${inputCls} pr-10`}
+        className={`${inputCls} pe-10`}
       />
       <button
         type="button"
         onClick={toggle}
-        className="absolute inset-y-0 right-2 flex items-center text-[#1D2D44]/60 hover:text-[#1D2D44]"
-        aria-label={show ? "Hide password" : "Show password"}
+        className="absolute inset-y-0 end-2 flex items-center text-[#1D2D44]/60 hover:text-[#1D2D44]"
+        aria-label={show ? t("common.hide_password") : t("common.show_password")}
       >
         {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
       </button>

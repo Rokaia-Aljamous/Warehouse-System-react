@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
@@ -28,10 +28,19 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import i18n from "@/lib/i18n";
+import { useTranslation } from "react-i18next";
+import { LanguageToggle } from "@/components/LanguageToggle";
+import { fetchMe, logoutManager } from "@/lib/manager-api";
 
 export const Route = createFileRoute("/supervisor/dashboard")({
   component: SupervisorApp,
-  head: () => ({ meta: [{ title: "Supervisor Dashboard — Stockyard" }] }),
+  head: () => ({
+    meta: [
+      { title: i18n.t("title.supervisor") },
+      { name: "description", content: i18n.t("title.supervisor_desc") },
+    ],
+  }),
 });
 
 // ---------------- Types & mock data ----------------
@@ -89,23 +98,73 @@ type SectionId =
   | "overview" | "incoming" | "preparation" | "receiving"
   | "drivers" | "returns" | "workers" | "reports" | "settings";
 
-const NAV: { id: SectionId; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { id: "overview",    label: "Dashboard",         icon: LayoutDashboard },
-  { id: "incoming",    label: "Incoming Orders",   icon: Inbox },
-  { id: "preparation", label: "Order Preparation", icon: PackageCheck },
-  { id: "receiving",   label: "Shipment Receiving",icon: ClipboardList },
-  { id: "drivers",     label: "Driver Management", icon: Truck },
-  { id: "returns",     label: "Returned Orders",   icon: RotateCcw },
-  { id: "workers",     label: "Workers",           icon: Users },
-  { id: "reports",     label: "Reports",           icon: FileText },
-  { id: "settings",    label: "Settings",          icon: SettingsIcon },
+const NAV: { id: SectionId; labelKey: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { id: "overview",    labelKey: "sidebar.dashboard",          icon: LayoutDashboard },
+  { id: "incoming",    labelKey: "supervisor.nav.incoming",    icon: Inbox },
+  { id: "preparation", labelKey: "supervisor.nav.preparation", icon: PackageCheck },
+  { id: "receiving",   labelKey: "supervisor.nav.receiving",   icon: ClipboardList },
+  { id: "drivers",     labelKey: "supervisor.nav.drivers",     icon: Truck },
+  { id: "returns",     labelKey: "supervisor.nav.returns",     icon: RotateCcw },
+  { id: "workers",     labelKey: "supervisor.workers",         icon: Users },
+  { id: "reports",     labelKey: "sidebar.reports",            icon: FileText },
+  { id: "settings",    labelKey: "sidebar.settings",           icon: SettingsIcon },
 ];
 
 function SupervisorApp() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [section, setSection] = useState<SectionId>("overview");
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [checking, setChecking] = useState(true);
+  const [slug, setSlug] = useState<string | null>(null);
+  const [fullName, setFullName] = useState("");
+
+  useEffect(() => {
+    const raw = typeof window !== "undefined" ? localStorage.getItem("stockyard.manager") : null;
+    if (!raw) {
+      navigate({ to: "/supervisor-login", replace: true });
+      return;
+    }
+    let parsed: { must_change_password?: boolean; full_name?: string; tenant?: { url_slug?: string } };
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      localStorage.removeItem("stockyard.manager");
+      navigate({ to: "/supervisor-login", replace: true });
+      return;
+    }
+    if (parsed.must_change_password) {
+      navigate({ to: "/force-password-change", replace: true });
+      return;
+    }
+    setFullName(parsed.full_name ?? "");
+    const tenantSlug = parsed.tenant?.url_slug;
+    if (!tenantSlug) {
+      navigate({ to: "/supervisor-login", replace: true });
+      return;
+    }
+    setSlug(tenantSlug);
+    fetchMe(tenantSlug)
+      .then((me) => {
+        if (me.role !== "warehouse_secretary") {
+          localStorage.removeItem("stockyard.manager");
+          navigate({ to: "/supervisor-login", replace: true });
+          return;
+        }
+        setFullName(me.full_name ?? "");
+        setChecking(false);
+      })
+      .catch((err: unknown) => {
+        const status = (err as { response?: { status?: number } })?.response?.status;
+        if (status === 403) {
+          navigate({ to: "/force-password-change", replace: true });
+          return;
+        }
+        localStorage.removeItem("stockyard.manager");
+        navigate({ to: "/supervisor-login", replace: true });
+      });
+  }, [navigate]);
 
   const [workers, setWorkers] = useState<SWorker[]>(seedWorkers);
   const [orders, setOrders] = useState<COrder[]>(seedOrders);
@@ -124,21 +183,32 @@ function SupervisorApp() {
     availableDrivers: drivers.filter(d => d.status === "available").length,
   }), [orders, returns, shipments, workers, drivers]);
 
-  const logout = () => {
-    if (typeof window !== "undefined") localStorage.removeItem("stockyard.manager");
-    toast.success("Signed out");
-    navigate({ to: "/manager-login" });
+  const logout = async () => {
+    if (slug) {
+      try { await logoutManager(slug); } catch { /* ignore */ }
+    }
+    localStorage.removeItem("stockyard.manager");
+    toast.success(t("supervisor.toast_signed_out"));
+    navigate({ to: "/supervisor-login" });
   };
+
+  if (checking) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-navy">
+        <Loader2 className="h-8 w-8 animate-spin text-cream" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen text-cream">
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 flex flex-col transition-all duration-300 bg-navy-light border-r border-cream/10",
+          "fixed inset-y-0 start-0 z-40 flex flex-col transition-all duration-300 bg-navy-light border-e border-cream/10",
           collapsed ? "w-[76px]" : "w-[248px]",
           "lg:translate-x-0",
-          mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
+          mobileOpen ? "translate-x-0" : "-translate-x-full rtl:translate-x-full lg:translate-x-0",
         )}
       >
         <div className="flex items-center justify-between px-4 py-5">
@@ -146,13 +216,13 @@ function SupervisorApp() {
             <div className="flex size-9 items-center justify-center rounded-xl bg-[oklch(0.78_0.16_75)] shadow-lg">
               <WarehouseIcon className="size-5 text-white" />
             </div>
-            {!collapsed && <span className="text-sm font-bold tracking-tight">Supervisor</span>}
+            {!collapsed && <span className="text-sm font-bold tracking-tight">{t("nav.supervisor")}</span>}
           </div>
           <button
             onClick={() => setCollapsed(c => !c)}
             className="hidden lg:inline-flex rounded-md p-1 text-cream/70 hover:bg-white/10"
           >
-            {collapsed ? <ChevronRight className="size-4" /> : <ChevronLeft className="size-4" />}
+            {collapsed ? <ChevronRight className="size-4 rtl:rotate-180" /> : <ChevronLeft className="size-4 rtl:rotate-180" />}
           </button>
         </div>
         <nav className="flex-1 space-y-1 px-2">
@@ -171,7 +241,7 @@ function SupervisorApp() {
                 )}
               >
                 <Icon className={cn("size-4 shrink-0", active && "text-[oklch(0.78_0.16_75)]")} />
-                {!collapsed && <span>{n.label}</span>}
+                {!collapsed && <span>{t(n.labelKey)}</span>}
               </button>
             );
           })}
@@ -182,7 +252,7 @@ function SupervisorApp() {
             className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-cream/80 hover:bg-white/5"
           >
             <LogOut className="size-4" />
-            {!collapsed && <span>Sign out</span>}
+            {!collapsed && <span>{t("settings.sign_out")}</span>}
           </button>
         </div>
       </aside>
@@ -193,7 +263,7 @@ function SupervisorApp() {
       )}
 
       {/* Main */}
-      <div className={cn("flex min-h-screen flex-1 flex-col transition-all", collapsed ? "lg:pl-[76px]" : "lg:pl-[248px]")}>
+      <div className={cn("flex min-h-screen flex-1 flex-col transition-all", collapsed ? "lg:ps-[76px]" : "lg:ps-[248px]")}>
         {/* Header */}
         <header className="sticky top-0 z-20 flex items-center justify-between border-b border-cream/10 bg-[oklch(0.28_0.04_252_/_0.6)] px-4 py-3 backdrop-blur-xl lg:px-6">
           <div className="flex items-center gap-3">
@@ -201,16 +271,18 @@ function SupervisorApp() {
               <Menu className="size-5" />
             </button>
             <div>
-              <p className="text-xs text-cream/60">Stockyard / Supervisor</p>
-              <h1 className="text-base font-semibold">{NAV.find(n => n.id === section)?.label}</h1>
+              <p className="text-xs text-cream/60">{t("app.name")} / {t("nav.supervisor")}</p>
+              <h1 className="text-base font-semibold">{t(NAV.find(n => n.id === section)?.labelKey ?? "")}</h1>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <button className="relative rounded-full bg-white/10 p-2 hover:bg-white/20">
               <Bell className="size-4" />
-              <span className="absolute right-1 top-1 size-2 rounded-full bg-[oklch(0.78_0.16_75)]" />
+              <span className="absolute end-1 top-1 size-2 rounded-full bg-[oklch(0.78_0.16_75)]" />
             </button>
-            <Link to="/" className="rounded-full border border-cream/20 bg-white/5 px-3 py-1.5 text-xs hover:bg-white/15">Home</Link>
+            <Link to="/" className="rounded-full border border-cream/20 bg-white/5 px-3 py-1.5 text-xs hover:bg-white/15">{t("common.home")}</Link>
+            {fullName && <span className="hidden sm:inline text-xs font-medium text-cream/80">{fullName}</span>}
+            <LanguageToggle variant="header" />
           </div>
         </header>
 
@@ -288,15 +360,16 @@ function StatusBadge({ status }: { status: string }) {
 
 // ---------------- Overview ----------------
 function Overview({ stats, orders }: { stats: any; orders: COrder[] }) {
+  const { t } = useTranslation();
   const cards = [
-    { label: "Pending orders",      value: stats.incoming,         icon: Inbox },
-    { label: "In preparation",      value: stats.preparing,        icon: PackageCheck },
-    { label: "Ready for delivery",  value: stats.ready,            icon: CheckCircle2 },
-    { label: "Out for delivery",    value: stats.out,              icon: Truck },
-    { label: "Pending returns",     value: stats.returns,          icon: RotateCcw },
-    { label: "Active shipments",    value: stats.shipments,        icon: ClipboardList },
-    { label: "Active workers",      value: stats.activeWorkers,    icon: Activity },
-    { label: "Available drivers",   value: stats.availableDrivers, icon: ShieldCheck },
+    { label: t("supervisor.stat_pending_orders"),     value: stats.incoming,         icon: Inbox },
+    { label: t("supervisor.stat_in_preparation"),     value: stats.preparing,        icon: PackageCheck },
+    { label: t("supervisor.stat_ready_for_delivery"), value: stats.ready,            icon: CheckCircle2 },
+    { label: t("supervisor.stat_out_for_delivery"),   value: stats.out,              icon: Truck },
+    { label: t("supervisor.stat_pending_returns"),    value: stats.returns,          icon: RotateCcw },
+    { label: t("supervisor.stat_active_shipments"),   value: stats.shipments,        icon: ClipboardList },
+    { label: t("supervisor.stat_active_workers"),     value: stats.activeWorkers,    icon: Activity },
+    { label: t("supervisor.stat_available_drivers"),  value: stats.availableDrivers, icon: ShieldCheck },
   ];
   return (
     <div className="space-y-6">
@@ -305,14 +378,14 @@ function Overview({ stats, orders }: { stats: any; orders: COrder[] }) {
       </div>
       <GlassCard>
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-base font-semibold">Recent orders</h2>
-          <Badge variant="outline" className="rounded-full">Live</Badge>
+          <h2 className="text-base font-semibold">{t("supervisor.recent_orders")}</h2>
+          <Badge variant="outline" className="rounded-full">{t("supervisor.live")}</Badge>
         </div>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Order</TableHead><TableHead>Customer</TableHead>
-              <TableHead>Items</TableHead><TableHead>Status</TableHead><TableHead>Created</TableHead>
+              <TableHead>{t("supervisor.col_order")}</TableHead><TableHead>{t("order.customer")}</TableHead>
+              <TableHead>{t("order.items")}</TableHead><TableHead>{t("order.status")}</TableHead><TableHead>{t("task.created")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -334,6 +407,7 @@ function Overview({ stats, orders }: { stats: any; orders: COrder[] }) {
 
 // ---------------- Incoming Orders ----------------
 function IncomingOrders({ orders, setOrders }: { orders: COrder[]; setOrders: React.Dispatch<React.SetStateAction<COrder[]>>; }) {
+  const { t } = useTranslation();
   const [confirm, setConfirm] = useState<{ id: string; action: "approve" | "reject" } | null>(null);
   const list = orders.filter(o => o.status === "incoming");
 
@@ -342,22 +416,22 @@ function IncomingOrders({ orders, setOrders }: { orders: COrder[]; setOrders: Re
     setOrders(prev => prev.map(o => o.id === confirm.id
       ? { ...o, status: confirm.action === "approve" ? "preparing" : "rejected", progress: confirm.action === "approve" ? 0 : undefined }
       : o));
-    toast.success(confirm.action === "approve" ? `Order ${confirm.id} sent to preparation` : `Order ${confirm.id} rejected`);
+    toast.success(confirm.action === "approve" ? t("supervisor.toast_order_preparing", { id: confirm.id }) : t("supervisor.toast_order_rejected", { id: confirm.id }));
     setConfirm(null);
   };
 
   return (
     <GlassCard>
-      <h2 className="mb-4 text-base font-semibold">Customer orders awaiting review</h2>
+      <h2 className="mb-4 text-base font-semibold">{t("supervisor.incoming.title")}</h2>
       {list.length === 0 ? (
-        <p className="rounded-xl bg-muted/40 p-6 text-center text-sm text-muted-foreground">No incoming orders.</p>
+        <p className="rounded-xl bg-muted/40 p-6 text-center text-sm text-muted-foreground">{t("supervisor.incoming.no_orders")}</p>
       ) : (
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Order</TableHead><TableHead>Customer</TableHead>
-              <TableHead>Items</TableHead><TableHead>Total</TableHead>
-              <TableHead>Created</TableHead><TableHead className="text-right">Action</TableHead>
+              <TableHead>{t("supervisor.col_order")}</TableHead><TableHead>{t("order.customer")}</TableHead>
+              <TableHead>{t("order.items")}</TableHead><TableHead>{t("order.total")}</TableHead>
+              <TableHead>{t("task.created")}</TableHead><TableHead className="text-end">{t("supervisor.col_action")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -368,12 +442,12 @@ function IncomingOrders({ orders, setOrders }: { orders: COrder[]; setOrders: Re
                 <TableCell>{o.items}</TableCell>
                 <TableCell>${o.total}</TableCell>
                 <TableCell className="text-muted-foreground">{o.createdAt}</TableCell>
-                <TableCell className="space-x-2 text-right">
+                <TableCell className="flex items-center justify-end gap-2">
                   <Button size="sm" onClick={() => setConfirm({ id: o.id, action: "approve" })}>
-                    <CheckCircle2 className="size-4" /> Approve
+                    <CheckCircle2 className="size-4" /> {t("supervisor.approve")}
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => setConfirm({ id: o.id, action: "reject" })}>
-                    <XCircle className="size-4" /> Reject
+                    <XCircle className="size-4" /> {t("supervisor.reject")}
                   </Button>
                 </TableCell>
               </TableRow>
@@ -385,16 +459,16 @@ function IncomingOrders({ orders, setOrders }: { orders: COrder[]; setOrders: Re
       <AlertDialog open={!!confirm} onOpenChange={(o) => !o && setConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{confirm?.action === "approve" ? "Approve order?" : "Reject order?"}</AlertDialogTitle>
+            <AlertDialogTitle className="text-[#1D2D44]">{confirm?.action === "approve" ? t("supervisor.approve_order") : t("supervisor.reject_order")}</AlertDialogTitle>
             <AlertDialogDescription>
               {confirm?.action === "approve"
-                ? "It will move to Order Preparation."
-                : "The customer will be notified that the order was rejected."}
+                ? t("supervisor.approve_order_desc")
+                : t("supervisor.reject_order_desc")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={apply}>Confirm</AlertDialogAction>
+            <AlertDialogCancel className="bg-[#f2a618] text-[#1D2D44] border border-[#1D2D44]/20 hover:bg-[#f2a618]/90 hover:text-[#1D2D44]">{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction onClick={apply}>{t("common.confirm")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -409,13 +483,14 @@ function Preparation({
   orders: COrder[]; setOrders: React.Dispatch<React.SetStateAction<COrder[]>>;
   workers: SWorker[]; setWorkers: React.Dispatch<React.SetStateAction<SWorker[]>>;
 }) {
+  const { t } = useTranslation();
   const list = orders.filter(o => o.status === "preparing" || o.status === "ready");
   const prepWorkers = workers.filter(w => w.section === "Preparation");
 
   const assign = (id: string, workerId: string) => {
     setOrders(prev => prev.map(o => o.id === id ? { ...o, workerId, progress: o.progress ?? 10 } : o));
     setWorkers(prev => prev.map(w => w.id === workerId ? { ...w, status: "busy" } : w));
-    toast.success(`Worker ${workerId} assigned`);
+    toast.success(t("supervisor.toast_worker_assigned", { id: workerId }));
   };
   const setProgress = (id: string, value: number) => {
     setOrders(prev => prev.map(o => o.id === id ? { ...o, progress: value } : o));
@@ -424,14 +499,14 @@ function Preparation({
     setOrders(prev => prev.map(o => o.id === id ? { ...o, status: "ready", progress: 100 } : o));
     const o = orders.find(x => x.id === id);
     if (o?.workerId) setWorkers(prev => prev.map(w => w.id === o.workerId ? { ...w, status: "available" } : w));
-    toast.success(`${id} ready for delivery`);
+    toast.success(t("supervisor.toast_ready_for_delivery", { id }));
   };
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
       {list.length === 0 && (
         <GlassCard className="md:col-span-2">
-          <p className="text-center text-sm text-muted-foreground">No orders in preparation.</p>
+          <p className="text-center text-sm text-muted-foreground">{t("supervisor.preparation.no_orders")}</p>
         </GlassCard>
       )}
       {list.map(o => (
@@ -440,15 +515,15 @@ function Preparation({
             <div className="flex items-start justify-between">
               <div>
                 <p className="font-semibold">{o.id} <span className="text-muted-foreground font-normal">· {o.customer}</span></p>
-                <p className="text-xs text-muted-foreground">{o.items} items · ${o.total}</p>
+                <p className="text-xs text-muted-foreground">{t("supervisor.preparation.items_total", { count: o.items, total: o.total })}</p>
               </div>
               <StatusBadge status={o.status} />
             </div>
 
             <div className="mt-4 space-y-2">
-              <Label className="text-xs">Assigned worker</Label>
+              <Label className="text-xs">{t("supervisor.preparation.assigned_worker")}</Label>
               <Select value={o.workerId ?? ""} onValueChange={(v) => assign(o.id, v)}>
-                <SelectTrigger><SelectValue placeholder="Assign worker…" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t("supervisor.preparation.assign_worker_placeholder")} /></SelectTrigger>
                 <SelectContent>
                   {prepWorkers.map(w => (
                     <SelectItem key={w.id} value={w.id}>{w.name} ({w.id})</SelectItem>
@@ -459,7 +534,7 @@ function Preparation({
 
             <div className="mt-4">
               <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
-                <span>Progress</span><span>{o.progress ?? 0}%</span>
+                <span>{t("supervisor.preparation.progress")}</span><span>{o.progress ?? 0}%</span>
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-muted">
                 <motion.div
@@ -471,9 +546,9 @@ function Preparation({
               </div>
               {o.status === "preparing" && (
                 <div className="mt-3 flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => setProgress(o.id, Math.min(100, (o.progress ?? 0) + 25))}>+25%</Button>
+                  <Button size="sm" variant="outline" onClick={() => setProgress(o.id, Math.min(100, (o.progress ?? 0) + 25))}>{t("supervisor.preparation.progress_25")}</Button>
                   <Button size="sm" onClick={() => markReady(o.id)} disabled={!o.workerId}>
-                    <CheckCircle2 className="size-4" /> Mark ready
+                    <CheckCircle2 className="size-4" /> {t("supervisor.preparation.mark_ready")}
                   </Button>
                 </div>
               )}
@@ -492,13 +567,14 @@ function Receiving({
   shipments: Shipment[]; setShipments: React.Dispatch<React.SetStateAction<Shipment[]>>;
   workers: SWorker[];
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ supplier: "", items: 1 });
   const [qc, setQc] = useState<{ id: string; note: string } | null>(null);
   const recWorkers = workers.filter(w => w.section === "Receiving");
 
   const addShipment = () => {
-    if (!form.supplier) return toast.error("Supplier required");
+    if (!form.supplier) return toast.error(t("supervisor.receiving.toast_supplier_required"));
     const id = `SH-${3400 + shipments.length + 1}`;
     setShipments(prev => [{
       id, supplier: form.supplier, items: form.items,
@@ -506,32 +582,32 @@ function Receiving({
       status: "expected",
     }, ...prev]);
     setOpen(false); setForm({ supplier: "", items: 1 });
-    toast.success("Shipment logged");
+    toast.success(t("supervisor.receiving.toast_shipment_logged"));
   };
   const assign = (id: string, workerId: string) => {
     setShipments(prev => prev.map(s => s.id === id ? { ...s, workerId, status: "receiving" } : s));
-    toast.success(`Worker ${workerId} receiving ${id}`);
+    toast.success(t("supervisor.receiving.toast_worker_receiving", { id: workerId, shipment: id }));
   };
   const confirmReceive = () => {
     if (!qc) return;
     setShipments(prev => prev.map(s => s.id === qc.id ? { ...s, status: "received", qualityNote: qc.note || "OK" } : s));
-    toast.success(`${qc.id} received`);
+    toast.success(t("supervisor.receiving.toast_received", { id: qc.id }));
     setQc(null);
   };
 
   return (
     <GlassCard>
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-base font-semibold">Incoming shipments</h2>
-        <Button size="sm" onClick={() => setOpen(true)}><Plus className="size-4" /> Log shipment</Button>
+        <h2 className="text-base font-semibold">{t("supervisor.receiving.title")}</h2>
+        <Button size="sm" onClick={() => setOpen(true)}><Plus className="size-4" /> {t("supervisor.receiving.log_shipment")}</Button>
       </div>
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Shipment</TableHead><TableHead>Supplier</TableHead>
-            <TableHead>Items</TableHead><TableHead>Arrived</TableHead>
-            <TableHead>Worker</TableHead><TableHead>Status</TableHead>
-            <TableHead className="text-right">Action</TableHead>
+            <TableHead>{t("supervisor.col_shipment")}</TableHead><TableHead>{t("supervisor.col_supplier")}</TableHead>
+            <TableHead>{t("order.items")}</TableHead><TableHead>{t("supervisor.col_arrived")}</TableHead>
+            <TableHead>{t("task.worker")}</TableHead><TableHead>{t("order.status")}</TableHead>
+            <TableHead className="text-end">{t("supervisor.col_action")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -546,7 +622,7 @@ function Receiving({
                   <span className="text-xs text-muted-foreground">{s.workerId ?? "—"}</span>
                 ) : (
                   <Select value={s.workerId ?? ""} onValueChange={(v) => assign(s.id, v)}>
-                    <SelectTrigger className="h-8 w-[160px]"><SelectValue placeholder="Assign…" /></SelectTrigger>
+                    <SelectTrigger className="h-8 w-[160px]"><SelectValue placeholder={t("supervisor.assign_placeholder")} /></SelectTrigger>
                     <SelectContent>
                       {recWorkers.map(w => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
                     </SelectContent>
@@ -554,10 +630,10 @@ function Receiving({
                 )}
               </TableCell>
               <TableCell><StatusBadge status={s.status} /></TableCell>
-              <TableCell className="text-right">
+              <TableCell className="text-end">
                 {s.status === "receiving" && (
                   <Button size="sm" onClick={() => setQc({ id: s.id, note: "" })}>
-                    <CheckCircle2 className="size-4" /> Quality check
+                    <CheckCircle2 className="size-4" /> {t("supervisor.receiving.quality_check")}
                   </Button>
                 )}
                 {s.status === "received" && s.qualityNote && (
@@ -572,22 +648,44 @@ function Receiving({
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Log shipment</DialogTitle>
-            <DialogDescription>Record an incoming shipment from a supplier.</DialogDescription>
+            <DialogTitle className="text-[#1D2D44]">{t("supervisor.receiving.log_shipment")}</DialogTitle>
+            <DialogDescription>{t("supervisor.receiving.dialog_desc")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-2">
-              <Label>Supplier</Label>
-              <Input value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} placeholder="e.g. Nordic Goods" />
-            </div>
-            <div className="space-y-2">
-              <Label>Item count</Label>
-              <Input type="number" min={1} value={form.items} onChange={(e) => setForm({ ...form, items: Number(e.target.value) })} />
-            </div>
+             <Label className="text-[#eeebdd]">{t("supervisor.col_supplier")}</Label>
+  <Input 
+    value={form.supplier} 
+    onChange={(e) => setForm({ ...form, supplier: e.target.value })} 
+    placeholder={t("placeholder.supplier_example")} 
+    className="bg-[#eeebdd] text-[#1D2D44] placeholder:text-[#1D2D44]/60 border-[#1D2D44]/30 focus:border-[#f2a618]"
+  />
+</div>
+
+<div className="space-y-2">
+  <Label className="text-[#eeebdd]">{t("supervisor.receiving.item_count")}</Label>
+  <Input 
+    type="number" 
+    min={1} 
+    value={form.items} 
+    onChange={(e) => setForm({ ...form, items: Number(e.target.value) })} 
+    className="bg-[#eeebdd] text-[#1D2D44] border-[#1D2D44]/30 focus:border-[#f2a618]"
+  />
+</div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={addShipment}>Save</Button>
+         <Button 
+  type="button" 
+  variant="outline" 
+  onClick={() => {
+    setQc(null);
+    setOpen(false); 
+  }}
+  className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#d99415] hover:text-[#1D2D44] border border-[#1D2D44]/20"
+>
+  {t("common.cancel")}
+</Button>
+            <Button onClick={addShipment}>{t("common.save")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -595,13 +693,16 @@ function Receiving({
       <Dialog open={!!qc} onOpenChange={(o) => !o && setQc(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Confirm receipt — {qc?.id}</DialogTitle>
-            <DialogDescription>Add a quality check note before confirming.</DialogDescription>
+            <DialogTitle>{t("supervisor.receiving.confirm_receipt_title", { id: qc?.id })}</DialogTitle>
+            <DialogDescription>{t("supervisor.receiving.qc_desc")}</DialogDescription>
           </DialogHeader>
-          <Textarea value={qc?.note ?? ""} onChange={(e) => setQc(qc ? { ...qc, note: e.target.value } : null)} placeholder="All pallets intact, seals verified…" />
+          <Textarea value={qc?.note ?? ""} onChange={(e) => setQc(qc ? { ...qc, note: e.target.value } : null)} placeholder={t("placeholder.quality_note")} />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setQc(null)}>Cancel</Button>
-            <Button onClick={confirmReceive}><CheckCircle2 className="size-4" /> Confirm receipt</Button>
+            <Button 
+  variant="outline" 
+  onClick={() => setQc(null)}
+  className="bg-[#f2a618] text-[#1D2D44] border-[#1D2D44] hover:bg-[#1D2D44] hover:text-[#f2a618]">{t("common.cancel")}</Button>
+            <Button onClick={confirmReceive}><CheckCircle2 className="size-4" /> {t("supervisor.receiving.confirm_receipt")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -616,6 +717,7 @@ function DriversSection({
   drivers: Driver[]; setDrivers: React.Dispatch<React.SetStateAction<Driver[]>>;
   orders: COrder[]; setOrders: React.Dispatch<React.SetStateAction<COrder[]>>;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Driver | null>(null);
   const [form, setForm] = useState<Omit<Driver, "id">>({ name: "", phone: "", vehicle: "", status: "available" });
@@ -627,27 +729,27 @@ function DriversSection({
   const openEdit = (d: Driver) => { setEditing(d); setForm(d); setOpen(true); };
 
   const save = () => {
-    if (!form.name) return toast.error("Name required");
+    if (!form.name) return toast.error(t("supervisor.toast_name_required"));
     if (editing) {
       setDrivers(prev => prev.map(d => d.id === editing.id ? { ...editing, ...form } : d));
-      toast.success("Driver updated");
+      toast.success(t("supervisor.drivers.toast_updated"));
     } else {
       const id = `D-${20 + drivers.length + 1}`;
       setDrivers(prev => [...prev, { id, ...form }]);
-      toast.success("Driver added");
+      toast.success(t("supervisor.drivers.toast_added"));
     }
     setOpen(false);
   };
   const del = () => {
     if (!delTarget) return;
     setDrivers(prev => prev.filter(d => d.id !== delTarget));
-    toast.success("Driver removed");
+    toast.success(t("supervisor.drivers.toast_removed"));
     setDelTarget(null);
   };
   const assignDriver = (orderId: string, driverId: string) => {
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, driverId, status: "out_for_delivery" } : o));
     setDrivers(prev => prev.map(d => d.id === driverId ? { ...d, status: "on_delivery" } : d));
-    toast.success(`Driver ${driverId} dispatched`);
+    toast.success(t("supervisor.drivers.toast_dispatched", { id: driverId }));
     setAssignFor(null);
   };
 
@@ -655,15 +757,15 @@ function DriversSection({
     <div className="space-y-6">
       <GlassCard>
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-semibold">Drivers</h2>
-          <Button size="sm" onClick={openNew}><Plus className="size-4" /> Add driver</Button>
+          <h2 className="text-base font-semibold">{t("supervisor.drivers.title")}</h2>
+          <Button size="sm" onClick={openNew}><Plus className="size-4" /> {t("supervisor.drivers.add")}</Button>
         </div>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>ID</TableHead><TableHead>Name</TableHead>
-              <TableHead>Phone</TableHead><TableHead>Vehicle</TableHead>
-              <TableHead>Status</TableHead><TableHead className="text-right">Actions</TableHead>
+              <TableHead>{t("supervisor.col_id")}</TableHead><TableHead>{t("settings.name")}</TableHead>
+              <TableHead>{t("supervisor.col_phone")}</TableHead><TableHead>{t("supervisor.col_vehicle")}</TableHead>
+              <TableHead>{t("order.status")}</TableHead><TableHead className="text-end">{t("supervisor.col_actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -674,7 +776,7 @@ function DriversSection({
                 <TableCell>{d.phone}</TableCell>
                 <TableCell>{d.vehicle}</TableCell>
                 <TableCell><StatusBadge status={d.status} /></TableCell>
-                <TableCell className="space-x-1 text-right">
+                <TableCell className="flex items-center justify-end gap-1">
                   <Button size="icon" variant="outline" onClick={() => openEdit(d)}><Pencil className="size-4" /></Button>
                   <Button size="icon" variant="outline" onClick={() => setDelTarget(d.id)}><Trash2 className="size-4" /></Button>
                 </TableCell>
@@ -685,15 +787,15 @@ function DriversSection({
       </GlassCard>
 
       <GlassCard>
-        <h2 className="mb-4 text-base font-semibold">Ready orders — assign driver</h2>
+        <h2 className="mb-4 text-base font-semibold">{t("supervisor.drivers.ready_orders_title")}</h2>
         {readyOrders.length === 0 ? (
-          <p className="rounded-xl bg-muted/40 p-6 text-center text-sm text-muted-foreground">No orders ready for delivery.</p>
+          <p className="rounded-xl bg-muted/40 p-6 text-center text-sm text-muted-foreground">{t("supervisor.drivers.no_ready_orders")}</p>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Order</TableHead><TableHead>Customer</TableHead>
-                <TableHead>Items</TableHead><TableHead className="text-right">Action</TableHead>
+                <TableHead>{t("supervisor.col_order")}</TableHead><TableHead>{t("order.customer")}</TableHead>
+                <TableHead>{t("order.items")}</TableHead><TableHead className="text-end">{t("supervisor.col_action")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -702,9 +804,9 @@ function DriversSection({
                   <TableCell className="font-medium">{o.id}</TableCell>
                   <TableCell>{o.customer}</TableCell>
                   <TableCell>{o.items}</TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-end">
                     <Button size="sm" onClick={() => setAssignFor(o.id)}>
-                      <Truck className="size-4" /> Assign driver
+                      <Truck className="size-4" /> {t("supervisor.drivers.assign")}
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -717,27 +819,64 @@ function DriversSection({
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editing ? "Edit driver" : "Add driver"}</DialogTitle>
+            <DialogTitle className="text-[#1D2D44]">{editing ? t("supervisor.drivers.edit") : t("supervisor.drivers.add")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
-            <div className="space-y-2"><Label>Name</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-            <div className="space-y-2"><Label>Phone</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
-            <div className="space-y-2"><Label>Vehicle</Label><Input value={form.vehicle} onChange={(e) => setForm({ ...form, vehicle: e.target.value })} /></div>
             <div className="space-y-2">
-              <Label>Status</Label>
-              <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as Driver["status"] })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="available">Available</SelectItem>
-                  <SelectItem value="on_delivery">On delivery</SelectItem>
-                  <SelectItem value="off_duty">Off duty</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={save}>Save</Button>
+    <Label className="text-[#1D2D44]">{t("settings.name")}</Label>
+    <Input 
+      value={form.name} 
+      onChange={(e) => setForm({ ...form, name: e.target.value })} 
+      className="bg-[#eeebdd] text-[#1D2D44] placeholder:text-[#1D2D44]/60 border-[#1D2D44]/30 focus:border-[#f2a618]"
+    />
+  </div>
+
+  {/* Phone Field */}
+  <div className="space-y-2">
+    <Label className="text-[#1D2D44]">{t("supervisor.col_phone")}</Label>
+    <Input 
+      value={form.phone} 
+      onChange={(e) => setForm({ ...form, phone: e.target.value })} 
+      className="bg-[#eeebdd] text-[#1D2D44] placeholder:text-[#1D2D44]/60 border-[#1D2D44]/30 focus:border-[#f2a618]"
+    />
+  </div>
+
+  {/* Vehicle Field */}
+  <div className="space-y-2">
+    <Label className="text-[#1D2D44]">{t("supervisor.col_vehicle")}</Label>
+    <Input 
+      value={form.vehicle} 
+      onChange={(e) => setForm({ ...form, vehicle: e.target.value })} 
+      className="bg-[#eeebdd] text-[#1D2D44] placeholder:text-[#1D2D44]/60 border-[#1D2D44]/30 focus:border-[#f2a618]"
+    />
+  </div>
+
+  {/* Status Select Field */}
+  <div className="space-y-2">
+    <Label className="text-[#1D2D44]">{t("order.status")}</Label>
+    <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as Driver["status"] })}>
+      <SelectTrigger className="bg-[#eeebdd] text-[#1D2D44] border-[#1D2D44]/30 focus:ring-[#f2a618]">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent className="bg-[#eeebdd] border-[#1D2D44]/20 text-[#1D2D44]">
+        <SelectItem value="available" className="focus:bg-[#f2a618]/20 focus:text-[#1D2D44] cursor-pointer">{t("supervisor.driver_status_available")}</SelectItem>
+        <SelectItem value="on_delivery" className="focus:bg-[#f2a618]/20 focus:text-[#1D2D44] cursor-pointer">{t("supervisor.driver_status_on_delivery")}</SelectItem>
+        <SelectItem value="off_duty" className="focus:bg-[#f2a618]/20 focus:text-[#1D2D44] cursor-pointer">{t("supervisor.driver_status_off_duty")}</SelectItem>
+      </SelectContent>
+    </Select>
+  </div>
+</div>
+
+<DialogFooter className="mt-4">
+  <Button 
+    type="button" 
+    variant="outline" 
+    onClick={() => setOpen(false)}
+    className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#d99415] hover:text-[#1D2D44] border border-[#1D2D44]/20"
+  >
+    {t("common.cancel")}
+  </Button>
+            <Button onClick={save}>{t("common.save")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -745,12 +884,12 @@ function DriversSection({
       <AlertDialog open={!!delTarget} onOpenChange={(o) => !o && setDelTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove driver?</AlertDialogTitle>
-            <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
+            <AlertDialogTitle className="text-[#1D2D44]">{t("supervisor.drivers.remove_confirm")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("supervisor.drivers.undo_warning")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={del}>Delete</AlertDialogAction>
+<AlertDialogCancel 
+  className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#d99415] hover:text-[#1D2D44] border border-[#1D2D44]/20">{t("common.cancel")}</AlertDialogCancel>            <AlertDialogAction onClick={del}>{t("common.delete")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -758,23 +897,30 @@ function DriversSection({
       <Dialog open={!!assignFor} onOpenChange={(o) => !o && setAssignFor(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Assign driver to {assignFor}</DialogTitle>
-            <DialogDescription>Only available drivers are shown.</DialogDescription>
+            <DialogTitle className="text-[#1D2D44]">{t("supervisor.drivers.assign_to", { order: assignFor })}</DialogTitle>
+            <DialogDescription>{t("supervisor.drivers.available_only")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
-            {drivers.filter(d => d.status === "available").map(d => (
-              <button key={d.id}
-                onClick={() => assignFor && assignDriver(assignFor, d.id)}
-                className="flex w-full items-center justify-between rounded-xl border bg-background/40 p-3 hover:bg-background/70 transition">
-                <div className="text-left">
-                  <p className="font-medium">{d.name} <span className="text-xs text-muted-foreground">({d.id})</span></p>
-                  <p className="text-xs text-muted-foreground">{d.vehicle} · {d.phone}</p>
-                </div>
-                <Truck className="size-4" />
-              </button>
+  {drivers.filter(d => d.status === "available").map(d => (
+    <button 
+      key={d.id}
+      type="button"
+      onClick={() => assignFor && assignDriver(assignFor, d.id)}
+      className="flex w-full items-center justify-between rounded-xl border border-[#1D2D44]/20 bg-[#eeebdd] p-3 hover:bg-[#e4e0cd] transition"
+    >
+      <div className="text-start">
+        <p className="font-semibold text-[#1D2D44]">
+          {d.name} <span className="text-xs text-[#1D2D44]/75 font-normal">({d.id})</span>
+        </p>
+        <p className="text-xs text-[#1D2D44]/80 font-medium">
+          {d.vehicle} · {d.phone}
+        </p>
+      </div>
+      <Truck className="size-4 text-[#1D2D44]" />
+    </button>
             ))}
             {drivers.filter(d => d.status === "available").length === 0 && (
-              <p className="text-center text-sm text-muted-foreground">No drivers available.</p>
+              <p className="text-center text-sm text-muted-foreground">{t("supervisor.drivers.no_available")}</p>
             )}
           </div>
         </DialogContent>
@@ -790,40 +936,41 @@ function ReturnsSection({
   returns: Return[]; setReturns: React.Dispatch<React.SetStateAction<Return[]>>;
   workers: SWorker[];
 }) {
+  const { t } = useTranslation();
   const [tab, setTab] = useState("pending");
   const retWorkers = workers.filter(w => w.section === "Returns");
   const list = returns.filter(r => tab === "all" ? true : r.status === tab);
 
   const setStatus = (id: string, status: Return["status"]) => {
     setReturns(prev => prev.map(r => r.id === id ? { ...r, status } : r));
-    toast.success(`${id} → ${status}`);
+    toast.success(t("supervisor.returns.toast_status", { id, status }));
   };
   const assign = (id: string, workerId: string) => {
     setReturns(prev => prev.map(r => r.id === id ? { ...r, workerId } : r));
-    toast.success(`Assigned ${workerId}`);
+    toast.success(t("supervisor.returns.toast_assigned", { id: workerId }));
   };
 
   return (
     <GlassCard>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-base font-semibold">Return requests</h2>
+        <h2 className="text-base font-semibold">{t("supervisor.returns.title")}</h2>
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList>
-            <TabsTrigger value="pending">Pending</TabsTrigger>
-            <TabsTrigger value="approved">Approved</TabsTrigger>
-            <TabsTrigger value="rejected">Rejected</TabsTrigger>
-            <TabsTrigger value="refunded">Refunded</TabsTrigger>
-            <TabsTrigger value="all">All</TabsTrigger>
+            <TabsTrigger value="pending">{t("supervisor.returns.tab_pending")}</TabsTrigger>
+            <TabsTrigger value="approved">{t("supervisor.returns.tab_approved")}</TabsTrigger>
+            <TabsTrigger value="rejected">{t("supervisor.returns.tab_rejected")}</TabsTrigger>
+            <TabsTrigger value="refunded">{t("supervisor.returns.tab_refunded")}</TabsTrigger>
+            <TabsTrigger value="all">{t("supervisor.returns.tab_all")}</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Return</TableHead><TableHead>Order</TableHead>
-            <TableHead>Customer</TableHead><TableHead>Reason</TableHead>
-            <TableHead>Worker</TableHead><TableHead>Status</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
+            <TableHead>{t("supervisor.col_return")}</TableHead><TableHead>{t("supervisor.col_order")}</TableHead>
+            <TableHead>{t("order.customer")}</TableHead><TableHead>{t("return.reason")}</TableHead>
+            <TableHead>{t("task.worker")}</TableHead><TableHead>{t("order.status")}</TableHead>
+            <TableHead className="text-end">{t("supervisor.col_actions")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -835,28 +982,28 @@ function ReturnsSection({
               <TableCell className="max-w-[220px] truncate">{r.reason}</TableCell>
               <TableCell>
                 <Select value={r.workerId ?? ""} onValueChange={(v) => assign(r.id, v)}>
-                  <SelectTrigger className="h-8 w-[150px]"><SelectValue placeholder="Assign…" /></SelectTrigger>
+                  <SelectTrigger className="h-8 w-[150px]"><SelectValue placeholder={t("supervisor.assign_placeholder")} /></SelectTrigger>
                   <SelectContent>
                     {retWorkers.map(w => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </TableCell>
               <TableCell><StatusBadge status={r.status} /></TableCell>
-              <TableCell className="space-x-1 text-right">
+              <TableCell className="flex items-center justify-end gap-1">
                 {r.status === "pending" && (
                   <>
-                    <Button size="sm" onClick={() => setStatus(r.id, "approved")}>Approve</Button>
-                    <Button size="sm" variant="outline" onClick={() => setStatus(r.id, "rejected")}>Reject</Button>
+                    <Button size="sm" onClick={() => setStatus(r.id, "approved")}>{t("supervisor.approve")}</Button>
+                    <Button size="sm" variant="outline" onClick={() => setStatus(r.id, "rejected")}>{t("supervisor.reject")}</Button>
                   </>
                 )}
                 {r.status === "approved" && (
-                  <Button size="sm" onClick={() => setStatus(r.id, "refunded")}>Process refund</Button>
+                  <Button size="sm" onClick={() => setStatus(r.id, "refunded")}>{t("supervisor.returns.process_refund")}</Button>
                 )}
               </TableCell>
             </TableRow>
           ))}
           {list.length === 0 && (
-            <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">No items.</TableCell></TableRow>
+            <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">{t("supervisor.no_items")}</TableCell></TableRow>
           )}
         </TableBody>
       </Table>
@@ -868,45 +1015,46 @@ function ReturnsSection({
 function WorkersSection({
   workers, setWorkers,
 }: { workers: SWorker[]; setWorkers: React.Dispatch<React.SetStateAction<SWorker[]>>; }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<{ name: string; section: WorkerSection }>({ name: "", section: "Preparation" });
   const [query, setQuery] = useState("");
   const list = workers.filter(w => w.name.toLowerCase().includes(query.toLowerCase()));
 
   const add = () => {
-    if (!form.name) return toast.error("Name required");
+    if (!form.name) return toast.error(t("supervisor.toast_name_required"));
     const id = `W-${100 + workers.length + 1}`;
     setWorkers(prev => [...prev, { id, name: form.name, section: form.section, status: "available" }]);
-    toast.success("Worker added");
+    toast.success(t("supervisor.workers.toast_added"));
     setOpen(false); setForm({ name: "", section: "Preparation" });
   };
   const reassign = (id: string, section: WorkerSection) => {
     setWorkers(prev => prev.map(w => w.id === id ? { ...w, section } : w));
-    toast.success("Section updated");
+    toast.success(t("supervisor.workers.toast_section_updated"));
   };
   const remove = (id: string) => {
     setWorkers(prev => prev.filter(w => w.id !== id));
-    toast.success("Worker removed");
+    toast.success(t("supervisor.workers.toast_removed"));
   };
 
   return (
     <GlassCard>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-base font-semibold">Workers</h2>
+        <h2 className="text-base font-semibold">{t("supervisor.workers")}</h2>
         <div className="flex items-center gap-2">
           <div className="relative">
-            <Search className="absolute left-2 top-2.5 size-4 text-muted-foreground" />
-            <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search…" className="pl-8 w-[200px]" />
+            <Search className="absolute start-2 top-2.5 size-4 text-muted-foreground" />
+            <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("supervisor.search_placeholder")} className="ps-8 w-[200px]" />
           </div>
-          <Button size="sm" onClick={() => setOpen(true)}><Plus className="size-4" /> Add worker</Button>
+          <Button size="sm" onClick={() => setOpen(true)}><Plus className="size-4" /> {t("supervisor.workers.add")}</Button>
         </div>
       </div>
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>ID</TableHead><TableHead>Name</TableHead>
-            <TableHead>Section</TableHead><TableHead>Status</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
+            <TableHead>{t("supervisor.col_id")}</TableHead><TableHead>{t("settings.name")}</TableHead>
+            <TableHead>{t("supervisor.col_section")}</TableHead><TableHead>{t("order.status")}</TableHead>
+            <TableHead className="text-end">{t("supervisor.col_actions")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -918,14 +1066,14 @@ function WorkersSection({
                 <Select value={w.section} onValueChange={(v) => reassign(w.id, v as WorkerSection)}>
                   <SelectTrigger className="h-8 w-[160px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Preparation">Preparation</SelectItem>
-                    <SelectItem value="Receiving">Receiving</SelectItem>
-                    <SelectItem value="Returns">Returns</SelectItem>
+                    <SelectItem value="Preparation">{t("supervisor.section_preparation")}</SelectItem>
+                    <SelectItem value="Receiving">{t("supervisor.section_receiving")}</SelectItem>
+                    <SelectItem value="Returns">{t("supervisor.section_returns")}</SelectItem>
                   </SelectContent>
                 </Select>
               </TableCell>
               <TableCell><StatusBadge status={w.status} /></TableCell>
-              <TableCell className="text-right">
+              <TableCell className="text-end">
                 <Button size="icon" variant="outline" onClick={() => remove(w.id)}><Trash2 className="size-4" /></Button>
               </TableCell>
             </TableRow>
@@ -935,24 +1083,43 @@ function WorkersSection({
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Add worker</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="text-[#1D2D44]">{t("supervisor.workers.add")}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
-            <div className="space-y-2"><Label>Name</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-            <div className="space-y-2">
-              <Label>Section</Label>
-              <Select value={form.section} onValueChange={(v) => setForm({ ...form, section: v as WorkerSection })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Preparation">Preparation</SelectItem>
-                  <SelectItem value="Receiving">Receiving</SelectItem>
-                  <SelectItem value="Returns">Returns</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={add}>Save</Button>
+           <div className="space-y-2">
+    <Label className="text-[#1D2D44]">{t("settings.name")}</Label>
+    <Input 
+      value={form.name} 
+      onChange={(e) => setForm({ ...form, name: e.target.value })} 
+      className="bg-[#eeebdd] text-[#1D2D44] placeholder:text-[#1D2D44]/60 border-[#1D2D44]/30 focus:border-[#f2a618]"
+    />
+  </div>
+
+  {/* Section Select Field */}
+  <div className="space-y-2">
+    <Label className="text-[#1D2D44]">{t("supervisor.col_section")}</Label>
+    <Select value={form.section} onValueChange={(v) => setForm({ ...form, section: v as WorkerSection })}>
+      <SelectTrigger className="bg-[#eeebdd] text-[#1D2D44] border-[#1D2D44]/30 focus:ring-[#f2a618]">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent className="bg-[#eeebdd] border-[#1D2D44]/20 text-[#1D2D44]">
+        <SelectItem value="Preparation" className="focus:bg-[#f2a618]/20 focus:text-[#1D2D44] cursor-pointer">{t("supervisor.section_preparation")}</SelectItem>
+        <SelectItem value="Receiving" className="focus:bg-[#f2a618]/20 focus:text-[#1D2D44] cursor-pointer">{t("supervisor.section_receiving")}</SelectItem>
+        <SelectItem value="Returns" className="focus:bg-[#f2a618]/20 focus:text-[#1D2D44] cursor-pointer">{t("supervisor.section_returns")}</SelectItem>
+      </SelectContent>
+    </Select>
+  </div>
+</div>
+
+<DialogFooter className="mt-4">
+  <Button 
+    type="button" 
+    variant="outline" 
+    onClick={() => setOpen(false)}
+    className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#d99415] hover:text-[#1D2D44] border border-[#1D2D44]/20"
+  >
+    {t("common.cancel")}
+  </Button>
+            <Button onClick={add}>{t("common.save")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -964,13 +1131,14 @@ function WorkersSection({
 function Reports({
   orders, returns, workers,
 }: { orders: COrder[]; returns: Return[]; workers: SWorker[] }) {
+  const { t } = useTranslation();
   const [busy, setBusy] = useState<string | null>(null);
 
   const exportFile = (kind: "PDF" | "CSV", scope: string) => {
     setBusy(`${kind}-${scope}`);
     setTimeout(() => {
       setBusy(null);
-      toast.success(`${scope} ${kind} exported`);
+      toast.success(t("supervisor.reports.toast_exported", { scope, kind }));
     }, 900);
   };
 
@@ -984,9 +1152,9 @@ function Reports({
   }));
 
   const reportCards = [
-    { title: "Daily operations", desc: `Orders today: ${orders.length} · Returns: ${returns.length}` },
-    { title: "Worker performance", desc: `${workers.length} workers · ${perf.reduce((s, p) => s + p.handled, 0)} tasks handled` },
-    { title: "Return reasons", desc: Object.entries(reasons).map(([k, v]) => `${k} (${v})`).join(" · ") || "—" },
+    { title: t("supervisor.reports.daily_operations"), desc: t("supervisor.reports.orders_today", { orders: orders.length, returns: returns.length }) },
+    { title: t("supervisor.reports.worker_performance"), desc: t("supervisor.reports.workers_tasks", { count: workers.length, workers: workers.length, tasks: perf.reduce((s, p) => s + p.handled, 0) }) },
+    { title: t("supervisor.reports.return_reasons"), desc: Object.entries(reasons).map(([k, v]) => `${k} (${v})`).join(" · ") || "—" },
   ];
 
   return (
@@ -998,10 +1166,10 @@ function Reports({
             <p className="mt-2 text-sm text-muted-foreground">{r.desc}</p>
             <div className="mt-4 flex gap-2">
               <Button size="sm" variant="outline" onClick={() => exportFile("PDF", r.title)} disabled={busy === `PDF-${r.title}`}>
-                {busy === `PDF-${r.title}` ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />} PDF
+                {busy === `PDF-${r.title}` ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />} {t("report.pdf")}
               </Button>
               <Button size="sm" variant="outline" onClick={() => exportFile("CSV", r.title)} disabled={busy === `CSV-${r.title}`}>
-                {busy === `CSV-${r.title}` ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />} CSV
+                {busy === `CSV-${r.title}` ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />} {t("supervisor.reports.csv")}
               </Button>
             </div>
           </GlassCard>
@@ -1009,10 +1177,10 @@ function Reports({
       </div>
 
       <GlassCard>
-        <h3 className="mb-3 font-semibold">Worker performance</h3>
+        <h3 className="mb-3 font-semibold">{t("supervisor.reports.worker_performance")}</h3>
         <Table>
           <TableHeader><TableRow>
-            <TableHead>ID</TableHead><TableHead>Name</TableHead><TableHead>Section</TableHead><TableHead>Tasks handled</TableHead>
+            <TableHead>{t("supervisor.col_id")}</TableHead><TableHead>{t("settings.name")}</TableHead><TableHead>{t("supervisor.col_section")}</TableHead><TableHead>{t("supervisor.reports.tasks_handled")}</TableHead>
           </TableRow></TableHeader>
           <TableBody>
             {perf.map(p => (
@@ -1032,21 +1200,22 @@ function Reports({
 
 // ---------------- Settings ----------------
 function SettingsPanel() {
+  const { t } = useTranslation();
   const [name, setName] = useState("Supervisor Account");
   const [email, setEmail] = useState("supervisor@stockyard.app");
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <GlassCard>
-        <h3 className="mb-3 font-semibold">Profile</h3>
+        <h3 className="mb-3 font-semibold">{t("settings.profile")}</h3>
         <div className="space-y-3">
-          <div className="space-y-2"><Label>Display name</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
-          <div className="space-y-2"><Label>Email</Label><Input value={email} onChange={(e) => setEmail(e.target.value)} /></div>
-          <Button onClick={() => toast.success("Profile saved")}>Save</Button>
+          <div className="space-y-2"><Label>{t("supervisor.settings.display_name")}</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
+          <div className="space-y-2"><Label>{t("signup.email")}</Label><Input value={email} onChange={(e) => setEmail(e.target.value)} /></div>
+          <Button onClick={() => toast.success(t("supervisor.settings.toast_saved"))}>{t("common.save")}</Button>
         </div>
       </GlassCard>
       <GlassCard>
-        <h3 className="mb-3 font-semibold">Preferences</h3>
-        <p className="text-sm text-muted-foreground">Notification, theme and shortcut preferences are coming soon.</p>
+        <h3 className="mb-3 font-semibold">{t("supervisor.settings.preferences")}</h3>
+        <p className="text-sm text-muted-foreground">{t("supervisor.settings.preferences_desc")}</p>
       </GlassCard>
     </div>
   );

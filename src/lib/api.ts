@@ -147,6 +147,39 @@ export const setupTenantOwner = async (data: OwnerData): Promise<OwnerSetupRespo
   return response.data;
 };
 
+/* ===== Dashboard (Owner) Auth ===== */
+
+export interface DashboardLoginResponse {
+  message: string;
+  dashboard_user: {
+    id: number;
+    full_name: string;
+    role: string;
+    owner_id: number;
+    tenant: {
+      id: number;
+      user_id: number;
+      subscription_plan_id: number;
+      company_name: string;
+      warehouses_count: number;
+      url_slug: string;
+      status: string;
+      subscription_start_date: string | null;
+      subscription_end_date: string | null;
+      subscription_plan: SubscriptionPlan;
+    };
+  };
+}
+
+export const loginDashboard = async (slug: string, user_name: string, password: string): Promise<DashboardLoginResponse> => {
+  const response = await api.post<DashboardLoginResponse>(`/${slug}/login`, { user_name, password });
+  return response.data;
+};
+
+export const logoutDashboard = async (slug: string): Promise<void> => {
+  await api.post(`/${slug}/logout`);
+};
+
 /* ===== User Helpers ===== */
 
 export interface UserResource {

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { z } from "zod";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import {
   User, Mail, Lock, Calendar, Eye, EyeOff, Loader2, HelpCircle, ArrowRight,
 } from "lucide-react";
@@ -25,23 +26,24 @@ function ageYears(d: Date) {
   return a;
 }
 
-const schema = z
-  .object({
-    name: z.string().trim().min(2, "Name is required").max(80),
-    email: z.string().trim().email("Invalid email").max(255),
-  // phone removed
-    birthdate: z.string().refine((v) => {
-      const d = parseDOB(v);
-      return !!d && ageYears(d) >= 18;
-    }, "Must be 18+ (DD/MM/YYYY)"),
-    password: z.string().min(8, "Min 8 characters").max(72),
-    confirm: z.string(),
-    terms: z.literal(true, { errorMap: () => ({ message: "You must accept terms" }) }),
-  })
-  .superRefine((d, ctx) => {
-    if (d.password !== d.confirm)
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["confirm"], message: "Passwords don't match" });
-  });
+const makeSchema = (t: (k: string) => string) =>
+  z
+    .object({
+      name: z.string().trim().min(2, t("zod.name_required")).max(80),
+      email: z.string().trim().email(t("zod.invalid_email")).max(255),
+    // phone removed
+      birthdate: z.string().refine((v) => {
+        const d = parseDOB(v);
+        return !!d && ageYears(d) >= 18;
+      }, t("zod.age_required")),
+      password: z.string().min(8, t("zod.min_chars")).max(72),
+      confirm: z.string(),
+      terms: z.literal(true, { errorMap: () => ({ message: t("zod.terms_required") }) }),
+    })
+    .superRefine((d, ctx) => {
+      if (d.password !== d.confirm)
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["confirm"], message: t("zod.password_mismatch") });
+    });
 
 type FormState = {
   name: string;
@@ -79,6 +81,7 @@ interface FieldProps {
 }
 
 function Field({ id, label, type = "text", placeholder, icon: Icon, tooltip, value, error, onChange, delay, rightSlot, inputMode }: FieldProps) {
+  const { t } = useTranslation();
   return (
     <div className="animate-fade-up" style={{ animationDelay: `${delay}ms` }}>
       <label htmlFor={id} className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-[oklch(0.28_0.04_252)]">
@@ -86,7 +89,7 @@ function Field({ id, label, type = "text", placeholder, icon: Icon, tooltip, val
         {tooltip && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <button type="button" aria-label={`${label} help`}>
+              <button type="button" aria-label={`${label} ${t("common.help")}`}>
                 <HelpCircle className="size-3.5 text-[oklch(0.45_0.03_252)] hover:text-[oklch(0.28_0.04_252)]" />
               </button>
             </TooltipTrigger>
@@ -97,7 +100,7 @@ function Field({ id, label, type = "text", placeholder, icon: Icon, tooltip, val
       <div className={`group relative flex items-center rounded-xl border bg-white transition-all
         focus-within:border-[#f3a523] focus-within:ring-4 focus-within:ring-[#f3a523]/15
         ${error ? "border-[oklch(0.6_0.22_27)]" : "border-[#dcdace]"}`}>
-        <Icon className="ml-3 size-4 shrink-0 text-[#26384c]/50 transition-colors group-focus-within:text-[#f3a523]" />
+        <Icon className="ms-3 size-4 shrink-0 text-[#26384c]/50 transition-colors group-focus-within:text-[#f3a523]" />
         <input
           id={id}
           type={type}
@@ -115,6 +118,8 @@ function Field({ id, label, type = "text", placeholder, icon: Icon, tooltip, val
 }
 
 export function SignUpForm({ onSubmitted }: Props) {
+  const { t } = useTranslation();
+  const schema = makeSchema(t);
   const [form, setForm] = useState<FormState>(initial);
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
   const [showPwd, setShowPwd] = useState(false);
@@ -146,7 +151,7 @@ export function SignUpForm({ onSubmitted }: Props) {
         if (!fieldErrors[key]) fieldErrors[key] = issue.message;
       }
       setErrors(fieldErrors);
-      toast.error("Please review the highlighted fields");
+      toast.error(t("signup.review_fields"));
       return;
     }
 
@@ -167,10 +172,10 @@ export function SignUpForm({ onSubmitted }: Props) {
       const user = response.data?.user || response.data;
       if (user && (user.id || user.email)) {
         setStoredUser(user);
-        toast.success("Account created successfully!");
+        toast.success(t("signup.success"));
         onSubmitted();
       } else {
-        toast.success("Account created!");
+        toast.success(t("signup.success_short"));
         onSubmitted();
       }
       
@@ -181,26 +186,26 @@ export function SignUpForm({ onSubmitted }: Props) {
         const user = data?.user || data;
 
         if (error.response.status === 419) {
-          toast.error("Session expired. Please refresh the page and try again.");
+          toast.error(t("signup.session_expired"));
         } else if (error.response.status === 422) {
           const serverErrors = data?.errors;
           if (serverErrors) {
             const firstErrorKey = Object.keys(serverErrors)[0];
             toast.error(serverErrors[firstErrorKey][0]);
           } else {
-            toast.error(msg || "Registration failed");
+            toast.error(msg || t("signup.registration_failed"));
           }
         } else if (error.response.status >= 500 && user && user.id) {
           setStoredUser(user);
-          toast.success("Account created successfully!");
+          toast.success(t("signup.success"));
           onSubmitted();
         } else {
-          toast.error(msg || `Server error (${error.response.status})`);
+          toast.error(msg || t("signup.server_error", { status: error.response.status }));
         }
       } else if (error.request) {
-        toast.error("No response from server. Is the backend running?");
+        toast.error(t("signup.no_server"));
       } else {
-        toast.error("Something went wrong. Please try again.");
+        toast.error(t("common.try_again_later"));
       }
     } finally {
       setLoading(false);
@@ -214,33 +219,33 @@ export function SignUpForm({ onSubmitted }: Props) {
       style={{ animationDelay: "120ms" }}
     >
       <div className="mb-5">
-        <h2 className="text-2xl font-bold text-[oklch(0.28_0.04_252)]">Request Access</h2>
+        <h2 className="text-2xl font-bold text-[oklch(0.28_0.04_252)]">{t("signup.title")}</h2>
 
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field id="name" label="Full name" placeholder="Jane Doe" icon={User}
+        <Field id="name" label={t("signup.name")} placeholder={t("placeholder.jane_doe")} icon={User}
           value={form.name} error={errors.name} onChange={(v) => set("name", v)} delay={140} />
-        <Field id="email" label="Work email" type="email" placeholder="jane@company.com" icon={Mail}
+        <Field id="email" label={t("signup.email")} type="email" placeholder="jane@company.com" icon={Mail}
           value={form.email} error={errors.email} onChange={(v) => set("email", v)} delay={180}
-          tooltip="Use your company email — admins use this to contact you." />
+          tooltip={t("signup.email_tooltip")} />
   {/* Phone field removed per design */}
-        <Field id="birthdate" label="Birthdate" placeholder="DD/MM/YYYY" icon={Calendar}
+        <Field id="birthdate" label={t("signup.birthdate")} placeholder="DD/MM/YYYY" icon={Calendar}
           inputMode="numeric"
           value={form.birthdate} error={errors.birthdate} onChange={onBirthdate} delay={260}
-          tooltip="You must be at least 18 years old to register." />
-        <Field id="password" label="Password" type={showPwd ? "text" : "password"} placeholder="At least 8 characters"
+          tooltip={t("signup.age_tooltip")} />
+        <Field id="password" label={t("signup.password")} type={showPwd ? "text" : "password"} placeholder={t("placeholder.min_chars")}
           icon={Lock} value={form.password} error={errors.password} onChange={(v) => set("password", v)} delay={300}
-          tooltip="Use 8+ characters with a mix of letters and numbers."
+          tooltip={t("signup.password_tooltip")}
           rightSlot={
-            <button type="button" onClick={() => setShowPwd((s) => !s)} className="mr-3 text-[oklch(0.45_0.03_252)] hover:text-[oklch(0.28_0.04_252)]" aria-label="Toggle password">
+            <button type="button" onClick={() => setShowPwd((s) => !s)} className="me-3 text-[oklch(0.45_0.03_252)] hover:text-[oklch(0.28_0.04_252)]" aria-label={t("common.toggle_password")}>
               {showPwd ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
             </button>
           } />
-        <Field id="confirm" label="Confirm password" type={showConfirm ? "text" : "password"} placeholder="Repeat password"
+        <Field id="confirm" label={t("signup.confirm_password")} type={showConfirm ? "text" : "password"} placeholder={t("placeholder.repeat_password")}
           icon={Lock} value={form.confirm} error={errors.confirm} onChange={(v) => set("confirm", v)} delay={340}
           rightSlot={
-            <button type="button" onClick={() => setShowConfirm((s) => !s)} className="mr-3 text-[oklch(0.45_0.03_252)] hover:text-[oklch(0.28_0.04_252)]" aria-label="Toggle confirm password">
+            <button type="button" onClick={() => setShowConfirm((s) => !s)} className="me-3 text-[oklch(0.45_0.03_252)] hover:text-[oklch(0.28_0.04_252)]" aria-label={t("common.toggle_confirm_password")}>
               {showConfirm ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
             </button>
           } />
@@ -254,9 +259,9 @@ export function SignUpForm({ onSubmitted }: Props) {
           className="mt-0.5 size-4 cursor-pointer rounded border-[#dcdace] accent-[#f3a523]"
         />
         <span>
-          I agree to the{" "}
-          <a href="#" className="font-semibold underline-offset-2 hover:underline">Terms of Service</a> and{" "}
-          <a href="#" className="font-semibold underline-offset-2 hover:underline">Privacy Policy</a>.
+          {t("signup.terms_prefix")}{" "}
+          <a href="#" className="font-semibold underline-offset-2 hover:underline">{t("signup.terms_of_service")}</a> {t("signup.terms_and")}{" "}
+          <a href="#" className="font-semibold underline-offset-2 hover:underline">{t("signup.privacy_policy")}</a>.
         </span>
       </label>
       {errors.terms && <p className="mt-1 text-xs font-medium text-[oklch(0.55_0.22_27)]">{errors.terms}</p>}
@@ -269,11 +274,11 @@ export function SignUpForm({ onSubmitted }: Props) {
       >
         {loading ? (
           <>
-            <Loader2 className="size-5 animate-spin" /> Submitting request…
+            <Loader2 className="size-5 animate-spin" /> {t("signup.creating")}
           </>
         ) : (
           <>
-            Submit for approval <ArrowRight className="size-4" />
+            {t("signup.submit")} <ArrowRight className="size-4" />
           </>
         )}
       </Button>

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <!-- الدائرة الخلفية باللون البرتقالي -->
+  <circle cx="12" cy="12" r="11.5" fill="#FBB03B" />
+  
+  <!-- تصغير رسمة المستودع وتوسيطها بـ (scale + translate) لتكون متناسقة بداخل الدائرة -->
+  <g transform="translate(3.6, 3.6) scale(0.7)" stroke="#1A202C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M18 21V10a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1v11"/>
+    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 1.132-1.803l7.95-3.974a2 2 0 0 1 1.837 0l7.948 3.974A2 2 0 0 1 22 8z"/>
+    <path d="M6 13h12"/>
+    <path d="M6 17h12"/>
+  </g>
+</svg>

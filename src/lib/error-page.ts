@@ -1,9 +1,30 @@
-export function renderErrorPage(): string {
+const MESSAGES: Record<
+  string,
+  { dir: "ltr" | "rtl"; title: string; desc: string; retry: string; home: string }
+> = {
+  en: {
+    dir: "ltr",
+    title: "This page didn't load",
+    desc: "Something went wrong on our end. You can try refreshing or head back home.",
+    retry: "Try again",
+    home: "Go home",
+  },
+  ar: {
+    dir: "rtl",
+    title: "لم يتم تحميل هذه الصفحة",
+    desc: "حدث خطأ ما من جهة الخادم. يمكنك تحديث الصفحة أو العودة إلى الرئيسية.",
+    retry: "حاول مرة أخرى",
+    home: "العودة للرئيسية",
+  },
+};
+
+export function renderErrorPage(lang = "en"): string {
+  const m = MESSAGES[lang] ?? MESSAGES.en;
   return `<!doctype html>
-<html lang="en">
+<html lang="${lang}" dir="${m.dir}">
   <head>
     <meta charset="utf-8" />
-    <title>This page didn't load</title>
+    <title>${m.title}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
       body { font: 15px/1.5 system-ui, -apple-system, sans-serif; background: #fafafa; color: #111; display: grid; place-items: center; min-height: 100vh; margin: 0; padding: 1.5rem; }
@@ -18,11 +39,11 @@ export function renderErrorPage(): string {
   </head>
   <body>
     <div class="card">
-      <h1>This page didn't load</h1>
-      <p>Something went wrong on our end. You can try refreshing or head back home.</p>
+      <h1>${m.title}</h1>
+      <p>${m.desc}</p>
       <div class="actions">
-        <button class="primary" onclick="location.reload()">Try again</button>
-        <a class="secondary" href="/">Go home</a>
+        <button class="primary" onclick="location.reload()">${m.retry}</button>
+        <a class="secondary" href="/">${m.home}</a>
       </div>
     </div>
   </body>

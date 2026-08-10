@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Warehouse,
   Boxes,
@@ -38,6 +39,8 @@ import {
   type SubscriptionPlan,
 } from "@/lib/api";
 import { toast } from "sonner";
+import i18n from "@/lib/i18n";
+import { LanguageToggle } from "@/components/LanguageToggle";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -46,40 +49,43 @@ export const Route = createFileRoute("/")({
   }),
   head: () => ({
     meta: [
-      { title: "Stockyard — Run your warehouse like clockwork" },
+      { title: `${i18n.t("title.index")} — Stockyard` },
       {
         name: "description",
-        content:
-          "Unified warehouse management: inventory, dispatch, analytics and an integrated payment wallet for modern logistics teams.",
+        content: i18n.t("title.index_desc"),
       },
+    ],
+    links: [
+      { rel: "icon", type: "image/svg+xml", href: "/logo.svg?v=2" },
     ],
   }),
 });
 
 // Relax typing for NAV to allow extension without regenerating route tree here.
 const NAV: any = [
-  { to: "/dashboard", label: "Admin dashboard", icon: LayoutDashboard },
-  { to: "/manager", label: "Manager portal", icon: UserCog },
-  { to: "/supervisor/dashboard", label: "Supervisor", icon: Users },
-  { to: "/", label: "Stockyard landing", icon: Warehouse },
+  { to: "/dashboard", label: "nav.admin_dashboard", icon: LayoutDashboard },
+  { to: "/manager-login", label: "nav.manager_portal", icon: UserCog },
+  { to: "/supervisor/dashboard", label: "nav.supervisor", icon: Users },
+  { to: "/", label: "nav.stockyard_landing", icon: Warehouse },
 ] as const;
 
 const FEATURES = [
   {
     icon: Warehouse,
-    title: "Warehouse Management",
-    desc: "Multi-zone control, bin mapping, smart picking routes.",
+    title: "feature.warehouse_management",
+    desc: "feature.warehouse_management.desc",
   },
   {
     icon: Boxes,
-    title: "Inventory Tracking",
-    desc: "Real-time stock, low-stock alerts, batch & SKU history.",
+    title: "feature.inventory_tracking",
+    desc: "feature.inventory_tracking.desc",
   },
-  { icon: Truck, title: "Shipments", desc: "Inbound & outbound dispatch with carrier tracking." },
-  { icon: BarChart3, title: "Analytics", desc: "Throughput, dwell time and turnover dashboards." },
+  { icon: Truck, title: "feature.shipments", desc: "feature.shipments.desc" },
+  { icon: BarChart3, title: "feature.analytics", desc: "feature.analytics.desc" },
 ];
 
 function Index() {
+  const { t } = useTranslation();
   const { login } = Route.useSearch();
   const navigate = useNavigate();
   const [submitted, setSubmitted] = useState(false);
@@ -97,7 +103,7 @@ function Index() {
     }
     clearStoredUser();
     setUser(null);
-    toast.success("Logged out successfully.");
+    toast.success(t("index.logged_out"));
   };
 
   useEffect(() => {
@@ -132,7 +138,7 @@ function Index() {
             <div className="flex size-9 items-center justify-center rounded-xl bg-[#f3a523] shadow-lg shadow-[#f3a523]/30">
               <Warehouse className="size-5 text-[#1a2942]" />
             </div>
-            <span className="text-lg font-bold tracking-tight text-[#f0ecdb]">Stockyard</span>
+            <span className="text-lg font-bold tracking-tight text-[#f0ecdb]">{t("app.name")}</span>
           </Link>
 
           <nav className="hidden items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] p-1 lg:flex">
@@ -147,13 +153,14 @@ function Index() {
                   className="flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold text-[#f0ecdb]/75 transition hover:bg-white/10 hover:text-[#f0ecdb] [&.active]:bg-[#f3a523] [&.active]:text-[#1a2942]"
                 >
                   <n.icon className="size-3.5" />
-                  {n.label}
+                  {t(n.label)}
                 </Link>
               );
             })}
           </nav>
 
           <div className="flex items-center gap-3">
+            <LanguageToggle variant="header" />
             {user ? (
               <div className="flex items-center gap-2">
                 <span className="text-xs text-[#f0ecdb]/60">{user.email}</span>
@@ -161,17 +168,17 @@ function Index() {
                   onClick={handleLogout}
                   className="flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.06] px-4 py-2 text-xs font-semibold text-[#f0ecdb] shadow transition hover:-translate-y-0.5 hover:bg-white/[0.12]"
                 >
-                  <LogOut className="size-3.5" /> Log out
+                  <LogOut className="size-3.5" /> {t("nav.log_out")}
                 </button>
               </div>
             ) : (
               <>
-                <span className="hidden text-xs text-[#f0ecdb]/60 sm:inline">Existing user?</span>
+                <span className="hidden text-xs text-[#f0ecdb]/60 sm:inline">{t("nav.existing_user")}</span>
                 <button
                   onClick={() => setLoginOpen(true)}
                   className="rounded-full bg-[#f3a523] px-4 py-2 text-xs font-bold text-[#1a2942] shadow transition hover:-translate-y-0.5 hover:bg-[#ffb840]"
                 >
-                  Log in
+                  {t("nav.log_in")}
                 </button>
               </>
             )}
@@ -184,13 +191,13 @@ function Index() {
         <div className="border-b border-[#f3a523]/20 bg-[#f3a523]/5">
           <div className="mx-auto flex max-w-7xl items-center gap-4 px-6 py-2.5">
             <span className="text-xs font-semibold uppercase tracking-wider text-[#f3a523]">
-              Admin
+              {t("nav.admin")}
             </span>
             <Link
               to="/subscribers"
               className="flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-semibold text-[#f0ecdb]/80 transition hover:bg-white/10 hover:text-[#f0ecdb]"
             >
-              <List className="size-3.5" /> Subscribers
+              <List className="size-3.5" /> {t("nav.subscribers")}
             </Link>
           </div>
         </div>
@@ -204,16 +211,15 @@ function Index() {
         </div>
         <div className="relative mx-auto grid max-w-7xl items-start gap-10 px-6 py-14 lg:grid-cols-[1.1fr_1fr] lg:gap-14 lg:py-20">
           <div className="space-y-6 animate-fade-up">
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-[#f0ecdb]/85 backdrop-blur">
-              <Sparkles className="size-3.5 text-[#f3a523]" />
-              Operations Suite · v2026
-            </span>
+              <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-[#f0ecdb]/85 backdrop-blur">
+                <Sparkles className="size-3.5 text-[#f3a523]" />
+                {t("index.ops_badge")}
+              </span>
             <h1 className="text-4xl font-bold leading-[1.1] tracking-tight text-[#f0ecdb] md:text-6xl">
-              Run your warehouse like <span className="text-[#f3a523]">clockwork.</span>
+              {t("app.tagline")}
             </h1>
             <p className="max-w-xl text-base text-[#f0ecdb]/70 md:text-lg">
-              Stockyard unifies inventory, dispatch, analytics and an integrated payment wallet —
-              built for modern logistics teams that ship on time, every time.
+              {t("app.description")}
             </p>
 
             {/* Feature cards */}
@@ -227,8 +233,8 @@ function Index() {
                   <div className="mb-2 flex size-9 items-center justify-center rounded-lg bg-[#f3a523]/15">
                     <f.icon className="size-4 text-[#f3a523]" />
                   </div>
-                  <h3 className="text-sm font-semibold text-[#f0ecdb]">{f.title}</h3>
-                  <p className="mt-1 text-xs leading-relaxed text-[#f0ecdb]/60">{f.desc}</p>
+                  <h3 className="text-sm font-semibold text-[#f0ecdb]">{t(f.title)}</h3>
+                  <p className="mt-1 text-xs leading-relaxed text-[#f0ecdb]/60">{t(f.desc)}</p>
                 </div>
               ))}
             </div>
@@ -246,12 +252,12 @@ function Index() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <span className="rounded-full bg-white/25 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
-                      New
+                      {t("wallet.new")}
                     </span>
-                    <h3 className="text-base font-bold text-white">Online Payment Wallet</h3>
+                    <h3 className="text-base font-bold text-white">{t("wallet.title")}</h3>
                   </div>
                   <p className="mt-0.5 text-sm text-white/95">
-                    Settle invoices, pay carriers and top up balances — without leaving Stockyard.
+                    {t("wallet.desc")}
                   </p>
                 </div>
               </div>
@@ -284,14 +290,13 @@ function Index() {
             <div>
               <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-[#f0ecdb]/80">
                 <Shield className="size-3.5 text-[#f3a523]" />
-                Built for the floor
+                {t("index.built_for_floor")}
               </span>
               <h2 className="mt-3 text-3xl font-bold text-[#f0ecdb] md:text-4xl">
-                Real-world <span className="text-[#f3a523]">operations</span>.
+                {t("operations.title")}
               </h2>
               <p className="mt-2 max-w-xl text-sm text-[#f0ecdb]/70">
-                From aisle to dock, Stockyard works alongside your team — bringing visibility to
-                every pick, pack and ship.
+                {t("operations.desc")}
               </p>
             </div>
           </div>
@@ -299,23 +304,21 @@ function Index() {
             <figure className="group overflow-hidden rounded-3xl border border-white/10 shadow-2xl">
               <img
                 src={warehouseAisle}
-                alt="Forklift moving through a stocked warehouse aisle"
+                alt={t("index.alt_aisle")}
                 className="aspect-[4/3] w-full object-cover transition-transform duration-700 group-hover:scale-105"
               />
               <figcaption className="bg-[#0f1b2d] px-5 py-3 text-sm text-[#f0ecdb]/80">
-                <span className="font-semibold text-[#f3a523]">Smart aisles</span> · Live bin
-                locations & forklift routing.
+                <span className="font-semibold text-[#f3a523]">{t("operations.smart_aisles")}</span> · {t("operations.smart_aisles.desc")}
               </figcaption>
             </figure>
             <figure className="group overflow-hidden rounded-3xl border border-white/10 shadow-2xl">
               <img
                 src={warehouseTeam}
-                alt="Warehouse staff scanning and labeling packages"
+                alt={t("index.alt_team")}
                 className="aspect-[4/3] w-full object-cover transition-transform duration-700 group-hover:scale-105"
               />
               <figcaption className="bg-[#0f1b2d] px-5 py-3 text-sm text-[#f0ecdb]/80">
-                <span className="font-semibold text-[#f3a523]">Team-first</span> · Handheld scanning
-                & shift handoffs.
+                <span className="font-semibold text-[#f3a523]">{t("operations.team_first")}</span> · {t("operations.team_first.desc")}
               </figcaption>
             </figure>
           </div>
@@ -327,17 +330,17 @@ function Index() {
         <div className="mx-auto max-w-7xl px-6 py-16">
           <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-[#13243d] to-[#0f1b2d] p-8 text-center shadow-2xl md:p-12">
             <h2 className="text-3xl font-bold text-[#f0ecdb] md:text-4xl">
-              Ready to modernize your <span className="text-[#f3a523]">warehouse?</span>
+              {t("cta.title")}
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-sm text-[#f0ecdb]/70">
-              Pick a plan, claim your subdomain and start running operations in minutes.
+              {t("cta.desc")}
             </p>
             <button
               type="button"
               onClick={() => setShowPlans((s) => !s)}
               className="mt-6 inline-flex items-center gap-2 rounded-full bg-[#f0ecdb] px-6 py-3 text-sm font-bold text-[#1a2942] shadow-lg transition hover:-translate-y-0.5 hover:bg-white"
             >
-              {showPlans ? "Hide plans" : "Review Plans & Subscribe"}
+              {showPlans ? t("cta.hide_plans") : t("cta.review_plans")}
               <ArrowRight
                 className={`size-4 transition-transform ${showPlans ? "rotate-90" : ""}`}
               />
@@ -352,7 +355,7 @@ function Index() {
         </div>
 
         <div className="border-t border-white/5 py-6 text-center text-xs text-[#f0ecdb]/40">
-          © {new Date().getFullYear()} Stockyard · Built for operators who ship on time.
+          &copy; {new Date().getFullYear()} {t("app.name")} &middot; {t("cta.footer")}
         </div>
       </section>
 
@@ -391,6 +394,7 @@ function Index() {
 const filterPlans = (data: SubscriptionPlan[]) => data.filter((p) => p.duration_days !== 7);
 
 function PlansPanel() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const user = getStoredUser();
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
@@ -425,7 +429,7 @@ function PlansPanel() {
         .catch(() => {
           if (signal.aborted) return;
           setPlansError("load_failed");
-          toast.error("Failed to load subscription plans");
+          toast.error(t("subscribe.load_failed"));
         })
         .finally(() => {
           if (!signal.aborted) setLoadingPlans(false);
@@ -440,9 +444,9 @@ function PlansPanel() {
   }, []);
 
   const perLabel = (days: number) => {
-    if (days >= 360) return "year";
-    if (days >= 28) return "month";
-    return `${days} days`;
+    if (days >= 360) return t("plans.year");
+    if (days >= 28) return t("plans.month");
+    return i18n.t("plans.days", { count: days });
   };
   const isPopular = (days: number) => days >= 28 && days < 360;
 
@@ -457,15 +461,15 @@ function PlansPanel() {
       setSlugStatus(res.available ? "ok" : "taken");
     } catch {
       setSlugStatus("invalid");
-      toast.error("Could not verify slug. Is the backend running?");
+      toast.error(t("subscribe.verify_slug_failed"));
     }
   };
 
   const pay = async () => {
     if (!user) return (window.location.href = "/?login=1");
-    if (!company.trim()) return toast.error("Company name required");
-    if (!slug || slugStatus !== "ok") return toast.error("Verify your slug first");
-    if (!planId) return toast.error("Select a plan first");
+    if (!company.trim()) return toast.error(t("subscribe.company_required"));
+    if (!slug || slugStatus !== "ok") return toast.error(t("subscribe.verify_slug_first"));
+    if (!planId) return toast.error(t("subscribe.select_plan_first"));
     setPaying(true);
     try {
       await getCsrfCookie();
@@ -482,16 +486,16 @@ function PlansPanel() {
       if (error.response?.status === 422) {
         const errs = error.response.data.errors;
         const first = errs ? Object.values(errs)[0] : error.response.data.message;
-        toast.error(Array.isArray(first) ? first[0] : first || "Validation failed");
+        toast.error(Array.isArray(first) ? first[0] : first || t("subscribe.validation_failed"));
       } else if (error.response?.status === 409) {
-        toast.error("You already have a subscription.");
+        toast.error(t("subscribe.already_subscribed"));
       } else if (error.response?.status === 403) {
-        toast.error(error.response.data?.message || "Access denied.");
+        toast.error(error.response.data?.message || t("subscribe.access_denied"));
       } else if (error.response?.status === 401) {
-        toast.error("Please log in first.");
+        toast.error(t("subscribe.login_first"));
         window.location.href = "/?login=1";
       } else {
-        toast.error("Payment setup failed. Check PayPal credentials on the backend.");
+        toast.error(t("subscribe.payment_setup_failed"));
       }
     } finally {
       setPaying(false);
@@ -504,7 +508,7 @@ function PlansPanel() {
       <div className="flex animate-fade-up items-center justify-center rounded-3xl bg-[#f0ecdb] py-20 shadow-2xl">
         <div className="flex flex-col items-center gap-3 text-[#1a2942]/60">
           <Loader2 className="size-8 animate-spin" />
-          <p className="text-sm font-medium">Loading subscription plans…</p>
+          <p className="text-sm font-medium">{t("subscribe.loading")}</p>
         </div>
       </div>
     );
@@ -518,9 +522,9 @@ function PlansPanel() {
           <div className="mb-5 flex size-16 items-center justify-center rounded-2xl bg-red-100">
             <X className="size-8 text-red-500" />
           </div>
-          <h3 className="text-2xl font-bold">Something went wrong</h3>
+          <h3 className="text-2xl font-bold">{t("subscribe.error_title")}</h3>
           <p className="mx-auto mt-2 max-w-md text-sm text-[#1a2942]/70">
-            We couldn't load the subscription plans. Please try again.
+            {t("subscribe.error_desc")}
           </p>
           <button
             onClick={() => {
@@ -535,13 +539,13 @@ function PlansPanel() {
                 })
                 .catch(() => {
                   setPlansError("load_failed");
-                  toast.error("Failed to load subscription plans");
+                  toast.error(t("subscribe.load_failed"));
                 })
                 .finally(() => setLoadingPlans(false));
             }}
             className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#1a2942] px-6 py-3 text-sm font-semibold text-[#f0ecdb] shadow-lg transition hover:bg-[#26384c]"
           >
-            Try again
+            {t("subscribe.try_again")}
           </button>
         </div>
       </div>
@@ -559,19 +563,19 @@ function PlansPanel() {
             <div className="flex size-9 items-center justify-center rounded-xl bg-[#f3a523] shadow-md shadow-[#f3a523]/30">
               <Warehouse className="size-4 text-[#1a2942]" />
             </div>
-            <h3 className="text-2xl font-bold tracking-tight">Subscribe</h3>
+            <h3 className="text-2xl font-bold tracking-tight">{t("subscribe.title")}</h3>
           </div>
           <p className="mt-2 text-sm leading-relaxed text-[#1a2942]/70">
             {user
-              ? "Choose a plan, configure your workspace, and go live in minutes."
-              : "Log in first to subscribe."}
+              ? t("subscribe.desc")
+              : t("subscribe.login_first")}
           </p>
           {!user && (
             <a
               href="/?login=1"
               className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-[#f3a523] hover:underline"
             >
-              <LogIn className="size-3.5" /> Log in to continue
+              <LogIn className="size-3.5" /> {t("subscribe.login_to_continue")}
             </a>
           )}
         </div>
@@ -582,18 +586,18 @@ function PlansPanel() {
         <div className="space-y-4">
           <div className="flex items-baseline justify-between">
             <h4 className="text-xs font-semibold uppercase tracking-widest text-[#1a2942]/50">
-              Select a plan
+              {t("subscribe.select_plan")}
             </h4>
             {selected && (
               <span className="text-[11px] text-[#1a2942]/50">
-                {selected.duration_days}-day billing cycle
+                {selected.duration_days}{t("subscribe.billing_cycle")}
               </span>
             )}
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-2 xl:grid-cols-4">
             {plans.length === 0 && (
               <div className="col-span-full py-8 text-center text-sm text-[#1a2942]/60">
-                No plans available at the moment.
+                {t("subscribe.no_plans")}
               </div>
             )}
             {plans.map((p) => {
@@ -620,7 +624,7 @@ function PlansPanel() {
                           : "bg-gradient-to-r from-[#f3a523] to-[#e09412] text-white"
                       }`}
                     >
-                      Popular
+                      {t("subscribe.popular")}
                     </span>
                   )}
 
@@ -644,20 +648,20 @@ function PlansPanel() {
                     <span
                       className={`mt-0.5 text-[11px] ${active ? "text-[#f0ecdb]/55" : "text-[#1a2942]/45"}`}
                     >
-                      per warehouse
+                      {t("subscribe.per_warehouse")}
                     </span>
                   </div>
 
                   <div className="mt-auto pt-3">
                     {active ? (
                       <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[#f3a523]">
-                        <CheckCircle2 className="size-3.5" /> Selected
+                        <CheckCircle2 className="size-3.5" /> {t("subscribe.selected")}
                       </div>
                     ) : (
                       <div
                         className={`text-[11px] font-medium ${popular ? "text-[#1a2942]/60" : "text-[#1a2942]/40"}`}
                       >
-                        {p.duration_days} day{p.duration_days > 1 ? "s" : ""}
+                        {p.duration_days} {t("subscribe.days")}
                       </div>
                     )}
                   </div>
@@ -680,16 +684,16 @@ function PlansPanel() {
             </div>
           )}
 
-          <Field label="Company Name">
+          <Field label={t("subscribe.company_name")}>
             <input
               value={company}
               onChange={(e) => setCompany(e.target.value)}
-              placeholder="Acme Logistics Inc."
+              placeholder={t("subscribe.company_placeholder")}
               className="w-full rounded-lg border border-[#1a2942]/15 bg-white px-3 py-2.5 text-sm text-[#1a2942] outline-none transition focus:border-[#f3a523] focus:ring-4 focus:ring-[#f3a523]/15"
             />
           </Field>
 
-          <Field label="Warehouses">
+          <Field label={t("subscribe.warehouses")}>
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -716,7 +720,7 @@ function PlansPanel() {
             </div>
           </Field>
 
-          <Field label="Your Subdomain">
+          <Field label={t("subscribe.subdomain")}>
             <div className="flex gap-2">
               <input
                 value={slug}
@@ -724,7 +728,7 @@ function PlansPanel() {
                   setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""));
                   setSlugStatus("idle");
                 }}
-                placeholder="your-company"
+                placeholder={t("subscribe.slug_placeholder")}
                 className="flex-1 rounded-lg border border-[#1a2942]/15 bg-white px-3 py-2.5 text-sm text-[#1a2942] outline-none transition focus:border-[#f3a523] focus:ring-4 focus:ring-[#f3a523]/15"
               />
               <button
@@ -732,22 +736,22 @@ function PlansPanel() {
                 disabled={slugStatus === "checking"}
                 className="rounded-lg bg-[#1a2942] px-4 text-sm font-semibold text-[#f0ecdb] transition hover:bg-[#26384c] disabled:opacity-60"
               >
-                {slugStatus === "checking" ? <Loader2 className="size-4 animate-spin" /> : "Verify"}
+                {slugStatus === "checking" ? <Loader2 className="size-4 animate-spin" /> : t("subscribe.verify")}
               </button>
             </div>
             {slugStatus === "ok" && (
               <p className="mt-1 flex items-center gap-1 text-xs font-medium text-emerald-700">
-                <CheckCircle2 className="size-3.5" /> {slug}.stockyard.com is available
+                <CheckCircle2 className="size-3.5" /> {slug}.stockyard.com {t("subscribe.available")}
               </p>
             )}
             {slugStatus === "taken" && (
               <p className="mt-1 flex items-center gap-1 text-xs text-red-600">
-                <X className="size-3.5" /> That subdomain is already taken.
+                <X className="size-3.5" /> {t("subscribe.taken")}
               </p>
             )}
             {slugStatus === "invalid" && (
               <p className="mt-1 flex items-center gap-1 text-xs text-amber-600">
-                <X className="size-3.5" /> Min 3 characters, lowercase, digits, dashes only.
+                <X className="size-3.5" /> {t("subscribe.invalid")}
               </p>
             )}
           </Field>
@@ -757,29 +761,31 @@ function PlansPanel() {
             <div className="overflow-hidden rounded-xl border border-[#1a2942]/10 bg-gradient-to-br from-white to-[#f0ecdb]">
               <div className="border-b border-[#1a2942]/5 px-4 py-2.5">
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-[#1a2942]/50">
-                  Order Summary
+                  {t("subscribe.order_summary")}
                 </span>
               </div>
               <div className="space-y-2 px-4 py-3">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-[#1a2942]/70">
-                    {selected.name} × {count} warehouse{count > 1 ? "s" : ""}
+                    {i18n.t("subscribe.warehouse_count", { name: selected.name, count })}
                   </span>
                   <span className="font-medium text-[#1a2942]">${total.toFixed(2)}</span>
                 </div>
                 <div className="flex items-center justify-between text-[11px] text-[#1a2942]/50">
                   <span>
-                    ${(parseFloat(selected.price_per_warehouse) || 0).toFixed(2)} /{" "}
-                    {perLabel(selected.duration_days)} per warehouse
+                    {i18n.t("subscribe.per_warehouse_full", {
+                      price: (parseFloat(selected.price_per_warehouse) || 0).toFixed(2),
+                      period: perLabel(selected.duration_days),
+                    })}
                   </span>
                   <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-                    {perLabel(selected.duration_days)}ly
+                    {i18n.t("subscribe.per_period", { period: perLabel(selected.duration_days) })}
                   </span>
                 </div>
               </div>
               <div className="border-t border-[#1a2942]/5 bg-[#1a2942]/[0.02] px-4 py-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-[#1a2942]">Total due today</span>
+                  <span className="text-sm font-semibold text-[#1a2942]">{t("subscribe.total_due")}</span>
                   <span className="text-lg font-black text-[#1a2942]">${total.toFixed(2)}</span>
                 </div>
               </div>
@@ -793,21 +799,21 @@ function PlansPanel() {
           >
             {paying ? (
               <>
-                <Loader2 className="size-4 animate-spin" /> Creating PayPal order…
+                <Loader2 className="size-4 animate-spin" /> {t("subscribe.creating_order")}
               </>
             ) : !user ? (
               <span onClick={() => (window.location.href = "/?login=1")}>
-                <LogIn className="size-4" /> Log in to subscribe
+                <LogIn className="size-4" /> {t("subscribe.log_in_to_subscribe")}
               </span>
             ) : (
               <>
-                <Wallet className="size-4" /> Pay with PayPal — ${total.toFixed(2)}
+                <Wallet className="size-4" /> {t("subscribe.paypal")} — ${total.toFixed(2)}
               </>
             )}
           </button>
           {user && (
             <p className="flex items-center justify-center gap-1.5 text-center text-[11px] text-[#1a2942]/45">
-              <Shield className="size-3" /> Secured by PayPal · Cancel anytime
+              <Shield className="size-3" /> {t("subscribe.secured")}
             </p>
           )}
         </div>
@@ -835,6 +841,7 @@ function LoginOverlay({
   onLoginSuccess: () => void;
   onRegisterSuccess?: () => void;
 }) {
+  const { t } = useTranslation();
   const [showSignup, setShowSignup] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -847,6 +854,14 @@ function LoginOverlay({
 
   useEffect(() => {
     requestAnimationFrame(() => setOpen(true));
+  }, []);
+
+  useEffect(() => {
+    if (loggedIn) {
+      verifyStoredUser().then((valid) => {
+        if (valid) onLoginSuccess();
+      });
+    }
   }, []);
 
   const close = () => {
@@ -865,10 +880,10 @@ function LoginOverlay({
       const user = adminMode ? (admin ? { ...admin, is_admin: true } : null) : (res.data?.user || res.data);
       if (user && user.id) {
         setStoredUser(user);
-        toast.success(res.data?.message || "Welcome back!");
+        toast.success(res.data?.message || t("auth.welcome_back_toast"));
         onLoginSuccess();
       } else {
-        toast.error("Login succeeded but no user data returned. Check the backend response format.");
+        toast.error(t("auth.no_user_data"));
         setStoredUser(res.data);
       }
     } catch (error: any) {
@@ -877,19 +892,41 @@ function LoginOverlay({
         const msg = data?.message || "";
         const user = data?.user || data;
 
-        if (error.response.status === 419) {
-          toast.error("Session expired. Please refresh and try again.");
+        if (error.response.status === 409) {
+          try {
+            await getCsrfCookie();
+            const endpoint = adminMode ? "/platform-admin/login" : "/login";
+            const res = await api.post(endpoint, { email, password });
+            const admin = adminMode ? res.data?.admin : null;
+            const recoveredUser = adminMode ? (admin ? { ...admin, is_admin: true } : null) : (res.data?.user || res.data);
+            if (recoveredUser && recoveredUser.id) {
+              setStoredUser(recoveredUser);
+              toast.success(res.data?.message || t("auth.welcome_back_toast"));
+              onLoginSuccess();
+              return;
+            }
+          } catch {
+            if (user && user.id) {
+              setStoredUser(user);
+              toast.success(t("auth.logged_in"));
+              onLoginSuccess();
+              return;
+            }
+          }
+          toast.error(msg || t("auth.session_issue"));
+        } else if (error.response.status === 419) {
+          toast.error(t("auth.session_expired"));
         } else if (error.response.status >= 500 && user && user.id) {
           setStoredUser(user);
-          toast.success("Logged in.");
+          toast.success(t("auth.logged_in"));
           onLoginSuccess();
         } else {
-          toast.error(msg || `Server error (${error.response.status})`);
+          toast.error(msg || i18n.t("auth.server_error", { status: error.response.status }));
         }
       } else if (error.request) {
-        toast.error("No response from server. Is the backend running?");
+        toast.error(t("auth.no_response"));
       } else {
-        toast.error("Something went wrong.");
+        toast.error(t("auth.something_went_wrong"));
       }
     } finally {
       setLoading(false);
@@ -926,15 +963,15 @@ function LoginOverlay({
           <div className="w-full max-w-md space-y-6">
             {/* Login card */}
             <div className="rounded-3xl bg-[#f0ecdb] p-8 shadow-2xl transition-all duration-500">
-              <h1 className="text-2xl font-bold text-[#1a2942]">Welcome back</h1>
+              <h1 className="text-2xl font-bold text-[#1a2942]">{t("auth.welcome_back")}</h1>
               {!loggedIn && (
                 <p className="mt-1 text-sm text-[#1a2942]/70">
-                  New here?{" "}
+                  {t("auth.new_here")}{" "}
                   <button
                     onClick={() => setShowSignup(!showSignup)}
                     className="font-semibold text-[#f3a523] hover:underline"
                   >
-                    {showSignup ? "Log in instead" : "Create an account"}
+                    {showSignup ? t("auth.log_in_instead") : t("auth.create_account")}
                   </button>
                 </p>
               )}
@@ -942,20 +979,20 @@ function LoginOverlay({
               <form onSubmit={handleLogin} className="mt-6 space-y-4">
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold text-[#1a2942]">
-                    {adminMode ? "Admin Email" : "Email Address"}
+                    {adminMode ? t("auth.admin_email") : t("auth.email")}
                   </label>
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    placeholder={adminMode ? "admin@company.com" : "jane@company.com"}
+                    placeholder={adminMode ? t("auth.admin_email_placeholder") : t("auth.email_placeholder")}
                     className="w-full rounded-lg border border-[#dcdace] bg-white px-3 py-2.5 text-sm text-[#1a2942] outline-none transition focus:border-[#f3a523] focus:ring-4 focus:ring-[#f3a523]/15"
                   />
                 </div>
                 <div className="relative">
                   <label className="mb-1.5 block text-xs font-semibold text-[#1a2942]">
-                    Password
+                    {t("auth.password")}
                   </label>
                   <input
                     type={showPwd ? "text" : "password"}
@@ -979,11 +1016,11 @@ function LoginOverlay({
                 >
                   {loading ? (
                     <>
-                      <Loader2 className="size-4 animate-spin" /> Signing in…
+                      <Loader2 className="size-4 animate-spin" /> {t("auth.signing_in")}
                     </>
                   ) : (
                     <>
-                      <LogIn className="size-4" /> {adminMode ? "Admin Log In" : "Log In"}
+                      <LogIn className="size-4" /> {adminMode ? t("auth.admin_log_in") : t("auth.log_in")}
                     </>
                   )}
                 </button>
@@ -993,7 +1030,7 @@ function LoginOverlay({
                     onClick={() => setAdminMode(!adminMode)}
                     className="text-xs text-[#1a2942]/50 hover:text-[#f3a523] transition-colors"
                   >
-                    {adminMode ? "Switch to user login" : "Admin login"}
+                    {adminMode ? t("auth.switch_to_user") : t("auth.switch_to_admin")}
                   </button>
                 </div>
               </form>

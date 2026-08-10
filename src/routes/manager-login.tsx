@@ -1,154 +1,163 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
-import { Loader2, LogIn, Warehouse, KeyRound, Eye, EyeOff } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { Loader2, LogIn, Warehouse, Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
-import { initialManagers } from "@/lib/demo-data";
+import { LanguageToggle } from "@/components/LanguageToggle";
+import { getCsrfCookie } from "@/lib/api";
+import { loginManager, fetchMe, type DashboardUser } from "@/lib/manager-api";
+import i18n from "@/lib/i18n";
 
 export const Route = createFileRoute("/manager-login")({
   component: ManagerLogin,
-  head: () => ({ meta: [{ title: "Manager Login — Stockyard" }] }),
+  head: () => ({ meta: [{ title: `${i18n.t("title.manager_login")} — Stockyard` }] }),
 });
 
 const SESSION_KEY = "stockyard.manager";
-const OVERRIDES_KEY = "stockyard.manager.overrides";
-
-type Override = { password?: string; isTempPassword?: boolean; lastPasswordChange?: string };
-
-function readOverrides(): Record<string, Override> {
-  if (typeof window === "undefined") return {};
-  try { return JSON.parse(localStorage.getItem(OVERRIDES_KEY) ?? "{}"); } catch { return {}; }
-}
 
 function ManagerLogin() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
-  const [email, setEmail] = useState("ahmed@acme.io");
-  const [password, setPassword] = useState("manager123");
+  const [slug, setSlug] = useState("");
+  const [userName, setUserName] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [forgotOpen, setForgotOpen] = useState(false);
-  const [forgotEmail, setForgotEmail] = useState("");
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setTimeout(() => {
-      const overrides = readOverrides();
-        // Find manager by email (case-insensitive)
-        const m = initialManagers.find((x) => (x.email ?? "").toLowerCase() === email.trim().toLowerCase());
-      if (!m) {
-        setLoading(false);
-          toast.error("Unknown email");
+  useEffect(() => {
+    const stored = localStorage.getItem(SESSION_KEY);
+    if (!stored) return;
+    try {
+      const parsed = JSON.parse(stored);
+      if (parsed.must_change_password) {
+        navigate({ to: "/force-password-change", replace: true });
         return;
       }
-      const ov = overrides[m.whmId] ?? {};
-      const effectivePw = ov.password ?? m.password;
-      const isTemp = ov.isTempPassword ?? m.isTempPassword;
-      if (effectivePw !== password) {
-        setLoading(false);
-        toast.error("Incorrect password");
-        return;
+      if (parsed.tenant?.url_slug) {
+        fetchMe(parsed.tenant.url_slug).then((me) => {
+          if (me.role === "manager") {
+            navigate({ to: "/manager", replace: true });
+          } else if (me.role === "warehouse_secretary") {
+            navigate({ to: "/supervisor/dashboard", replace: true });
+          }
+        }).catch(() => {
+          localStorage.removeItem(SESSION_KEY);
+        });
       }
-      if (m.status !== "active") {
-        setLoading(false);
-        toast.error("Account inactive — contact your General Manager");
-        return;
-      }
-      localStorage.setItem(SESSION_KEY, JSON.stringify({
-        whmId: m.whmId,
-        name: m.name,
-        warehouseId: m.warehouseId,
-        isFirstLogin: isTemp,
-      }));
-      toast.success(`Welcome, ${m.name}`);
-      navigate({ to: "/manager" });
-    }, 800);
+    } catch {
+      localStorage.removeItem(SESSION_KEY);
+    }
+  }, [navigate]);
+
+  const storeSession = (user: DashboardUser) => {
+    localStorage.setItem(SESSION_KEY, JSON.stringify({
+      id: user.id,
+      full_name: user.full_name,
+      role: user.role,
+      owner_id: user.owner_id,
+      employee_id: user.employee_id,
+      warehouse_id: user.warehouse_id,
+      tenant: user.tenant,
+      user_name: user.user_name,
+      must_change_password: user.must_change_password,
+    }));
+    if (user.must_change_password) {
+      navigate({ to: "/force-password-change" });
+      return;
+    }
+    if (user.role === "warehouse_secretary") {
+      navigate({ to: "/supervisor/dashboard" });
+      return;
+    }
+    navigate({ to: "/manager" });
   };
 
-  const handleForgot = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast.success("If the email exists, a reset request was sent to your General Manager.");
-    setForgotOpen(false);
-    setForgotEmail("");
+    if (!slug.trim() || !userName.trim() || !password.trim()) {
+      toast.error(t("manager.login.fields_required"));
+      return;
+    }
+    setLoading(true);
+    try {
+      await getCsrfCookie();
+      const res = await loginManager(slug.trim(), userName.trim(), password);
+
+      if (res.dashboard_user.role !== "manager" && res.dashboard_user.role !== "warehouse_secretary") {
+        toast.error(t("manager.login.no_access"));
+        setLoading(false);
+        return;
+      }
+
+      storeSession(res.dashboard_user);
+      toast.success(t("manager.login.welcome", { name: res.dashboard_user.full_name }));
+    } catch (err: any) {
+      const msg = err.response?.data?.message
+        || err.response?.data?.errors?.[Object.keys(err.response?.data?.errors ?? {})[0]]?.[0]
+        || t("manager.login.invalid");
+      toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-10">
       <div className="w-full max-w-md animate-fade-up">
-        <Link to="/" className="mb-6 flex items-center justify-center gap-2 text-cream">
-          <Warehouse className="h-6 w-6" />
-          <span className="text-lg font-semibold tracking-tight">Stockyard · Manager</span>
-        </Link>
+        <div className="mb-6 flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-2 text-cream">
+            <Warehouse className="h-6 w-6" />
+            <span className="text-lg font-semibold tracking-tight">{t("app.name")} · {t("app.manager")}</span>
+          </Link>
+          <LanguageToggle variant="header" />
+        </div>
         <div className="glass-light rounded-3xl p-8">
-          <h1 className="text-2xl font-semibold text-foreground">Log in</h1>
+          <h1 className="text-2xl font-semibold text-foreground">{t("auth.log_in")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Use the credentials provided by your General Manager.
+            {t("manager.login.hint")}
           </p>
           <form onSubmit={submit} className="mt-6 space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-[#1D2D44]">Email</Label>
-              <Input id="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="you@company.com" className="text-foreground" />
+              <Label htmlFor="slug" className="text-[#1D2D44]">{t("manager.login.company_slug")}</Label>
+              <Input id="slug" value={slug} onChange={(e) => setSlug(e.target.value)} required placeholder={t("manager.login.slug_placeholder")} className="text-foreground" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="username" className="text-[#1D2D44]">{t("manager.login.username")}</Label>
+              <Input id="username" autoComplete="username" value={userName} onChange={(e) => setUserName(e.target.value)} required placeholder={t("manager.login.username_placeholder")} className="text-foreground" />
             </div>
             <div className="space-y-2 relative">
-              <Label htmlFor="password" className="text-[#1D2D44]">Password</Label>
-              <Input id="password" type={showPassword ? "text" : "password"} autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required className="text-foreground pr-10" />
+              <Label htmlFor="password" className="text-[#1D2D44]">{t("manager.login.password")}</Label>
+              <Input id="password" type={showPassword ? "text" : "password"} autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required className="text-foreground pe-10" />
               <button
                 type="button"
                 onClick={() => setShowPassword((s) => !s)}
-                aria-label={showPassword ? "Hide password" : "Show password"}
-                className="absolute inset-y-0 right-3 flex items-center text-muted-foreground hover:text-foreground"
+                aria-label={showPassword ? t("common.hide_password") : t("common.show_password")}
+                className="absolute inset-y-0 end-3 flex items-center text-muted-foreground hover:text-foreground"
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
-              {loading ? "Signing in…" : "Log in"}
+              {loading ? t("auth.signing_in") : t("auth.log_in")}
             </Button>
-            <button
-              type="button"
-              onClick={() => setForgotOpen(true)}
-              className="w-full text-center text-xs text-muted-foreground underline-offset-4 hover:underline"
-            >
-              Forgot password?
-            </button>
           </form>
           <div className="mt-6 rounded-xl bg-muted/60 p-3 text-xs">
-            <p className="font-medium text-foreground">Demo accounts</p>
-            <p className="mt-1" style={{ color: "#1e293b" }}>Ahmed / manager123 · JohnSmith / manager123</p>
-            <p style={{ color: "#1e293b" }}>Ahmed Mansour / temp123 (first-login flow)</p>
+            <p className="font-medium text-foreground">{t("manager.login.demo_credentials")}</p>
+            <p className="mt-1 text-[#1e293b]">{t("manager.login.slug")}: <strong>delta</strong></p>
+            <p className="text-[#1e293b]">{t("manager.login.username")}: <strong>mgr_delta_2</strong> (or _3 / _4 / _5 / _6)</p>
+            <p className="text-[#1e293b]">{t("manager.login.password")}: <strong>password</strong></p>
           </div>
         </div>
         <p className="mt-4 text-center text-xs text-cream/70">
-          <Link to="/" className="hover:underline">← Back to home</Link>
+          <Link to="/" className="hover:underline">
+            <ArrowLeft className="inline size-3.5 rtl:rotate-180" /> {t("common.back_home")}
+          </Link>
         </p>
       </div>
-
-      <Dialog open={forgotOpen} onOpenChange={setForgotOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><KeyRound className="h-4 w-4" /> Reset password</DialogTitle>
-            <DialogDescription className="text-[#1D2D44]">
-              Enter your registered email address.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleForgot} className="space-y-3 py-2">
-            <div className="space-y-2">
-              <Label className="text-[#1D2D44]">Email address</Label>
-              <Input value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)} required placeholder="you@company.com" className="text-[#1D2D44] placeholder:text-gray-400" />
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setForgotOpen(false)}>Cancel</Button>
-              <Button type="submit">Send request</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

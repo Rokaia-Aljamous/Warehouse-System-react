@@ -1,7 +1,9 @@
+import { useTranslation } from "react-i18next";
 import { Sparkles, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function PendingScreen({ onBack }: { onBack: () => void }) {
+  const { t } = useTranslation();
   return (
     <div className="glass-light w-full max-w-lg rounded-3xl p-8 text-center animate-fade-up sm:p-10">
       <div className="relative mx-auto mb-6 flex size-20 items-center justify-center">
@@ -12,15 +14,14 @@ export function PendingScreen({ onBack }: { onBack: () => void }) {
       </div>
 
       <h2 className="text-2xl font-bold text-[oklch(0.28_0.04_252)] sm:text-3xl">
-        Welcome to Stockyard!
+        {t("signup.pending_welcome")}
       </h2>
       <p className="mx-auto mt-3 max-w-sm text-sm text-[oklch(0.4_0.03_252)]">
-        Your account is ready. Now choose a subscription plan to unlock your workspace and start
-        managing your warehouse operations.
+        {t("signup.pending_desc")}
       </p>
 
       <div className="mt-6 grid grid-cols-3 gap-2 text-xs">
-        {["Registered", "Subscribe", "Set up"].map((label, i) => (
+        {[t("steps.registered"), t("steps.subscribe"), t("steps.set_up")].map((label, i) => (
           <div
             key={label}
             className={`rounded-xl px-2 py-2 font-semibold ${
@@ -37,17 +38,11 @@ export function PendingScreen({ onBack }: { onBack: () => void }) {
       </div>
 
       <p className="mt-5 text-sm text-[oklch(0.4_0.03_252)]">
-        <ArrowRight className="mr-1 inline size-4" />
-        You'll be taken to the plans section automatically.
+        <ArrowRight className="me-1 inline size-4 rtl:rotate-180" />
+        {t("signup.pending_auto")}
       </p>
 
-      <Button
-        variant="ghost"
-        onClick={onBack}
-        className="mt-6 text-[oklch(0.35_0.03_252)] hover:bg-white/40 hover:text-[oklch(0.28_0.04_252)]"
-      >
-        Back to form
-      </Button>
+      
     </div>
   );
 }

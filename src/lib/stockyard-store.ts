@@ -87,7 +87,7 @@ export const reserveSlug = (slug: string) => {
 
 export const PLANS: { id: SYPlan; label: string; price: number; per: string }[] = [
   { id: "weekly", label: "Weekly", price: 29, per: "week" },
-  { id: "monthly", label: "Monthly", price: 99, per: "month" },
+  { id: "monthly", label: "Monthly", price: 1, per: "month" },
   { id: "semiannual", label: "Semi-Annual", price: 499, per: "6 months" },
   { id: "annual", label: "Annual", price: 899, per: "year" },
 ];

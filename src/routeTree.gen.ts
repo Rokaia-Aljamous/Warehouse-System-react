@@ -9,20 +9,28 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SupervisorLoginRouteImport } from './routes/supervisor-login'
 import { Route as SubscribersRouteImport } from './routes/subscribers'
 import { Route as StockyardRouteImport } from './routes/stockyard'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as ManagerRegisterRouteImport } from './routes/manager-register'
 import { Route as ManagerLoginRouteImport } from './routes/manager-login'
 import { Route as ManagerRouteImport } from './routes/manager'
+import { Route as ForcePasswordChangeRouteImport } from './routes/force-password-change'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TenantSetupRouteImport } from './routes/tenant.setup'
 import { Route as SupervisorDashboardRouteImport } from './routes/supervisor.dashboard'
+import { Route as ManagerSlugRouteImport } from './routes/manager.$slug'
 import { Route as DashboardSlugRouteImport } from './routes/dashboard.$slug'
 import { Route as CheckoutSuccessRouteImport } from './routes/checkout.success'
 import { Route as CheckoutCancelRouteImport } from './routes/checkout.cancel'
 
+const SupervisorLoginRoute = SupervisorLoginRouteImport.update({
+  id: '/supervisor-login',
+  path: '/supervisor-login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SubscribersRoute = SubscribersRouteImport.update({
   id: '/subscribers',
   path: '/subscribers',
@@ -53,6 +61,11 @@ const ManagerRoute = ManagerRouteImport.update({
   path: '/manager',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ForcePasswordChangeRoute = ForcePasswordChangeRouteImport.update({
+  id: '/force-password-change',
+  path: '/force-password-change',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -73,6 +86,11 @@ const SupervisorDashboardRoute = SupervisorDashboardRouteImport.update({
   path: '/supervisor/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ManagerSlugRoute = ManagerSlugRouteImport.update({
+  id: '/$slug',
+  path: '/$slug',
+  getParentRoute: () => ManagerRoute,
+} as any)
 const DashboardSlugRoute = DashboardSlugRouteImport.update({
   id: '/$slug',
   path: '/$slug',
@@ -92,30 +110,36 @@ const CheckoutCancelRoute = CheckoutCancelRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRouteWithChildren
-  '/manager': typeof ManagerRoute
+  '/force-password-change': typeof ForcePasswordChangeRoute
+  '/manager': typeof ManagerRouteWithChildren
   '/manager-login': typeof ManagerLoginRoute
   '/manager-register': typeof ManagerRegisterRoute
   '/signup': typeof SignupRoute
   '/stockyard': typeof StockyardRoute
   '/subscribers': typeof SubscribersRoute
+  '/supervisor-login': typeof SupervisorLoginRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
   '/dashboard/$slug': typeof DashboardSlugRoute
+  '/manager/$slug': typeof ManagerSlugRoute
   '/supervisor/dashboard': typeof SupervisorDashboardRoute
   '/tenant/setup': typeof TenantSetupRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRouteWithChildren
-  '/manager': typeof ManagerRoute
+  '/force-password-change': typeof ForcePasswordChangeRoute
+  '/manager': typeof ManagerRouteWithChildren
   '/manager-login': typeof ManagerLoginRoute
   '/manager-register': typeof ManagerRegisterRoute
   '/signup': typeof SignupRoute
   '/stockyard': typeof StockyardRoute
   '/subscribers': typeof SubscribersRoute
+  '/supervisor-login': typeof SupervisorLoginRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
   '/dashboard/$slug': typeof DashboardSlugRoute
+  '/manager/$slug': typeof ManagerSlugRoute
   '/supervisor/dashboard': typeof SupervisorDashboardRoute
   '/tenant/setup': typeof TenantSetupRoute
 }
@@ -123,15 +147,18 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRouteWithChildren
-  '/manager': typeof ManagerRoute
+  '/force-password-change': typeof ForcePasswordChangeRoute
+  '/manager': typeof ManagerRouteWithChildren
   '/manager-login': typeof ManagerLoginRoute
   '/manager-register': typeof ManagerRegisterRoute
   '/signup': typeof SignupRoute
   '/stockyard': typeof StockyardRoute
   '/subscribers': typeof SubscribersRoute
+  '/supervisor-login': typeof SupervisorLoginRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
   '/dashboard/$slug': typeof DashboardSlugRoute
+  '/manager/$slug': typeof ManagerSlugRoute
   '/supervisor/dashboard': typeof SupervisorDashboardRoute
   '/tenant/setup': typeof TenantSetupRoute
 }
@@ -140,45 +167,54 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/dashboard'
+    | '/force-password-change'
     | '/manager'
     | '/manager-login'
     | '/manager-register'
     | '/signup'
     | '/stockyard'
     | '/subscribers'
+    | '/supervisor-login'
     | '/checkout/cancel'
     | '/checkout/success'
     | '/dashboard/$slug'
+    | '/manager/$slug'
     | '/supervisor/dashboard'
     | '/tenant/setup'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/dashboard'
+    | '/force-password-change'
     | '/manager'
     | '/manager-login'
     | '/manager-register'
     | '/signup'
     | '/stockyard'
     | '/subscribers'
+    | '/supervisor-login'
     | '/checkout/cancel'
     | '/checkout/success'
     | '/dashboard/$slug'
+    | '/manager/$slug'
     | '/supervisor/dashboard'
     | '/tenant/setup'
   id:
     | '__root__'
     | '/'
     | '/dashboard'
+    | '/force-password-change'
     | '/manager'
     | '/manager-login'
     | '/manager-register'
     | '/signup'
     | '/stockyard'
     | '/subscribers'
+    | '/supervisor-login'
     | '/checkout/cancel'
     | '/checkout/success'
     | '/dashboard/$slug'
+    | '/manager/$slug'
     | '/supervisor/dashboard'
     | '/tenant/setup'
   fileRoutesById: FileRoutesById
@@ -186,12 +222,14 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRouteWithChildren
-  ManagerRoute: typeof ManagerRoute
+  ForcePasswordChangeRoute: typeof ForcePasswordChangeRoute
+  ManagerRoute: typeof ManagerRouteWithChildren
   ManagerLoginRoute: typeof ManagerLoginRoute
   ManagerRegisterRoute: typeof ManagerRegisterRoute
   SignupRoute: typeof SignupRoute
   StockyardRoute: typeof StockyardRoute
   SubscribersRoute: typeof SubscribersRoute
+  SupervisorLoginRoute: typeof SupervisorLoginRoute
   CheckoutCancelRoute: typeof CheckoutCancelRoute
   CheckoutSuccessRoute: typeof CheckoutSuccessRoute
   SupervisorDashboardRoute: typeof SupervisorDashboardRoute
@@ -200,6 +238,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/supervisor-login': {
+      id: '/supervisor-login'
+      path: '/supervisor-login'
+      fullPath: '/supervisor-login'
+      preLoaderRoute: typeof SupervisorLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/subscribers': {
       id: '/subscribers'
       path: '/subscribers'
@@ -242,6 +287,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ManagerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/force-password-change': {
+      id: '/force-password-change'
+      path: '/force-password-change'
+      fullPath: '/force-password-change'
+      preLoaderRoute: typeof ForcePasswordChangeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard': {
       id: '/dashboard'
       path: '/dashboard'
@@ -269,6 +321,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/supervisor/dashboard'
       preLoaderRoute: typeof SupervisorDashboardRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/manager/$slug': {
+      id: '/manager/$slug'
+      path: '/$slug'
+      fullPath: '/manager/$slug'
+      preLoaderRoute: typeof ManagerSlugRouteImport
+      parentRoute: typeof ManagerRoute
     }
     '/dashboard/$slug': {
       id: '/dashboard/$slug'
@@ -306,15 +365,28 @@ const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
   DashboardRouteChildren,
 )
 
+interface ManagerRouteChildren {
+  ManagerSlugRoute: typeof ManagerSlugRoute
+}
+
+const ManagerRouteChildren: ManagerRouteChildren = {
+  ManagerSlugRoute: ManagerSlugRoute,
+}
+
+const ManagerRouteWithChildren =
+  ManagerRoute._addFileChildren(ManagerRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRouteWithChildren,
-  ManagerRoute: ManagerRoute,
+  ForcePasswordChangeRoute: ForcePasswordChangeRoute,
+  ManagerRoute: ManagerRouteWithChildren,
   ManagerLoginRoute: ManagerLoginRoute,
   ManagerRegisterRoute: ManagerRegisterRoute,
   SignupRoute: SignupRoute,
   StockyardRoute: StockyardRoute,
   SubscribersRoute: SubscribersRoute,
+  SupervisorLoginRoute: SupervisorLoginRoute,
   CheckoutCancelRoute: CheckoutCancelRoute,
   CheckoutSuccessRoute: CheckoutSuccessRoute,
   SupervisorDashboardRoute: SupervisorDashboardRoute,

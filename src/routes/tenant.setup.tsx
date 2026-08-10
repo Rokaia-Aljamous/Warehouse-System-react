@@ -1,9 +1,11 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Warehouse, User, Phone, AtSign, Lock, Eye, EyeOff, Calendar, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
-import { getCsrfCookie, setupTenantOwner, getStoredUser } from "@/lib/api";
+import { LanguageToggle } from "@/components/LanguageToggle";
+import { getCsrfCookie, setupTenantOwner, getStoredUser, setStoredUser } from "@/lib/api";
 import { DashboardPage } from "./dashboard";
 
 export const Route = createFileRoute("/tenant/setup")({
@@ -13,24 +15,26 @@ export const Route = createFileRoute("/tenant/setup")({
   }),
 });
 
-const schema = z.object({
-  full_name: z.string().trim().min(2, "Name is required").max(255),
-  phone_number: z.string().trim().min(6, "Valid phone number required").max(255),
-  user_name: z.string().trim().min(3, "Min 3 characters").max(255).regex(/^[a-zA-Z0-9_-]+$/, "Letters, numbers, hyphens, underscores only"),
+const makeSchema = (t: (k: string) => string) => z.object({
+  full_name: z.string().trim().min(2, t("zod.name_required")).max(255),
+  phone_number: z.string().trim().min(6, t("zod.phone_required")).max(255),
+  user_name: z.string().trim().min(3, t("zod.min_chars")).max(255).regex(/^[a-zA-Z0-9_-]+$/, t("zod.username_charset")),
   birthday: z.string().optional(),
-  password: z.string().min(8, "Min 8 characters").max(72),
+  password: z.string().min(8, t("zod.min_chars")).max(72),
   confirm: z.string(),
 }).superRefine((d, ctx) => {
   if (d.password !== d.confirm)
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["confirm"], message: "Passwords don't match" });
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["confirm"], message: t("zod.password_mismatch") });
 });
 
-type FormData = z.infer<typeof schema>;
+type FormData = z.infer<ReturnType<typeof makeSchema>>;
 
 function TenantSetup() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { slug } = Route.useSearch();
   const user = getStoredUser();
+  const schema = makeSchema(t);
   const [done, setDone] = useState(false);
   const [form, setForm] = useState<FormData>({
     full_name: "",
@@ -60,7 +64,7 @@ function TenantSetup() {
         if (!fieldErrors[key]) fieldErrors[key] = issue.message;
       }
       setErrors(fieldErrors);
-      toast.error("Please fix the highlighted fields");
+      toast.error(t("tenant.setup.fix_fields"));
       return;
     }
 
@@ -77,8 +81,16 @@ function TenantSetup() {
         password_confirmation: form.confirm,
       });
 
-      toast.success(res.message || "Dashboard owner account created!");
-      toast.success("Dashboard owner account created! Log in at /" + (slug || res.owner.tenant.url_slug) + "/login");
+      toast.success(res.message || t("tenant.setup.success"));
+      toast.success(t("tenant.setup.success") + " " + t("tenant.setup.login_at") + "/" + (slug || res.owner.tenant.url_slug) + "/login");
+      setStoredUser({
+        id: res.owner.system_user.id,
+        full_name: res.owner.system_user.full_name,
+        email: res.owner.system_user.email ?? res.owner.system_user.user_name + "@warehouse.io",
+        birthday: form.birthday || null,
+        tenant: res.owner.tenant,
+        is_admin: true,
+      });
       setDone(true);
     } catch (error: any) {
       if (error.response?.status === 422) {
@@ -87,10 +99,10 @@ function TenantSetup() {
           const firstKey = Object.keys(serverErrors)[0];
           toast.error(serverErrors[firstKey][0]);
         } else {
-          toast.error(error.response.data.message || "Validation failed");
+          toast.error(error.response.data.message || t("tenant.setup.validation_failed"));
         }
       } else {
-        toast.error("Something went wrong. Please try again.");
+        toast.error(t("common.try_again_later"));
       }
     } finally {
       setLoading(false);
@@ -105,7 +117,7 @@ function TenantSetup() {
     <div>
       <label htmlFor={id} className="mb-1 block text-xs font-semibold text-[#1a2942]">{label}</label>
       <div className={`flex items-center rounded-xl border bg-white transition-all focus-within:border-[#f3a523] focus-within:ring-4 focus-within:ring-[#f3a523]/15 ${errors[id] ? "border-red-400" : "border-[#dcdace]"}`}>
-        <opts.icon className="ml-3 size-4 shrink-0 text-[#26384c]/50" />
+        <opts.icon className="ms-3 size-4 shrink-0 text-[#26384c]/50" />
         <input
           id={id}
           type={opts.type || "text"}
@@ -131,39 +143,40 @@ function TenantSetup() {
           <div className="flex size-9 items-center justify-center rounded-xl bg-[#f3a523] shadow-lg shadow-[#f3a523]/30">
             <Warehouse className="size-5 text-[#1a2942]" />
           </div>
-          <span className="text-lg font-bold tracking-tight text-[#f0ecdb]">Stockyard</span>
+          <span className="text-lg font-bold tracking-tight text-[#f0ecdb]">{t("app.name")}</span>
+          <div className="ms-auto"><LanguageToggle variant="header" /></div>
         </div>
       </header>
 
       <div className="mx-auto max-w-lg px-4 py-12">
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold text-[#f0ecdb]">Set up your dashboard</h1>
+          <h1 className="text-2xl font-bold text-[#f0ecdb]">{t("tenant.setup.title")}</h1>
           <p className="mt-2 text-sm text-[#f0ecdb]/60">
-            Create an admin account to manage <span className="font-semibold text-[#f3a523]">{targetSlug || "your company"}</span>
+            {t("tenant.setup.desc")} <span className="font-semibold text-[#f3a523]">{targetSlug || t("tenant.setup.company")}</span>
           </p>
         </div>
 
         <form onSubmit={onSubmit} className="rounded-3xl bg-[#f0ecdb] p-6 sm:p-8 shadow-2xl space-y-4">
-          {renderField("full_name", "Full name", { placeholder: "Jane Doe", icon: User })}
-          {renderField("phone_number", "Phone number", { placeholder: "+1 234 567 890", icon: Phone })}
-          {renderField("user_name", "Username", { placeholder: "jane_admin", icon: AtSign })}
-          {renderField("birthday", "Birthdate (optional)", { placeholder: "YYYY-MM-DD", icon: Calendar })}
-          {renderField("password", "Password", {
+          {renderField("full_name", t("tenant.setup.name"), { placeholder: t("placeholder.jane_doe"), icon: User })}
+          {renderField("phone_number", t("tenant.setup.phone"), { placeholder: "09XXXXXXXX", icon: Phone })}
+          {renderField("user_name", t("tenant.setup.username"), { placeholder: "jane_admin", icon: AtSign })}
+          {renderField("birthday", t("tenant.setup.birthdate"), { placeholder: "YYYY-MM-DD", icon: Calendar })}
+          {renderField("password", t("tenant.setup.password"), {
             type: showPwd ? "text" : "password",
-            placeholder: "At least 8 characters",
+            placeholder: t("placeholder.min_chars"),
             icon: Lock,
             rightSlot: (
-              <button type="button" onClick={() => setShowPwd((s) => !s)} className="mr-3 text-[#26384c]/50 hover:text-[#1a2942]">
+              <button type="button" onClick={() => setShowPwd((s) => !s)} className="me-3 text-[#26384c]/50 hover:text-[#1a2942]">
                 {showPwd ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
               </button>
             ),
           })}
-          {renderField("confirm", "Confirm password", {
+          {renderField("confirm", t("tenant.setup.confirm_password"), {
             type: showConfirm ? "text" : "password",
-            placeholder: "Repeat password",
+            placeholder: t("placeholder.repeat_password"),
             icon: Lock,
             rightSlot: (
-              <button type="button" onClick={() => setShowConfirm((s) => !s)} className="mr-3 text-[#26384c]/50 hover:text-[#1a2942]">
+              <button type="button" onClick={() => setShowConfirm((s) => !s)} className="me-3 text-[#26384c]/50 hover:text-[#1a2942]">
                 {showConfirm ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
               </button>
             ),
@@ -174,7 +187,7 @@ function TenantSetup() {
             disabled={loading}
             className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a2942] py-3 font-semibold text-[#f0ecdb] shadow-lg transition hover:bg-[#26384c] disabled:opacity-60"
           >
-            {loading ? <><Loader2 className="size-4 animate-spin" /> Creating account…</> : "Create dashboard account"}
+            {loading ? <><Loader2 className="size-4 animate-spin" /> {t("tenant.setup.setting_up")}</> : t("tenant.setup.submit")}
           </button>
         </form>
       </div>
