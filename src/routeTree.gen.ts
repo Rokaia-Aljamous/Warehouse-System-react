@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SupervisorLoginRouteImport } from './routes/supervisor-login'
 import { Route as SubscribersRouteImport } from './routes/subscribers'
 import { Route as StockyardRouteImport } from './routes/stockyard'
 import { Route as SignupRouteImport } from './routes/signup'
@@ -25,6 +26,11 @@ import { Route as DashboardSlugRouteImport } from './routes/dashboard.$slug'
 import { Route as CheckoutSuccessRouteImport } from './routes/checkout.success'
 import { Route as CheckoutCancelRouteImport } from './routes/checkout.cancel'
 
+const SupervisorLoginRoute = SupervisorLoginRouteImport.update({
+  id: '/supervisor-login',
+  path: '/supervisor-login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SubscribersRoute = SubscribersRouteImport.update({
   id: '/subscribers',
   path: '/subscribers',
@@ -111,6 +117,7 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/stockyard': typeof StockyardRoute
   '/subscribers': typeof SubscribersRoute
+  '/supervisor-login': typeof SupervisorLoginRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
   '/dashboard/$slug': typeof DashboardSlugRoute
@@ -128,6 +135,7 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/stockyard': typeof StockyardRoute
   '/subscribers': typeof SubscribersRoute
+  '/supervisor-login': typeof SupervisorLoginRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
   '/dashboard/$slug': typeof DashboardSlugRoute
@@ -146,6 +154,7 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/stockyard': typeof StockyardRoute
   '/subscribers': typeof SubscribersRoute
+  '/supervisor-login': typeof SupervisorLoginRoute
   '/checkout/cancel': typeof CheckoutCancelRoute
   '/checkout/success': typeof CheckoutSuccessRoute
   '/dashboard/$slug': typeof DashboardSlugRoute
@@ -165,6 +174,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/stockyard'
     | '/subscribers'
+    | '/supervisor-login'
     | '/checkout/cancel'
     | '/checkout/success'
     | '/dashboard/$slug'
@@ -182,6 +192,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/stockyard'
     | '/subscribers'
+    | '/supervisor-login'
     | '/checkout/cancel'
     | '/checkout/success'
     | '/dashboard/$slug'
@@ -199,6 +210,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/stockyard'
     | '/subscribers'
+    | '/supervisor-login'
     | '/checkout/cancel'
     | '/checkout/success'
     | '/dashboard/$slug'
@@ -217,6 +229,7 @@ export interface RootRouteChildren {
   SignupRoute: typeof SignupRoute
   StockyardRoute: typeof StockyardRoute
   SubscribersRoute: typeof SubscribersRoute
+  SupervisorLoginRoute: typeof SupervisorLoginRoute
   CheckoutCancelRoute: typeof CheckoutCancelRoute
   CheckoutSuccessRoute: typeof CheckoutSuccessRoute
   SupervisorDashboardRoute: typeof SupervisorDashboardRoute
@@ -225,6 +238,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/supervisor-login': {
+      id: '/supervisor-login'
+      path: '/supervisor-login'
+      fullPath: '/supervisor-login'
+      preLoaderRoute: typeof SupervisorLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/subscribers': {
       id: '/subscribers'
       path: '/subscribers'
@@ -366,6 +386,7 @@ const rootRouteChildren: RootRouteChildren = {
   SignupRoute: SignupRoute,
   StockyardRoute: StockyardRoute,
   SubscribersRoute: SubscribersRoute,
+  SupervisorLoginRoute: SupervisorLoginRoute,
   CheckoutCancelRoute: CheckoutCancelRoute,
   CheckoutSuccessRoute: CheckoutSuccessRoute,
   SupervisorDashboardRoute: SupervisorDashboardRoute,

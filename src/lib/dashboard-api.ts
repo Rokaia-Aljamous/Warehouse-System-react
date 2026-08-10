@@ -242,9 +242,8 @@ export interface ShipmentStoreResponse {
 export interface ShipmentInput {
   warehouse_id: number;
   factory_name: string;
-  total_price: number;
   arrival_date: string;
-  status?: ShipmentStatus;
+  items: ShipmentItemInput[];
 }
 
 export interface ShipmentItemInput {

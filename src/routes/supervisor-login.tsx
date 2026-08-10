@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Loader2, LogIn, Warehouse, Eye, EyeOff, ArrowLeft } from "lucide-react";
+import { Loader2, LogIn, Warehouse, Eye, EyeOff, ArrowLeft, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,14 +11,14 @@ import { getCsrfCookie } from "@/lib/api";
 import { loginManager, fetchMe, type DashboardUser } from "@/lib/manager-api";
 import i18n from "@/lib/i18n";
 
-export const Route = createFileRoute("/manager-login")({
-  component: ManagerLogin,
-  head: () => ({ meta: [{ title: `${i18n.t("title.manager_login")} — Stockyard` }] }),
+export const Route = createFileRoute("/supervisor-login")({
+  component: SupervisorLogin,
+  head: () => ({ meta: [{ title: `${i18n.t("supervisor.login.title")} — Stockyard` }] }),
 });
 
 const SESSION_KEY = "stockyard.manager";
 
-function ManagerLogin() {
+function SupervisorLogin() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [slug, setSlug] = useState("");
@@ -38,10 +38,10 @@ function ManagerLogin() {
       }
       if (parsed.tenant?.url_slug) {
         fetchMe(parsed.tenant.url_slug).then((me) => {
-          if (me.role === "manager") {
-            navigate({ to: "/manager", replace: true });
-          } else if (me.role === "warehouse_secretary") {
+          if (me.role === "warehouse_secretary") {
             navigate({ to: "/supervisor/dashboard", replace: true });
+          } else {
+            localStorage.removeItem(SESSION_KEY);
           }
         }).catch(() => {
           localStorage.removeItem(SESSION_KEY);
@@ -68,11 +68,7 @@ function ManagerLogin() {
       navigate({ to: "/force-password-change" });
       return;
     }
-    if (user.role === "warehouse_secretary") {
-      navigate({ to: "/supervisor/dashboard" });
-      return;
-    }
-    navigate({ to: "/manager" });
+    navigate({ to: "/supervisor/dashboard" });
   };
 
   const submit = async (e: React.FormEvent) => {
@@ -86,14 +82,14 @@ function ManagerLogin() {
       await getCsrfCookie();
       const res = await loginManager(slug.trim(), userName.trim(), password);
 
-      if (res.dashboard_user.role !== "manager" && res.dashboard_user.role !== "warehouse_secretary") {
-        toast.error(t("manager.login.no_access"));
+      if (res.dashboard_user.role !== "warehouse_secretary") {
+        toast.error(t("supervisor.login.no_access"));
         setLoading(false);
         return;
       }
 
       storeSession(res.dashboard_user);
-      toast.success(t("manager.login.welcome", { name: res.dashboard_user.full_name }));
+      toast.success(t("supervisor.login.welcome", { name: res.dashboard_user.full_name }));
     } catch (err: any) {
       const msg = err.response?.data?.message
         || err.response?.data?.errors?.[Object.keys(err.response?.data?.errors ?? {})[0]]?.[0]
@@ -110,15 +106,22 @@ function ManagerLogin() {
         <div className="mb-6 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 text-cream">
             <Warehouse className="h-6 w-6" />
-            <span className="text-lg font-semibold tracking-tight">{t("app.name")} · {t("app.manager")}</span>
+            <span className="text-lg font-semibold tracking-tight">{t("app.name")} · {t("nav.supervisor")}</span>
           </Link>
           <LanguageToggle variant="header" />
         </div>
         <div className="glass-light rounded-3xl p-8">
-          <h1 className="text-2xl font-semibold text-foreground">{t("auth.log_in")}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t("manager.login.hint")}
-          </p>
+          <div className="mb-4 flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-xl bg-[oklch(0.78_0.16_75)]">
+              <ShieldCheck className="size-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-semibold text-foreground">{t("supervisor.login.title")}</h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {t("supervisor.login.hint")}
+              </p>
+            </div>
+          </div>
           <form onSubmit={submit} className="mt-6 space-y-4">
             <div className="space-y-2">
               <Label htmlFor="slug" className="text-[#1D2D44]">{t("manager.login.company_slug")}</Label>
@@ -145,18 +148,16 @@ function ManagerLogin() {
               {loading ? t("auth.signing_in") : t("auth.log_in")}
             </Button>
           </form>
-          <div className="mt-6 rounded-xl bg-muted/60 p-3 text-xs">
-            <p className="font-medium text-foreground">{t("manager.login.demo_credentials")}</p>
-            <p className="mt-1 text-[#1e293b]">{t("manager.login.slug")}: <strong>delta</strong></p>
-            <p className="text-[#1e293b]">{t("manager.login.username")}: <strong>mgr_delta_2</strong> (or _3 / _4 / _5 / _6)</p>
-            <p className="text-[#1e293b]">{t("manager.login.password")}: <strong>password</strong></p>
-          </div>
         </div>
-        <p className="mt-4 text-center text-xs text-cream/70">
+        <div className="mt-4 flex items-center justify-center gap-4 text-xs text-cream/70">
           <Link to="/" className="hover:underline">
             <ArrowLeft className="inline size-3.5 rtl:rotate-180" /> {t("common.back_home")}
           </Link>
-        </p>
+          <span className="text-cream/30">·</span>
+          <Link to="/manager-login" className="hover:underline">
+            {t("supervisor.login.to_manager")}
+          </Link>
+        </div>
       </div>
     </div>
   );

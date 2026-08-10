@@ -52,7 +52,9 @@ import { SubscriptionForm } from "@/components/SubscriptionForm";
 import { getProfilePic, subscribeProfilePic } from "@/lib/profile-storage";
 import { subscriptionStore, type SubscriptionRequest } from "@/lib/subscription-data";
 import { LanguageToggle } from "@/components/LanguageToggle";
-import { fetchMe, fetchManagerEmployees, fetchManagerOrders, createManagerWorker, type ManagerEmployee, type ManagerOrder } from "@/lib/manager-api";
+import { fetchMe, fetchManagerEmployees, fetchManagerOrders, createManagerWorker, deleteManagerEmployee, fetchSections, fetchManagerProducts, fetchManagerWarehouse, type ManagerEmployee, type ManagerOrder, type Section, type ManagerProduct } from "@/lib/manager-api";
+import { WarehouseLayout } from "@/components/WarehouseLayout";
+import { CredentialsDialog } from "@/components/CredentialsDialog";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 
@@ -67,11 +69,12 @@ export const Route = createFileRoute("/manager")({
 });
 
 type SectionId =
-  | "overview" | "workers" | "inventory" | "orders" | "transfers"
+  | "overview" | "layout" | "workers" | "inventory" | "orders" | "transfers"
   | "statistics" | "reports" | "wallet" | "settings";
 
 const NAV: { id: SectionId; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: "overview", label: "sidebar.dashboard", icon: LayoutDashboard },
+  { id: "layout", label: "sidebar.layout", icon: WarehouseIcon },
   { id: "workers", label: "sidebar.workers", icon: Users },
   { id: "inventory", label: "sidebar.inventory", icon: Boxes },
   { id: "orders", label: "sidebar.orders", icon: ClipboardList },
@@ -246,6 +249,9 @@ function ManagerApp() {
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [orders, setOrders] = useState<ManagerOrder[]>([]);
   const [transfers, setTransfers] = useState<Transfer[]>(initialTransfers);
+  const [sections, setSections] = useState<Section[]>([]);
+  const [layoutProducts, setLayoutProducts] = useState<ManagerProduct[]>([]);
+  const [warehouse, setWarehouse] = useState<{ id: number; name: string; type: string; location: string } | null>(null);
 
   type Session = { whmId: string; name: string; warehouseId?: string };
   const [user, setUser] = useState<Session | null>(null);
@@ -307,6 +313,26 @@ function ManagerApp() {
       setChecking(false);
     }
   }, [navigate]);
+
+  useEffect(() => {
+    if (!slug || !user?.warehouseId) {
+      setSections([]);
+      setLayoutProducts([]);
+      setWarehouse(null);
+      return;
+    }
+    fetchSections(slug)
+      .then(({ sections: s }) => setSections(s))
+      .catch(() => setSections([]));
+    fetchManagerProducts(slug)
+      .then(({ products: p }) => setLayoutProducts(p))
+      .catch(() => setLayoutProducts([]));
+    fetchManagerWarehouse(slug)
+      .then(({ warehouse: w }) => {
+        if (w) setWarehouse({ id: w.id, name: w.warehouse_name, type: w.type, location: w.location });
+      })
+      .catch(() => setWarehouse(null));
+  }, [slug, user?.warehouseId]);
 
   useEffect(() => {
     if (!slug || !user?.warehouseId) {
@@ -497,6 +523,15 @@ function ManagerApp() {
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.3 }}
             >
+              {section === "layout" && slug && (
+                <WarehouseLayout
+                  slug={slug}
+                  sections={sections}
+                  setSections={setSections}
+                  products={layoutProducts}
+                  warehouse={warehouse}
+                />
+              )}
               {section === "overview" && (
                 <Overview workers={workers} products={products} orders={orders} />
               )}
@@ -693,6 +728,8 @@ function WorkersSection({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [createdCreds, setCreatedCreds] = useState<{ user_name: string; password: string } | null>(null);
 
   const filtered = useMemo(() => {
     return workers.filter((w) => {
@@ -723,10 +760,23 @@ function WorkersSection({
     );
   };
 
-  const remove = (id: string) => {
-    setWorkers((prev) => prev.filter((w) => w.id !== id));
-    toast.success(t("worker.deleted"));
-    setDeleteId(null);
+  const remove = async (id: string) => {
+    if (!slug || !warehouseId) {
+      toast.error(t("worker.save_failed"));
+      setDeleteId(null);
+      return;
+    }
+    setDeleting(true);
+    try {
+      await deleteManagerEmployee(slug, warehouseId, Number(id));
+      setWorkers((prev) => prev.filter((w) => w.id !== id));
+      toast.success(t("worker.deleted"));
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || t("worker.delete_failed"));
+    } finally {
+      setDeleting(false);
+      setDeleteId(null);
+    }
   };
 
   return (
@@ -840,8 +890,18 @@ function WorkersSection({
         open={addOpen}
         onOpenChange={setAddOpen}
         onAdd={(w) => setWorkers((prev) => [w, ...prev])}
+        onCreated={(worker, password) => setCreatedCreds({ user_name: worker.system_user.user_name, password: password ?? "" })}
         slug={slug}
         warehouseId={warehouseId}
+      />
+
+      <CredentialsDialog
+        open={!!createdCreds}
+        onOpenChange={(o) => !o && setCreatedCreds(null)}
+        userName={createdCreds?.user_name ?? ""}
+        password={createdCreds?.password ?? ""}
+        title={t("worker.credentials.title")}
+        description={t("worker.credentials.desc")}
       />
 
       <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
@@ -853,9 +913,10 @@ function WorkersSection({
           <AlertDialogFooter>
 <AlertDialogCancel 
   className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#d99415] hover:text-[#1D2D44] border border-[#1D2D44]/20"
+  disabled={deleting}
 >
   {t("common.cancel")}
-</AlertDialogCancel>            <AlertDialogAction onClick={() => deleteId && remove(deleteId)}>{t("common.delete")}</AlertDialogAction>
+</AlertDialogCancel>            <AlertDialogAction onClick={() => deleteId && remove(deleteId)} disabled={deleting}>{deleting ? t("common.deleting") : t("common.delete")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -902,11 +963,12 @@ function workerFromBackendEmployee(emp: ManagerEmployee): Worker {
 }
 
 function AddWorkerDialog({
-  open, onOpenChange, onAdd, slug, warehouseId,
+  open, onOpenChange, onAdd, onCreated, slug, warehouseId,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   onAdd: (w: Worker) => void;
+  onCreated?: (worker: ManagerEmployee, password?: string | null) => void;
   slug: string | null;
   warehouseId: number | null;
 }) {
@@ -934,8 +996,8 @@ function AddWorkerDialog({
           salary: form.salary,
         });
         onAdd(workerFromBackendEmployee(res.worker));
-        if (res.password) toast.success(t("worker.created_with_password", { password: res.password }));
-        else toast.success(t("worker.created"));
+        onCreated?.(res.worker, res.password);
+        toast.success(t("worker.created"));
       } else {
         toast.error(t("worker.save_failed"));
         return;

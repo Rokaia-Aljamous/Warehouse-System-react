@@ -51,6 +51,8 @@ import {
 import { api, getStoredUser, setStoredUser, getCsrfCookie } from "@/lib/api";
 import i18n from "@/lib/i18n";
 import { LanguageToggle } from "@/components/LanguageToggle";
+import { WarehouseLayout } from "@/components/WarehouseLayout";
+import { CredentialsDialog } from "@/components/CredentialsDialog";
 import { useTransferRequests } from "@/hooks/useTransferRequests";
 import { AvailableRequestsFeed } from "@/components/transfer/AvailableRequestsFeed";
 import { MyWarehouseRequests } from "@/components/transfer/MyWarehouseRequests";
@@ -70,10 +72,11 @@ export const Route = createFileRoute("/manager/$slug")({
 });
 
 type SectionId =
-  | "overview" | "sections" | "employees" | "shipments" | "movements" | "tasks" | "transfers" | "reports" | "analytics" | "financial" | "settings";
+  | "overview" | "sections" | "employees" | "shipments" | "movements" | "tasks" | "transfers" | "reports" | "analytics" | "financial" | "settings"| "layout";
 
 const NAV: { id: SectionId; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: "overview", label: "manager.overview", icon: LayoutDashboard },
+  { id: "layout", label: "sidebar.layout", icon: WarehouseIcon },
   { id: "sections", label: "sidebar.sections", icon: Boxes },
   { id: "employees", label: "sidebar.employees", icon: Users },
   { id: "shipments", label: "sidebar.shipments", icon: Truck },
@@ -144,6 +147,10 @@ function ManagerDashboard() {
     }
     try {
       const s = JSON.parse(raw);
+      if (s.must_change_password) {
+        navigate({ to: "/force-password-change", replace: true });
+        return;
+      }
       setSession(s);
     } catch {
       navigate({ to: "/manager-login" });
@@ -217,6 +224,15 @@ function ManagerDashboard() {
           setSections={setSections}
           products={products}
           warehouseId={session?.warehouse_id}
+        />
+      )}
+      {section === "layout" && (
+        <WarehouseLayout
+          slug={slug}
+          sections={sections}
+          setSections={setSections}
+          products={products}
+          warehouse={warehouse}
         />
       )}
       {section === "employees" && (
@@ -572,11 +588,12 @@ function EmployeesSection({
   const [open, setOpen] = useState(false);
   const [editEmp, setEditEmp] = useState<ManagerEmployee | null>(null);
   const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [form, setForm] = useState({ full_name: "", phone_number: "", user_name: "", password: "", role: "staff", salary: 0 });
+  const [form, setForm] = useState({ full_name: "", phone_number: "", user_name: "", role: "staff", salary: 0 });
   const [submitting, setSubmitting] = useState(false);
+  const [createdCreds, setCreatedCreds] = useState<{ user_name: string; password: string } | null>(null);
 
   const handleSave = async () => {
-    if (!form.full_name.trim() || !form.phone_number.trim() || (!editEmp && !form.password.trim())) { toast.error(t("employee.required_fields")); return; }
+    if (!form.full_name.trim() || !form.phone_number.trim() || !form.user_name.trim()) { toast.error(t("employee.required_fields")); return; }
     if (!warehouseId) return;
     setSubmitting(true);
     try {
@@ -587,11 +604,12 @@ function EmployeesSection({
       } else {
         const res = await createManagerEmployee(slug, warehouseId, form);
         setEmployees((prev) => [...prev, res.employee]);
-        toast.success(res.password ? t("employee.created_with_password", { password: res.password }) : t("employee.created"));
+        setCreatedCreds({ user_name: res.employee.system_user.user_name, password: res.password ?? "" });
+        toast.success(t("employee.created"));
       }
       setOpen(false);
       setEditEmp(null);
-      setForm({ full_name: "", phone_number: "", user_name: "", password: "", role: "staff", salary: 0 });
+      setForm({ full_name: "", phone_number: "", user_name: "", role: "staff", salary: 0 });
     } catch (err: any) {
       const msg = err.response?.data?.message || err.response?.data?.errors?.[Object.keys(err.response?.data?.errors ?? {})[0]]?.[0] || t("employee.save_failed");
       toast.error(msg);
@@ -614,7 +632,7 @@ function EmployeesSection({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold text-[#1a2942]">{t("employee.title")}</h2>
-        <Button onClick={() => { setEditEmp(null); setForm({ full_name: "", phone_number: "", user_name: "", password: "", role: "staff", salary: 0 }); setOpen(true); }}>
+        <Button onClick={() => { setEditEmp(null); setForm({ full_name: "", phone_number: "", user_name: "", role: "staff", salary: 0 }); setOpen(true); }}>
           <Plus className="size-4 me-1" /> {t("employee.add")}
         </Button>
       </div>
@@ -642,7 +660,7 @@ function EmployeesSection({
                 <TableCell className="text-[#1a2942]">${emp.salary}</TableCell>
                 <TableCell className="text-end">
                   <div className="flex justify-end gap-1">
-                    <Tooltip><TooltipTrigger asChild><button onClick={() => { setEditEmp(emp); setForm({ full_name: emp.system_user.full_name, phone_number: emp.system_user.phone_number, user_name: emp.system_user.user_name, password: "", role: emp.role, salary: emp.salary }); setOpen(true); }} className="p-1.5 rounded-lg hover:bg-white/40 text-navy"><Pencil className="size-3.5" /></button></TooltipTrigger><TooltipContent>{t("common.edit")}</TooltipContent></Tooltip>
+                    <Tooltip><TooltipTrigger asChild><button onClick={() => { setEditEmp(emp); setForm({ full_name: emp.system_user.full_name, phone_number: emp.system_user.phone_number, user_name: emp.system_user.user_name, role: emp.role, salary: emp.salary }); setOpen(true); }} className="p-1.5 rounded-lg hover:bg-white/40 text-navy"><Pencil className="size-3.5" /></button></TooltipTrigger><TooltipContent>{t("common.edit")}</TooltipContent></Tooltip>
                     <Tooltip><TooltipTrigger asChild><button onClick={() => setDeleteId(emp.id)} className="p-1.5 rounded-lg hover:bg-white/40 text-red-500"><Trash2 className="size-3.5" /></button></TooltipTrigger><TooltipContent>{t("common.delete")}</TooltipContent></Tooltip>
                   </div>
                 </TableCell>
@@ -662,7 +680,6 @@ function EmployeesSection({
             <div><Label>{t("employee.name")}</Label><Input value={form.full_name} onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))} /></div>
             <div><Label>{t("employee.username")}</Label><Input value={form.user_name} onChange={(e) => setForm((f) => ({ ...f, user_name: e.target.value }))} /></div>
             <div><Label>{t("common.phone")}</Label><Input value={form.phone_number} onChange={(e) => setForm((f) => ({ ...f, phone_number: e.target.value }))} /></div>
-            {!editEmp && <div><Label>{t("employee.password")}</Label><Input type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} /></div>}
             <div><Label>{t("employee.role")}</Label><Select value={form.role} onValueChange={(v) => setForm((f) => ({ ...f, role: v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="warehouse_secretary">{t("employee.role.secretary")}</SelectItem><SelectItem value="staff">{t("employee.role.staff")}</SelectItem><SelectItem value="driver">{t("employee.role.driver")}</SelectItem></SelectContent></Select></div>
             <div><Label>{t("employee.salary_currency")}</Label><Input type="number" min="0" value={form.salary} onChange={(e) => setForm((f) => ({ ...f, salary: parseFloat(e.target.value) || 0 }))} /></div>
           </div>
@@ -682,6 +699,15 @@ function EmployeesSection({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <CredentialsDialog
+        open={!!createdCreds}
+        onOpenChange={(o) => !o && setCreatedCreds(null)}
+        userName={createdCreds?.user_name ?? ""}
+        password={createdCreds?.password ?? ""}
+        title={t("employee.credentials.title")}
+        description={t("employee.credentials.desc")}
+      />
     </div>
   );
 }
