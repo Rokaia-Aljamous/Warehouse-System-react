@@ -382,20 +382,70 @@ export interface ManagerOrderWarehouse {
   warehouse_name: string;
 }
 
+export interface ManagerOrderItem {
+  id: number;
+  product_id: number;
+  product_name: string;
+  quantity: number;
+  unit_price: string;
+  subtotal: string;
+}
+
 export interface ManagerOrder {
   id: number;
   customer: ManagerOrderCustomer;
   warehouse: ManagerOrderWarehouse;
   status: "pending" | "approved" | "in_preparation" | "shipped" | "delivered" | "rejected" | "cancelled";
   total_price: string;
+  transfer_assignment: string;
   order_date: string;
   customer_location: string;
   order_qr_code: string;
   items_count: number;
+  items?: ManagerOrderItem[];
 }
 
 export const fetchManagerOrders = async (slug: string): Promise<{ orders: ManagerOrder[] }> => {
   const response = await api.get<{ orders: ManagerOrder[] }>(`/${slug}/manager/orders`);
+  return response.data;
+};
+
+export const fetchKeeperOrders = async (slug: string): Promise<{ orders: ManagerOrder[] }> => {
+  const response = await api.get<{ orders: ManagerOrder[] }>(`/${slug}/keeper/orders`);
+  return response.data;
+};
+
+export const acceptKeeperOrder = async (
+  slug: string,
+  orderId: number,
+  transferAssignment = 0,
+): Promise<{ message: string; order: ManagerOrder }> => {
+  const response = await api.post<{ message: string; order: ManagerOrder }>(
+    `/${slug}/keeper/orders/${orderId}/accept`,
+    { transfer_assignment: transferAssignment },
+  );
+  return response.data;
+};
+
+export const rejectKeeperOrder = async (
+  slug: string,
+  orderId: number,
+): Promise<{ message: string; order: ManagerOrder }> => {
+  const response = await api.post<{ message: string; order: ManagerOrder }>(
+    `/${slug}/keeper/orders/${orderId}/reject`,
+  );
+  return response.data;
+};
+
+export const updateKeeperOrderStatus = async (
+  slug: string,
+  orderId: number,
+  status: "in_preparation" | "shipped" | "delivered",
+): Promise<{ message: string; order: ManagerOrder }> => {
+  const response = await api.patch<{ message: string; order: ManagerOrder }>(
+    `/${slug}/keeper/orders/${orderId}/status`,
+    { status },
+  );
   return response.data;
 };
 

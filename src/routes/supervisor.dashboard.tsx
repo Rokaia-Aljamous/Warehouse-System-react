@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   LayoutDashboard, Inbox, PackageCheck, Truck, Users, RotateCcw, ClipboardList,
   FileText, Settings as SettingsIcon, LogOut, Menu, Bell, Plus, Trash2, Pencil,
-  Loader2, Download, CheckCircle2, XCircle, Search, ChevronLeft, ChevronRight,
+  Loader2, Download, CheckCircle2, XCircle, Search, ChevronLeft, ChevronRight, RefreshCw,
   Warehouse as WarehouseIcon, ShieldCheck, Activity,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -31,7 +31,7 @@ import { cn } from "@/lib/utils";
 import i18n from "@/lib/i18n";
 import { useTranslation } from "react-i18next";
 import { LanguageToggle } from "@/components/LanguageToggle";
-import { fetchMe, logoutManager } from "@/lib/manager-api";
+import { fetchMe, logoutManager, fetchKeeperOrders, acceptKeeperOrder, rejectKeeperOrder, updateKeeperOrderStatus, type ManagerOrder } from "@/lib/manager-api";
 
 export const Route = createFileRoute("/supervisor/dashboard")({
   component: SupervisorApp,
@@ -46,9 +46,10 @@ export const Route = createFileRoute("/supervisor/dashboard")({
 // ---------------- Types & mock data ----------------
 type WorkerSection = "Preparation" | "Receiving" | "Returns";
 type SWorker = { id: string; name: string; section: WorkerSection; status: "available" | "busy" };
+export type COrderStatus = "pending" | "approved" | "in_preparation" | "shipped" | "delivered" | "rejected";
 type COrder = {
   id: string; customer: string; items: number; total: number; createdAt: string;
-  status: "incoming" | "preparing" | "ready" | "out_for_delivery" | "delivered" | "rejected";
+  status: COrderStatus;
   workerId?: string; driverId?: string; progress?: number;
 };
 type Shipment = {
@@ -68,13 +69,6 @@ const seedWorkers: SWorker[] = [
   { id: "W-103", name: "Yusuf Tarek", section: "Receiving", status: "available" },
   { id: "W-104", name: "Mariam Adel", section: "Returns", status: "available" },
   { id: "W-105", name: "Karim Fouad", section: "Receiving", status: "busy" },
-];
-const seedOrders: COrder[] = [
-  { id: "ORD-5012", customer: "Acme Co.",   items: 12, total: 842,  createdAt: "10:24", status: "incoming" },
-  { id: "ORD-5013", customer: "Brightline", items: 4,  total: 220,  createdAt: "10:31", status: "incoming" },
-  { id: "ORD-5014", customer: "Globex",     items: 22, total: 1530, createdAt: "09:55", status: "preparing", workerId: "W-102", progress: 60 },
-  { id: "ORD-5015", customer: "Initech",    items: 7,  total: 410,  createdAt: "09:12", status: "ready",     workerId: "W-101", progress: 100 },
-  { id: "ORD-5016", customer: "Soylent",    items: 3,  total: 95,   createdAt: "08:48", status: "out_for_delivery", driverId: "D-21" },
 ];
 const seedShipments: Shipment[] = [
   { id: "SH-3421", supplier: "Nordic Goods", items: 120, arrivedAt: "08:10", status: "expected" },
@@ -167,16 +161,33 @@ function SupervisorApp() {
   }, [navigate]);
 
   const [workers, setWorkers] = useState<SWorker[]>(seedWorkers);
-  const [orders, setOrders] = useState<COrder[]>(seedOrders);
+  const [orders, setOrders] = useState<COrder[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(true);
   const [shipments, setShipments] = useState<Shipment[]>(seedShipments);
   const [drivers, setDrivers] = useState<Driver[]>(seedDrivers);
   const [returns, setReturns] = useState<Return[]>(seedReturns);
 
+  useEffect(() => {
+    if (!slug) return;
+    let cancel = false;
+    setOrdersLoading(true);
+    fetchKeeperOrders(slug)
+      .then(({ orders: res }) => {
+        if (cancel) return;
+        setOrders(res.map(orderFromBackend));
+      })
+      .catch(() => { if (!cancel) setOrders([]); })
+      .finally(() => { if (!cancel) setOrdersLoading(false); });
+    return () => { cancel = true; };
+  }, [slug]);
+
   const stats = useMemo(() => ({
-    incoming: orders.filter(o => o.status === "incoming").length,
-    preparing: orders.filter(o => o.status === "preparing").length,
-    ready: orders.filter(o => o.status === "ready").length,
-    out: orders.filter(o => o.status === "out_for_delivery").length,
+    incoming: orders.filter(o => o.status === "pending").length,
+    preparing: orders.filter(o => o.status === "in_preparation").length,
+    ready: orders.filter(o => o.status === "shipped").length,
+    out: orders.filter(o => o.status === "delivered").length,
+    rejected: orders.filter(o => o.status === "rejected").length,
+    approved: orders.filter(o => o.status === "approved").length,
     returns: returns.filter(r => r.status === "pending").length,
     shipments: shipments.filter(s => s.status !== "received" && s.status !== "rejected").length,
     activeWorkers: workers.filter(w => w.status === "busy").length,
@@ -297,10 +308,10 @@ function SupervisorApp() {
               transition={{ duration: 0.25 }}
             >
               {section === "overview"    && <Overview stats={stats} orders={orders} />}
-              {section === "incoming"    && <IncomingOrders orders={orders} setOrders={setOrders} />}
-              {section === "preparation" && <Preparation orders={orders} setOrders={setOrders} workers={workers} setWorkers={setWorkers} />}
+              {section === "incoming"    && <IncomingOrders orders={orders} setOrders={setOrders} slug={slug} loading={ordersLoading} onRefresh={() => { if (slug) fetchKeeperOrders(slug).then(({ orders: res }) => setOrders(res.map(orderFromBackend))).catch(() => setOrders([])); }} />}
+              {section === "preparation" && <Preparation orders={orders} setOrders={setOrders} workers={workers} setWorkers={setWorkers} slug={slug} />}
               {section === "receiving"   && <Receiving shipments={shipments} setShipments={setShipments} workers={workers} />}
-              {section === "drivers"     && <DriversSection drivers={drivers} setDrivers={setDrivers} orders={orders} setOrders={setOrders} />}
+              {section === "drivers"     && <DriversSection drivers={drivers} setDrivers={setDrivers} orders={orders} setOrders={setOrders} slug={slug} />}
               {section === "returns"     && <ReturnsSection returns={returns} setReturns={setReturns} workers={workers} />}
               {section === "workers"     && <WorkersSection workers={workers} setWorkers={setWorkers} />}
               {section === "reports"     && <Reports orders={orders} returns={returns} workers={workers} />}
@@ -317,6 +328,15 @@ function SupervisorApp() {
 function GlassCard({ children, className }: { children: React.ReactNode; className?: string }) {
   return <div className={cn("glass-light rounded-2xl p-5 text-foreground", className)}>{children}</div>;
 }
+
+const orderFromBackend = (o: ManagerOrder): COrder => ({
+  id: String(o.id),
+  customer: o.customer?.full_name ?? "—",
+  items: o.items_count ?? 0,
+  total: Number(o.total_price ?? 0),
+  createdAt: new Date(o.order_date).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" }),
+  status: (o.status === "cancelled" ? "rejected" : o.status) as COrderStatus,
+});
 
 function StatCard({ label, value, icon: Icon, accent }: { label: string; value: number | string; icon: React.ComponentType<{ className?: string }>; accent?: string }) {
   return (
@@ -337,17 +357,15 @@ function StatCard({ label, value, icon: Icon, accent }: { label: string; value: 
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
-    incoming:         "bg-blue-500/20 text-blue-700",
-    preparing:        "bg-amber-500/20 text-amber-700",
-    ready:            "bg-emerald-500/20 text-emerald-700",
-    out_for_delivery: "bg-violet-500/20 text-violet-700",
+    pending:          "bg-amber-500/20 text-amber-700",
+    approved:         "bg-sky-500/20 text-sky-700",
+    in_preparation:   "bg-violet-500/20 text-violet-700",
+    shipped:          "bg-blue-500/20 text-blue-700",
     delivered:        "bg-emerald-600/20 text-emerald-800",
     rejected:         "bg-rose-500/20 text-rose-700",
     expected:         "bg-blue-500/20 text-blue-700",
     receiving:        "bg-amber-500/20 text-amber-700",
     received:         "bg-emerald-500/20 text-emerald-700",
-    pending:          "bg-amber-500/20 text-amber-700",
-    approved:         "bg-emerald-500/20 text-emerald-700",
     refunded:         "bg-violet-500/20 text-violet-700",
     available:        "bg-emerald-500/20 text-emerald-700",
     busy:             "bg-amber-500/20 text-amber-700",
@@ -359,17 +377,19 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 // ---------------- Overview ----------------
-function Overview({ stats, orders }: { stats: any; orders: COrder[] }) {
+type SupervisorStats = Record<string, number>;
+
+function Overview({ stats, orders }: { stats: SupervisorStats; orders: COrder[] }) {
   const { t } = useTranslation();
   const cards = [
     { label: t("supervisor.stat_pending_orders"),     value: stats.incoming,         icon: Inbox },
     { label: t("supervisor.stat_in_preparation"),     value: stats.preparing,        icon: PackageCheck },
     { label: t("supervisor.stat_ready_for_delivery"), value: stats.ready,            icon: CheckCircle2 },
     { label: t("supervisor.stat_out_for_delivery"),   value: stats.out,              icon: Truck },
-    { label: t("supervisor.stat_pending_returns"),    value: stats.returns,          icon: RotateCcw },
+    { label: t("supervisor.stat_approved"),           value: stats.approved,         icon: CheckCircle2 },
+    { label: t("supervisor.stat_rejected"),           value: stats.rejected,         icon: XCircle },
     { label: t("supervisor.stat_active_shipments"),   value: stats.shipments,        icon: ClipboardList },
     { label: t("supervisor.stat_active_workers"),     value: stats.activeWorkers,    icon: Activity },
-    { label: t("supervisor.stat_available_drivers"),  value: stats.availableDrivers, icon: ShieldCheck },
   ];
   return (
     <div className="space-y-6">
@@ -406,24 +426,46 @@ function Overview({ stats, orders }: { stats: any; orders: COrder[] }) {
 }
 
 // ---------------- Incoming Orders ----------------
-function IncomingOrders({ orders, setOrders }: { orders: COrder[]; setOrders: React.Dispatch<React.SetStateAction<COrder[]>>; }) {
+function IncomingOrders({ orders, setOrders, slug, loading, onRefresh }: { orders: COrder[]; setOrders: React.Dispatch<React.SetStateAction<COrder[]>>; slug: string | null; loading?: boolean; onRefresh: () => void }) {
   const { t } = useTranslation();
-  const [confirm, setConfirm] = useState<{ id: string; action: "approve" | "reject" } | null>(null);
-  const list = orders.filter(o => o.status === "incoming");
+  const [confirm, setConfirm] = useState<{ id: string; action: "approve" | "reject"; transfer: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const list = orders.filter(o => o.status === "pending");
 
-  const apply = () => {
-    if (!confirm) return;
-    setOrders(prev => prev.map(o => o.id === confirm.id
-      ? { ...o, status: confirm.action === "approve" ? "preparing" : "rejected", progress: confirm.action === "approve" ? 0 : undefined }
-      : o));
-    toast.success(confirm.action === "approve" ? t("supervisor.toast_order_preparing", { id: confirm.id }) : t("supervisor.toast_order_rejected", { id: confirm.id }));
-    setConfirm(null);
+  const apply = async () => {
+    if (!confirm || !slug) return;
+    setBusy(true);
+    try {
+      const order = await (confirm.action === "approve"
+        ? acceptKeeperOrder(slug, Number(confirm.id), Math.max(0, Number(confirm.transfer) || 0))
+        : rejectKeeperOrder(slug, Number(confirm.id)));
+      setOrders(prev => prev.map(o => String(o.id) === String(order.order.id) ? { ...o, status: orderFromBackend(order.order).status } : o));
+      toast.success(
+        confirm.action === "approve"
+          ? t("supervisor.toast_order_approved", { id: confirm.id })
+          : t("supervisor.toast_order_rejected", { id: confirm.id }),
+      );
+    } catch (err) {
+      toast.error((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? t("supervisor.toast_action_failed"));
+    } finally {
+      setBusy(false);
+      setConfirm(null);
+    }
   };
 
   return (
     <GlassCard>
-      <h2 className="mb-4 text-base font-semibold">{t("supervisor.incoming.title")}</h2>
-      {list.length === 0 ? (
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-base font-semibold">{t("supervisor.incoming.title")}</h2>
+        <Button size="sm" variant="outline" onClick={onRefresh} disabled={busy}>
+          <RefreshCw className="size-4" /> {t("common.refresh")}
+        </Button>
+      </div>
+      {loading ? (
+        <div className="flex items-center justify-center gap-2 rounded-xl bg-muted/40 p-6 text-sm text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" /> {t("supervisor.incoming.loading")}
+        </div>
+      ) : list.length === 0 ? (
         <p className="rounded-xl bg-muted/40 p-6 text-center text-sm text-muted-foreground">{t("supervisor.incoming.no_orders")}</p>
       ) : (
         <Table>
@@ -443,10 +485,10 @@ function IncomingOrders({ orders, setOrders }: { orders: COrder[]; setOrders: Re
                 <TableCell>${o.total}</TableCell>
                 <TableCell className="text-muted-foreground">{o.createdAt}</TableCell>
                 <TableCell className="flex items-center justify-end gap-2">
-                  <Button size="sm" onClick={() => setConfirm({ id: o.id, action: "approve" })}>
+                  <Button size="sm" disabled={busy} onClick={() => setConfirm({ id: o.id, action: "approve", transfer: "0" })}>
                     <CheckCircle2 className="size-4" /> {t("supervisor.approve")}
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => setConfirm({ id: o.id, action: "reject" })}>
+                  <Button size="sm" variant="outline" disabled={busy} onClick={() => setConfirm({ id: o.id, action: "reject", transfer: "0" })}>
                     <XCircle className="size-4" /> {t("supervisor.reject")}
                   </Button>
                 </TableCell>
@@ -466,9 +508,22 @@ function IncomingOrders({ orders, setOrders }: { orders: COrder[]; setOrders: Re
                 : t("supervisor.reject_order_desc")}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {confirm?.action === "approve" && (
+            <div className="space-y-2">
+              <Label className="text-[#1D2D44]">{t("supervisor.transfer_assignment")}</Label>
+              <Input
+                type="number"
+                min={0}
+                step="0.01"
+                value={confirm.transfer}
+                onChange={(e) => setConfirm({ ...confirm, transfer: e.target.value })}
+                className="bg-[#eeebdd] text-[#1D2D44] placeholder:text-[#1D2D44]/60 border-[#1D2D44]/30 focus:border-[#f2a618]"
+              />
+            </div>
+          )}
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-[#f2a618] text-[#1D2D44] border border-[#1D2D44]/20 hover:bg-[#f2a618]/90 hover:text-[#1D2D44]">{t("common.cancel")}</AlertDialogCancel>
-            <AlertDialogAction onClick={apply}>{t("common.confirm")}</AlertDialogAction>
+            <AlertDialogCancel disabled={busy} className="bg-[#f2a618] text-[#1D2D44] border border-[#1D2D44]/20 hover:bg-[#f2a618]/90 hover:text-[#1D2D44]">{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction disabled={busy} onClick={apply}>{busy ? <Loader2 className="size-4 animate-spin" /> : t("common.confirm")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -478,13 +533,15 @@ function IncomingOrders({ orders, setOrders }: { orders: COrder[]; setOrders: Re
 
 // ---------------- Order Preparation ----------------
 function Preparation({
-  orders, setOrders, workers, setWorkers,
+  orders, setOrders, workers, setWorkers, slug,
 }: {
   orders: COrder[]; setOrders: React.Dispatch<React.SetStateAction<COrder[]>>;
   workers: SWorker[]; setWorkers: React.Dispatch<React.SetStateAction<SWorker[]>>;
+  slug: string | null;
 }) {
   const { t } = useTranslation();
-  const list = orders.filter(o => o.status === "preparing" || o.status === "ready");
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const list = orders.filter(o => o.status === "approved" || o.status === "in_preparation");
   const prepWorkers = workers.filter(w => w.section === "Preparation");
 
   const assign = (id: string, workerId: string) => {
@@ -495,11 +552,29 @@ function Preparation({
   const setProgress = (id: string, value: number) => {
     setOrders(prev => prev.map(o => o.id === id ? { ...o, progress: value } : o));
   };
+  const refreshOrderStatus = (id: string) => {
+    if (!slug) return;
+    setBusyId(id);
+    updateKeeperOrderStatus(slug, Number(id), "in_preparation")
+      .then(({ order }) => {
+        setOrders(prev => prev.map(o => String(o.id) === String(order.id) ? { ...o, status: "in_preparation", progress: 10 } : o));
+        toast.success(t("supervisor.toast_order_preparing", { id }));
+      })
+      .catch((err: unknown) => toast.error((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? t("supervisor.toast_action_failed")))
+      .finally(() => setBusyId(null));
+  };
   const markReady = (id: string) => {
-    setOrders(prev => prev.map(o => o.id === id ? { ...o, status: "ready", progress: 100 } : o));
-    const o = orders.find(x => x.id === id);
-    if (o?.workerId) setWorkers(prev => prev.map(w => w.id === o.workerId ? { ...w, status: "available" } : w));
-    toast.success(t("supervisor.toast_ready_for_delivery", { id }));
+    if (!slug) return;
+    setBusyId(id);
+    updateKeeperOrderStatus(slug, Number(id), "shipped")
+      .then(({ order }) => {
+        setOrders(prev => prev.map(o => String(o.id) === String(order.id) ? { ...o, status: "shipped", progress: 100 } : o));
+        const o = orders.find(x => x.id === id);
+        if (o?.workerId) setWorkers(prev => prev.map(w => w.id === o.workerId ? { ...w, status: "available" } : w));
+        toast.success(t("supervisor.toast_ready_for_delivery", { id }));
+      })
+      .catch((err: unknown) => toast.error((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? t("supervisor.toast_action_failed")))
+      .finally(() => setBusyId(null));
   };
 
   return (
@@ -522,7 +597,7 @@ function Preparation({
 
             <div className="mt-4 space-y-2">
               <Label className="text-xs">{t("supervisor.preparation.assigned_worker")}</Label>
-              <Select value={o.workerId ?? ""} onValueChange={(v) => assign(o.id, v)}>
+              <Select value={o.workerId ?? ""} onValueChange={(v) => assign(o.id, v)} disabled={o.status !== "in_preparation"}>
                 <SelectTrigger><SelectValue placeholder={t("supervisor.preparation.assign_worker_placeholder")} /></SelectTrigger>
                 <SelectContent>
                   {prepWorkers.map(w => (
@@ -532,7 +607,16 @@ function Preparation({
               </Select>
             </div>
 
-            <div className="mt-4">
+            {o.status === "approved" && (
+              <div className="mt-4">
+                <Button size="sm" disabled={busyId === o.id} onClick={() => refreshOrderStatus(o.id)}>
+                  {busyId === o.id ? <Loader2 className="size-4 animate-spin" /> : <PackageCheck className="size-4" />} {t("supervisor.preparation.start")}
+                </Button>
+              </div>
+            )}
+
+            {o.status === "in_preparation" && (
+              <div className="mt-4">
               <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
                 <span>{t("supervisor.preparation.progress")}</span><span>{o.progress ?? 0}%</span>
               </div>
@@ -544,15 +628,14 @@ function Preparation({
                   className="h-full bg-[oklch(0.78_0.16_75)]"
                 />
               </div>
-              {o.status === "preparing" && (
                 <div className="mt-3 flex gap-2">
                   <Button size="sm" variant="outline" onClick={() => setProgress(o.id, Math.min(100, (o.progress ?? 0) + 25))}>{t("supervisor.preparation.progress_25")}</Button>
-                  <Button size="sm" onClick={() => markReady(o.id)} disabled={!o.workerId}>
-                    <CheckCircle2 className="size-4" /> {t("supervisor.preparation.mark_ready")}
+                  <Button size="sm" disabled={busyId === o.id || !o.workerId} onClick={() => markReady(o.id)}>
+                    {busyId === o.id ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />} {t("supervisor.preparation.mark_ready")}
                   </Button>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </GlassCard>
         </motion.div>
       ))}
@@ -712,10 +795,11 @@ function Receiving({
 
 // ---------------- Driver Management ----------------
 function DriversSection({
-  drivers, setDrivers, orders, setOrders,
+  drivers, setDrivers, orders, setOrders, slug,
 }: {
   drivers: Driver[]; setDrivers: React.Dispatch<React.SetStateAction<Driver[]>>;
   orders: COrder[]; setOrders: React.Dispatch<React.SetStateAction<COrder[]>>;
+  slug: string | null;
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -723,7 +807,8 @@ function DriversSection({
   const [form, setForm] = useState<Omit<Driver, "id">>({ name: "", phone: "", vehicle: "", status: "available" });
   const [delTarget, setDelTarget] = useState<string | null>(null);
   const [assignFor, setAssignFor] = useState<string | null>(null);
-  const readyOrders = orders.filter(o => o.status === "ready");
+  const [busyOrder, setBusyOrder] = useState<string | null>(null);
+  const readyOrders = orders.filter(o => o.status === "shipped");
 
   const openNew = () => { setEditing(null); setForm({ name: "", phone: "", vehicle: "", status: "available" }); setOpen(true); };
   const openEdit = (d: Driver) => { setEditing(d); setForm(d); setOpen(true); };
@@ -746,11 +831,20 @@ function DriversSection({
     toast.success(t("supervisor.drivers.toast_removed"));
     setDelTarget(null);
   };
-  const assignDriver = (orderId: string, driverId: string) => {
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, driverId, status: "out_for_delivery" } : o));
-    setDrivers(prev => prev.map(d => d.id === driverId ? { ...d, status: "on_delivery" } : d));
-    toast.success(t("supervisor.drivers.toast_dispatched", { id: driverId }));
-    setAssignFor(null);
+  const assignDriver = async (orderId: string, driverId: string) => {
+    if (!slug) return;
+    setBusyOrder(orderId);
+    try {
+      await updateKeeperOrderStatus(slug, Number(orderId), "delivered");
+      setOrders(prev => prev.map(o => String(o.id) === String(orderId) ? { ...o, driverId, status: "delivered" } : o));
+      setDrivers(prev => prev.map(d => d.id === driverId ? { ...d, status: "on_delivery" } : d));
+      toast.success(t("supervisor.drivers.toast_dispatched", { id: driverId }));
+    } catch (err) {
+      toast.error((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? t("supervisor.toast_action_failed"));
+    } finally {
+      setBusyOrder(null);
+      setAssignFor(null);
+    }
   };
 
   return (
@@ -805,8 +899,8 @@ function DriversSection({
                   <TableCell>{o.customer}</TableCell>
                   <TableCell>{o.items}</TableCell>
                   <TableCell className="text-end">
-                    <Button size="sm" onClick={() => setAssignFor(o.id)}>
-                      <Truck className="size-4" /> {t("supervisor.drivers.assign")}
+                    <Button size="sm" disabled={busyOrder === o.id} onClick={() => setAssignFor(o.id)}>
+                      {busyOrder === o.id ? <Loader2 className="size-4 animate-spin" /> : <Truck className="size-4" />} {t("supervisor.drivers.assign")}
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -905,6 +999,7 @@ function DriversSection({
     <button 
       key={d.id}
       type="button"
+      disabled={!!busyOrder}
       onClick={() => assignFor && assignDriver(assignFor, d.id)}
       className="flex w-full items-center justify-between rounded-xl border border-[#1D2D44]/20 bg-[#eeebdd] p-3 hover:bg-[#e4e0cd] transition"
     >

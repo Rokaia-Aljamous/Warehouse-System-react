@@ -8,7 +8,7 @@ import {
   Plus, Trash2, QrCode, AlertTriangle, ArrowUpRight, ArrowDownRight,
   CheckCircle2, Clock, Truck, Download, Printer, Loader2, ChevronLeft, ChevronRight,
   Warehouse as WarehouseIcon, Wallet as WalletIcon, Sparkles, CreditCard,
-  RefreshCw,
+  RefreshCw, Fingerprint,
 } from "lucide-react";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -52,9 +52,10 @@ import { SubscriptionForm } from "@/components/SubscriptionForm";
 import { getProfilePic, subscribeProfilePic } from "@/lib/profile-storage";
 import { subscriptionStore, type SubscriptionRequest } from "@/lib/subscription-data";
 import { LanguageToggle } from "@/components/LanguageToggle";
-import { fetchMe, fetchManagerEmployees, fetchManagerOrders, createManagerWorker, deleteManagerEmployee, fetchSections, fetchManagerProducts, fetchManagerWarehouse, type ManagerEmployee, type ManagerOrder, type Section, type ManagerProduct } from "@/lib/manager-api";
+import { fetchMe, fetchManagerEmployees, fetchManagerOrders, createManagerWorker, deleteManagerEmployee, fetchSections, fetchManagerProducts, fetchManagerWarehouse, fetchManagerShipments, fetchInventoryMovements, type ManagerEmployee, type ManagerOrder, type Section, type ManagerProduct, type ManagerShipment, type InventoryMovement } from "@/lib/manager-api";
 import { WarehouseLayout } from "@/components/WarehouseLayout";
 import { CredentialsDialog } from "@/components/CredentialsDialog";
+import { ManagerBiometricSection } from "@/components/ManagerBiometricSection";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 
@@ -69,13 +70,14 @@ export const Route = createFileRoute("/manager")({
 });
 
 type SectionId =
-  | "overview" | "layout" | "workers" | "inventory" | "orders" | "transfers"
+  | "overview" | "layout" | "workers" | "biometric" | "inventory" | "orders" | "transfers"
   | "statistics" | "reports" | "wallet" | "settings";
 
 const NAV: { id: SectionId; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: "overview", label: "sidebar.dashboard", icon: LayoutDashboard },
   { id: "layout", label: "sidebar.layout", icon: WarehouseIcon },
   { id: "workers", label: "sidebar.workers", icon: Users },
+  { id: "biometric", label: "biometric.title", icon: Fingerprint },
   { id: "inventory", label: "sidebar.inventory", icon: Boxes },
   { id: "orders", label: "sidebar.orders", icon: ClipboardList },
   { id: "transfers", label: "sidebar.transfers", icon: ArrowLeftRight },
@@ -321,17 +323,30 @@ function ManagerApp() {
       setWarehouse(null);
       return;
     }
-    fetchSections(slug)
-      .then(({ sections: s }) => setSections(s))
-      .catch(() => setSections([]));
-    fetchManagerProducts(slug)
-      .then(({ products: p }) => setLayoutProducts(p))
-      .catch(() => setLayoutProducts([]));
-    fetchManagerWarehouse(slug)
-      .then(({ warehouse: w }) => {
-        if (w) setWarehouse({ id: w.id, name: w.warehouse_name, type: w.type, location: w.location });
-      })
-      .catch(() => setWarehouse(null));
+    let cancel = false;
+    Promise.all([
+      fetchSections(slug).catch(() => ({ sections: [] as Section[] })),
+      fetchManagerProducts(slug).catch(() => ({ products: [] as ManagerProduct[] })),
+      fetchManagerShipments(slug).catch(() => ({ shipments: [] as ManagerShipment[] })),
+      fetchInventoryMovements(slug, { warehouse_id: Number(user.warehouseId), per_page: 20 }).catch(() => ({ inventory_movements: [] as InventoryMovement[], meta: undefined })),
+      fetchManagerWarehouse(slug).catch(() => ({ warehouse: null })),
+    ]).then(([secRes, prodRes, shipRes, movRes, whRes]) => {
+      if (cancel) return;
+      setSections(secRes.sections);
+      setLayoutProducts(prodRes.products);
+      const src = whRes.warehouse || shipRes.shipments[0]?.warehouse || movRes.inventory_movements[0]?.warehouse || null;
+      if (src) {
+        setWarehouse({
+          id: src.id,
+          name: src.warehouse_name,
+          type: "type" in src ? (src as { type?: string }).type ?? "" : "",
+          location: "location" in src ? (src as { location?: string }).location ?? "" : "",
+        });
+      } else {
+        setWarehouse(null);
+      }
+    });
+    return () => { cancel = true; };
   }, [slug, user?.warehouseId]);
 
   useEffect(() => {
@@ -355,6 +370,9 @@ function ManagerApp() {
   }, [slug]);
 
   useEffect(() => { loadOrders(); }, [loadOrders]);
+
+  const orderWarehouseName = orders.find((o) => o.warehouse?.warehouse_name)?.warehouse?.warehouse_name;
+  const warehouseName = warehouse?.name || orderWarehouseName || CURRENT_WAREHOUSE.name;
 
   const logout = () => {
     localStorage.removeItem("stockyard.manager");
@@ -493,7 +511,7 @@ function ManagerApp() {
           <div className="flex flex-1 items-center gap-3">
             <div className="hidden md:block">
               <p className="text-xs uppercase tracking-wider text-cream/60">{t("manager.warehouse")}</p>
-              <p className="text-sm font-semibold text-cream">{CURRENT_WAREHOUSE.name}</p>
+              <p className="text-sm font-semibold text-cream">{warehouseName}{warehouse?.type ? ` · ${warehouse.type}` : ""}</p>
             </div>
             <div className="ms-auto hidden max-w-sm flex-1 items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-cream/80 ring-1 ring-white/10 sm:flex">
               <Search className="h-4 w-4" />
@@ -533,7 +551,7 @@ function ManagerApp() {
                 />
               )}
               {section === "overview" && (
-                <Overview workers={workers} products={products} orders={orders} />
+                <Overview workers={workers} products={products} orders={orders} warehouseName={warehouseName} />
               )}
               {section === "workers" && (
                 <WorkersSection
@@ -543,17 +561,20 @@ function ManagerApp() {
                   warehouseId={user?.warehouseId ? Number(user.warehouseId) : null}
                 />
               )}
+              {section === "biometric" && slug && user?.warehouseId && (
+                <ManagerBiometricSection slug={slug} warehouseId={Number(user.warehouseId)} />
+              )}
               {section === "inventory" && (
-                <InventorySection products={products} setProducts={setProducts} />
+                <InventorySection products={products} setProducts={setProducts} warehouseName={warehouseName} />
               )}
               {section === "orders" && (
-                <OrdersSection orders={orders} onRefresh={loadOrders} />
+                <OrdersSection orders={orders} onRefresh={loadOrders} warehouseName={warehouseName} />
               )}
               {section === "transfers" && (
-                <TransfersSection transfers={transfers} setTransfers={setTransfers} products={products} />
+                <TransfersSection transfers={transfers} setTransfers={setTransfers} products={products} warehouseName={warehouseName} />
               )}
               {section === "statistics" && <StatisticsSection workers={workers} />}
-              {section === "reports" && <ReportsSection />}
+              {section === "reports" && <ReportsSection warehouseName={warehouseName} />}
               {section === "wallet" && user && (
                 <WalletSection user={user} />
               )}
@@ -616,7 +637,7 @@ function statusBadge(s: string) {
 
 /* ---------- Overview ---------- */
 
-function Overview({ workers, products, orders }: { workers: Worker[]; products: Product[]; orders: ManagerOrder[] }) {
+function Overview({ workers, products, orders, warehouseName }: { workers: Worker[]; products: Product[]; orders: ManagerOrder[]; warehouseName: string }) {
   const { t } = useTranslation();
   const totalWorkers = workers.length;
   const inventoryValue = products.reduce((s, p) => s + p.quantity * p.unitPrice, 0);
@@ -634,7 +655,7 @@ function Overview({ workers, products, orders }: { workers: Worker[]; products: 
   return (
     <div className="space-y-6">
       <SectionHeader
-        title={t("manager.welcome_back", { name: CURRENT_WAREHOUSE.name })}
+        title={t("manager.welcome_back", { name: warehouseName })}
         desc={t("manager.overview_desc")}
       />
 
@@ -1112,7 +1133,7 @@ function AddWorkerDialog({
 
 /* ---------- Inventory ---------- */
 
-function InventorySection({ products, setProducts }: { products: Product[]; setProducts: React.Dispatch<React.SetStateAction<Product[]>> }) {
+function InventorySection({ products, setProducts, warehouseName }: { products: Product[]; setProducts: React.Dispatch<React.SetStateAction<Product[]>>; warehouseName: string }) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState<Product | null>(null);
   const [delta, setDelta] = useState(0);
@@ -1127,7 +1148,7 @@ function InventorySection({ products, setProducts }: { products: Product[]; setP
 
   return (
     <div className="space-y-6">
-      <SectionHeader title={t("inventory.title")} desc={t("inventory.real_time_desc", { name: CURRENT_WAREHOUSE.name })}>
+      <SectionHeader title={t("inventory.title")} desc={t("inventory.real_time_desc", { name: warehouseName })}>
         <Button variant="outline" className="border-white/20 text-cream hover:bg-white/10">
           <QrCode className="h-4 w-4" /> {t("inventory.scan_barcode")}
         </Button>
@@ -1267,14 +1288,14 @@ const orderStatusBadge = (s: ManagerOrder["status"]) => {
   return map[s] ?? "bg-gray-500/15 text-gray-400 border-gray-300/40";
 };
 
-function OrdersSection({ orders, onRefresh }: { orders: ManagerOrder[]; onRefresh: () => void }) {
+function OrdersSection({ orders, onRefresh, warehouseName }: { orders: ManagerOrder[]; onRefresh: () => void; warehouseName: string }) {
   const { t } = useTranslation();
   const [openOrder, setOpenOrder] = useState<ManagerOrder | null>(null);
   const sorted = [...orders].sort((a, b) => b.id - a.id);
 
   return (
     <div className="space-y-6">
-      <SectionHeader title={t("order.title")} desc={t("order.desc", { name: CURRENT_WAREHOUSE.name })}>
+      <SectionHeader title={t("order.title")} desc={t("order.desc", { name: warehouseName })}>
         <Button
           variant="outline"
           size="sm"
@@ -1389,7 +1410,7 @@ function OrdersSection({ orders, onRefresh }: { orders: ManagerOrder[]; onRefres
 
 /* ---------- Transfers ---------- */
 
-function TransfersSection({ transfers, setTransfers, products }: { transfers: Transfer[]; setTransfers: React.Dispatch<React.SetStateAction<Transfer[]>>; products: Product[] }) {
+function TransfersSection({ transfers, setTransfers, products, warehouseName }: { transfers: Transfer[]; setTransfers: React.Dispatch<React.SetStateAction<Transfer[]>>; products: Product[]; warehouseName: string }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const outgoing = transfers.filter((t) => t.direction === "outgoing");
@@ -1447,6 +1468,7 @@ function TransfersSection({ transfers, setTransfers, products }: { transfers: Tr
         open={open}
         onOpenChange={setOpen}
         products={products}
+        warehouseName={warehouseName}
         onCreate={(t) => setTransfers((prev) => [t, ...prev])}
       />
     </div>
@@ -1491,8 +1513,8 @@ function TransferList({
 }
 
 function NewTransferDialog({
-  open, onOpenChange, products, onCreate,
-}: { open: boolean; onOpenChange: (o: boolean) => void; products: Product[]; onCreate: (t: Transfer) => void }) {
+  open, onOpenChange, products, warehouseName, onCreate,
+}: { open: boolean; onOpenChange: (o: boolean) => void; products: Product[]; warehouseName: string; onCreate: (t: Transfer) => void }) {
   const { t } = useTranslation();
   const otherWarehouses = ALL_WAREHOUSES.filter((w) => w.id !== CURRENT_WAREHOUSE.id);
   const [form, setForm] = useState({ source: otherWarehouses[0].name, product: products[0]?.name ?? "", qty: 100, priority: "Medium" as Transfer["priority"], notes: "" });
@@ -1504,7 +1526,7 @@ function NewTransferDialog({
       onCreate({
         id: `TR-${Math.floor(200 + Math.random() * 800)}`,
         direction: "outgoing",
-        fromWarehouse: CURRENT_WAREHOUSE.name,
+        fromWarehouse: warehouseName || CURRENT_WAREHOUSE.name,
         toWarehouse: form.source,
         product: form.product,
         qty: form.qty,
@@ -1722,7 +1744,7 @@ function StatisticsSection({ workers }: { workers: Worker[] }) {
 
 /* ---------- Reports ---------- */
 
-function ReportsSection() {
+function ReportsSection({ warehouseName }: { warehouseName: string }) {
   const { t } = useTranslation();
   const [type, setType] = useState("Inventory Report");
   const [from, setFrom] = useState("2026-05-01");
@@ -1826,7 +1848,7 @@ function ReportsSection() {
             <DialogDescription>{from} → {to} · {format}</DialogDescription>
           </DialogHeader>
           <div className="rounded-xl bg-muted p-6 text-sm">
-            <h4  className="mb-2 font-semibold text-[#1D2D44]">{CURRENT_WAREHOUSE.name}</h4>
+            <h4  className="mb-2 font-semibold text-[#1D2D44]">{warehouseName}</h4>
             <p className="text-muted-foreground">{t("report.demo_preview", { type: type.toLowerCase() })}</p>
             <div className="mt-4 grid grid-cols-3 gap-3 text-xs">
               <div className="rounded-lg bg-[#eeebdd] p-3 border border-[#1D2D44]/15">
