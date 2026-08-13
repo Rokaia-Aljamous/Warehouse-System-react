@@ -13,6 +13,7 @@ import { Route as SupervisorLoginRouteImport } from './routes/supervisor-login'
 import { Route as SubscribersRouteImport } from './routes/subscribers'
 import { Route as StockyardRouteImport } from './routes/stockyard'
 import { Route as SignupRouteImport } from './routes/signup'
+import { Route as SecretaryRouteImport } from './routes/secretary'
 import { Route as ManagerRegisterRouteImport } from './routes/manager-register'
 import { Route as ManagerLoginRouteImport } from './routes/manager-login'
 import { Route as ManagerRouteImport } from './routes/manager'
@@ -44,6 +45,11 @@ const StockyardRoute = StockyardRouteImport.update({
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SecretaryRoute = SecretaryRouteImport.update({
+  id: '/secretary',
+  path: '/secretary',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ManagerRegisterRoute = ManagerRegisterRouteImport.update({
@@ -114,6 +120,7 @@ export interface FileRoutesByFullPath {
   '/manager': typeof ManagerRouteWithChildren
   '/manager-login': typeof ManagerLoginRoute
   '/manager-register': typeof ManagerRegisterRoute
+  '/secretary': typeof SecretaryRoute
   '/signup': typeof SignupRoute
   '/stockyard': typeof StockyardRoute
   '/subscribers': typeof SubscribersRoute
@@ -132,6 +139,7 @@ export interface FileRoutesByTo {
   '/manager': typeof ManagerRouteWithChildren
   '/manager-login': typeof ManagerLoginRoute
   '/manager-register': typeof ManagerRegisterRoute
+  '/secretary': typeof SecretaryRoute
   '/signup': typeof SignupRoute
   '/stockyard': typeof StockyardRoute
   '/subscribers': typeof SubscribersRoute
@@ -151,6 +159,7 @@ export interface FileRoutesById {
   '/manager': typeof ManagerRouteWithChildren
   '/manager-login': typeof ManagerLoginRoute
   '/manager-register': typeof ManagerRegisterRoute
+  '/secretary': typeof SecretaryRoute
   '/signup': typeof SignupRoute
   '/stockyard': typeof StockyardRoute
   '/subscribers': typeof SubscribersRoute
@@ -171,6 +180,7 @@ export interface FileRouteTypes {
     | '/manager'
     | '/manager-login'
     | '/manager-register'
+    | '/secretary'
     | '/signup'
     | '/stockyard'
     | '/subscribers'
@@ -189,6 +199,7 @@ export interface FileRouteTypes {
     | '/manager'
     | '/manager-login'
     | '/manager-register'
+    | '/secretary'
     | '/signup'
     | '/stockyard'
     | '/subscribers'
@@ -207,6 +218,7 @@ export interface FileRouteTypes {
     | '/manager'
     | '/manager-login'
     | '/manager-register'
+    | '/secretary'
     | '/signup'
     | '/stockyard'
     | '/subscribers'
@@ -226,6 +238,7 @@ export interface RootRouteChildren {
   ManagerRoute: typeof ManagerRouteWithChildren
   ManagerLoginRoute: typeof ManagerLoginRoute
   ManagerRegisterRoute: typeof ManagerRegisterRoute
+  SecretaryRoute: typeof SecretaryRoute
   SignupRoute: typeof SignupRoute
   StockyardRoute: typeof StockyardRoute
   SubscribersRoute: typeof SubscribersRoute
@@ -264,6 +277,13 @@ declare module '@tanstack/react-router' {
       path: '/signup'
       fullPath: '/signup'
       preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/secretary': {
+      id: '/secretary'
+      path: '/secretary'
+      fullPath: '/secretary'
+      preLoaderRoute: typeof SecretaryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/manager-register': {
@@ -383,6 +403,7 @@ const rootRouteChildren: RootRouteChildren = {
   ManagerRoute: ManagerRouteWithChildren,
   ManagerLoginRoute: ManagerLoginRoute,
   ManagerRegisterRoute: ManagerRegisterRoute,
+  SecretaryRoute: SecretaryRoute,
   SignupRoute: SignupRoute,
   StockyardRoute: StockyardRoute,
   SubscribersRoute: SubscribersRoute,

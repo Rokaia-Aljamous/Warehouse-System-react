@@ -6,8 +6,9 @@ import {
   LayoutDashboard, Inbox, PackageCheck, Truck, Users, RotateCcw, ClipboardList,
   FileText, Settings as SettingsIcon, LogOut, Menu, Bell, Plus, Trash2, Pencil,
   Loader2, Download, CheckCircle2, XCircle, Search, ChevronLeft, ChevronRight,
-  Warehouse as WarehouseIcon, ShieldCheck, Activity,
+  ShieldCheck, Activity,
 } from "lucide-react";
+import { AppLogo } from "@/components/AppLogo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -213,9 +214,7 @@ function SupervisorApp() {
       >
         <div className="flex items-center justify-between px-4 py-5">
           <div className="flex items-center gap-2">
-            <div className="flex size-9 items-center justify-center rounded-xl bg-[oklch(0.78_0.16_75)] shadow-lg">
-              <WarehouseIcon className="size-5 text-white" />
-            </div>
+            <AppLogo className="size-9" />
             {!collapsed && <span className="text-sm font-bold tracking-tight">{t("nav.supervisor")}</span>}
           </div>
           <button

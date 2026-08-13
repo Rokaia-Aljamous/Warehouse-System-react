@@ -4,9 +4,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
   LayoutDashboard, Users, Boxes, ClipboardList, BarChart3, FileText,
-  Settings as SettingsIcon, ArrowLeftRight, LogOut, Menu, Search, Bell,
-  Plus, Trash2, QrCode, AlertTriangle, ArrowUpRight, ArrowDownRight,
-  CheckCircle2, Clock, Truck, Download, Printer, Loader2, ChevronLeft, ChevronRight,
+  Settings as SettingsIcon, ArrowLeftRight, LogOut, Menu, Search,
+  Plus, Trash2, QrCode, AlertTriangle,
+  CheckCircle2, Clock, Truck, Download, Loader2, ChevronLeft, ChevronRight,
   Warehouse as WarehouseIcon, Wallet as WalletIcon, Sparkles, CreditCard,
   RefreshCw,
 } from "lucide-react";
@@ -19,6 +19,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { AppLogo } from "@/components/AppLogo";
+import { NotificationsBell } from "@/components/NotificationsBell";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -40,19 +42,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-import {
-  CURRENT_WAREHOUSE, ALL_WAREHOUSES,
-  initialProducts, initialMovements, initialTransfers,
-  dailyVolume, monthlyVolume, peakHours, attendanceTrend,
-  type Worker, type Product,
-  type Transfer, type TransferStatus,
-} from "@/lib/manager-data";
+import type { Worker, Product, Transfer, TransferStatus } from "@/lib/manager-data";
 import { ProfilePictureUpload } from "@/components/ProfilePictureUpload";
 import { SubscriptionForm } from "@/components/SubscriptionForm";
 import { getProfilePic, subscribeProfilePic } from "@/lib/profile-storage";
 import { subscriptionStore, type SubscriptionRequest } from "@/lib/subscription-data";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { fetchMe, fetchManagerEmployees, fetchManagerOrders, createManagerWorker, deleteManagerEmployee, fetchSections, fetchManagerProducts, fetchManagerWarehouse, type ManagerEmployee, type ManagerOrder, type Section, type ManagerProduct } from "@/lib/manager-api";
+import { api, getCsrfCookie } from "@/lib/api";
 import { WarehouseLayout } from "@/components/WarehouseLayout";
 import { CredentialsDialog } from "@/components/CredentialsDialog";
 import { useTranslation } from "react-i18next";
@@ -133,9 +130,7 @@ function ManagerSlugShell() {
       style={{ boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)" }}
     >
       <div className="flex items-center gap-2 px-4 py-5">
-        <div className="grid size-8 place-items-center rounded-xl bg-accent/30 text-accent-foreground">
-          <WarehouseIcon className="h-4 w-4" />
-        </div>
+        <AppLogo className="size-8" />
         {!collapsed && <span className="text-base font-semibold tracking-tight">{t("app.name")}</span>}
       </div>
       <nav className="flex-1 space-y-1 px-2">
@@ -246,9 +241,9 @@ function ManagerApp() {
 
   // shared state
   const [workers, setWorkers] = useState<Worker[]>([]);
-  const [products, setProducts] = useState<Product[]>(initialProducts);
+  const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<ManagerOrder[]>([]);
-  const [transfers, setTransfers] = useState<Transfer[]>(initialTransfers);
+  const [transfers, setTransfers] = useState<Transfer[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
   const [layoutProducts, setLayoutProducts] = useState<ManagerProduct[]>([]);
   const [warehouse, setWarehouse] = useState<{ id: number; name: string; type: string; location: string } | null>(null);
@@ -371,9 +366,7 @@ function ManagerApp() {
       style={{ boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)" }}
     >
       <div className="flex items-center gap-2 px-4 py-5">
-        <div className="grid size-8 place-items-center rounded-xl bg-accent/30 text-accent-foreground">
-          <WarehouseIcon className="h-4 w-4" />
-        </div>
+        <AppLogo className="size-8" />
         {!collapsed && <span className="text-base font-semibold tracking-tight">{t("app.name")}</span>}
       </div>
       <nav className="flex-1 space-y-1 px-2">
@@ -493,15 +486,13 @@ function ManagerApp() {
           <div className="flex flex-1 items-center gap-3">
             <div className="hidden md:block">
               <p className="text-xs uppercase tracking-wider text-cream/60">{t("manager.warehouse")}</p>
-              <p className="text-sm font-semibold text-cream">{CURRENT_WAREHOUSE.name}</p>
+              <p className="text-sm font-semibold text-cream">{warehouse?.name ?? ""}</p>
             </div>
             <div className="ms-auto hidden max-w-sm flex-1 items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-cream/80 ring-1 ring-white/10 sm:flex">
               <Search className="h-4 w-4" />
               <input className="w-full bg-transparent text-sm outline-none placeholder:text-cream/50" placeholder={t("placeholder.search")} />
             </div>
-            <Button variant="ghost" size="icon" className="text-cream hover:bg-cream/10">
-              <Bell className="h-4 w-4" />
-            </Button>
+            <NotificationsBell slug={slug} />
             <div className="hidden items-center gap-2 rounded-xl bg-white/5 px-3 py-1.5 text-cream sm:flex">
               <div className="grid h-7 w-7 place-items-center overflow-hidden rounded-full bg-accent text-foreground text-xs font-semibold">
                 {avatar ? <img src={avatar} alt={t("manager.alt_avatar")} className="h-full w-full object-cover" /> : (user?.name?.[0] ?? "M")}
@@ -533,7 +524,7 @@ function ManagerApp() {
                 />
               )}
               {section === "overview" && (
-                <Overview workers={workers} products={products} orders={orders} />
+                <Overview workers={workers} products={products} orders={orders} warehouseName={warehouse?.name ?? ""} />
               )}
               {section === "workers" && (
                 <WorkersSection
@@ -544,16 +535,16 @@ function ManagerApp() {
                 />
               )}
               {section === "inventory" && (
-                <InventorySection products={products} setProducts={setProducts} />
+                <InventorySection products={products} setProducts={setProducts} warehouseName={warehouse?.name ?? ""} />
               )}
               {section === "orders" && (
-                <OrdersSection orders={orders} onRefresh={loadOrders} />
+                <OrdersSection orders={orders} onRefresh={loadOrders} warehouseName={warehouse?.name ?? ""} />
               )}
               {section === "transfers" && (
                 <TransfersSection transfers={transfers} setTransfers={setTransfers} products={products} />
               )}
               {section === "statistics" && <StatisticsSection workers={workers} />}
-              {section === "reports" && <ReportsSection />}
+              {section === "reports" && <ReportsSection slug={slug} />}
               {section === "wallet" && user && (
                 <WalletSection user={user} />
               )}
@@ -616,7 +607,7 @@ function statusBadge(s: string) {
 
 /* ---------- Overview ---------- */
 
-function Overview({ workers, products, orders }: { workers: Worker[]; products: Product[]; orders: ManagerOrder[] }) {
+function Overview({ workers, products, orders, warehouseName }: { workers: Worker[]; products: Product[]; orders: ManagerOrder[]; warehouseName: string }) {
   const { t } = useTranslation();
   const totalWorkers = workers.length;
   const inventoryValue = products.reduce((s, p) => s + p.quantity * p.unitPrice, 0);
@@ -634,7 +625,7 @@ function Overview({ workers, products, orders }: { workers: Worker[]; products: 
   return (
     <div className="space-y-6">
       <SectionHeader
-        title={t("manager.welcome_back", { name: CURRENT_WAREHOUSE.name })}
+        title={t("manager.welcome_back", { name: warehouseName })}
         desc={t("manager.overview_desc")}
       />
 
@@ -662,7 +653,7 @@ function Overview({ workers, products, orders }: { workers: Worker[]; products: 
           </div>
           <div className="h-72">
             <ResponsiveContainer>
-              <AreaChart data={dailyVolume}>
+              <AreaChart data={[]}>
                 <defs>
                   <linearGradient id="ovIn" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#A7B3C3" stopOpacity={0.7} />
@@ -983,6 +974,10 @@ function AddWorkerDialog({
       toast.error(t("common.fields_required"));
       return;
     }
+    if (!/^09\d{8}$/.test(form.phone_number.trim())) {
+      toast.error(t("manager.toast_phone_invalid"));
+      return;
+    }
     setSubmitting(true);
     try {
       if (slug && warehouseId) {
@@ -995,8 +990,8 @@ function AddWorkerDialog({
           status: form.status,
           salary: form.salary,
         });
-        onAdd(workerFromBackendEmployee(res.worker));
-        onCreated?.(res.worker, res.password);
+        onAdd(workerFromBackendEmployee(res.employee));
+        onCreated?.(res.employee, res.password);
         toast.success(t("worker.created"));
       } else {
         toast.error(t("worker.save_failed"));
@@ -1112,7 +1107,7 @@ function AddWorkerDialog({
 
 /* ---------- Inventory ---------- */
 
-function InventorySection({ products, setProducts }: { products: Product[]; setProducts: React.Dispatch<React.SetStateAction<Product[]>> }) {
+function InventorySection({ products, setProducts, warehouseName }: { products: Product[]; setProducts: React.Dispatch<React.SetStateAction<Product[]>>; warehouseName: string }) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState<Product | null>(null);
   const [delta, setDelta] = useState(0);
@@ -1127,7 +1122,7 @@ function InventorySection({ products, setProducts }: { products: Product[]; setP
 
   return (
     <div className="space-y-6">
-      <SectionHeader title={t("inventory.title")} desc={t("inventory.real_time_desc", { name: CURRENT_WAREHOUSE.name })}>
+      <SectionHeader title={t("inventory.title")} desc={t("inventory.real_time_desc", { name: warehouseName })}>
         <Button variant="outline" className="border-white/20 text-cream hover:bg-white/10">
           <QrCode className="h-4 w-4" /> {t("inventory.scan_barcode")}
         </Button>
@@ -1191,22 +1186,7 @@ function InventorySection({ products, setProducts }: { products: Product[]; setP
 
       <GlassCard className="p-5">
         <h3 className="mb-3 text-sm font-semibold text-cream">{t("inventory.movement_history")}</h3>
-        <div className="space-y-2">
-          {initialMovements.map((m) => (
-            <div key={m.id} className="flex items-center justify-between rounded-xl bg-white/5 p-3 text-sm text-cream">
-              <div className="flex items-center gap-3">
-                {m.type === "incoming"
-                  ? <ArrowDownRight className="h-4 w-4 text-emerald-300" />
-                  : <ArrowUpRight className="h-4 w-4 text-rose-300" />}
-                <div>
-                  <p className="font-medium">{m.sku} · {t("common.units", { count: m.qty })}</p>
-                  <p className="text-xs text-cream/60">{m.date} · {m.reference}</p>
-                </div>
-              </div>
-              <Badge variant="outline" className="border-white/20 text-cream/80 capitalize">{m.type}</Badge>
-            </div>
-          ))}
-        </div>
+        <p className="text-sm text-cream/60">{t("common.no_data")}</p>
       </GlassCard>
 
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
@@ -1267,14 +1247,14 @@ const orderStatusBadge = (s: ManagerOrder["status"]) => {
   return map[s] ?? "bg-gray-500/15 text-gray-400 border-gray-300/40";
 };
 
-function OrdersSection({ orders, onRefresh }: { orders: ManagerOrder[]; onRefresh: () => void }) {
+function OrdersSection({ orders, onRefresh, warehouseName }: { orders: ManagerOrder[]; onRefresh: () => void; warehouseName: string }) {
   const { t } = useTranslation();
   const [openOrder, setOpenOrder] = useState<ManagerOrder | null>(null);
   const sorted = [...orders].sort((a, b) => b.id - a.id);
 
   return (
     <div className="space-y-6">
-      <SectionHeader title={t("order.title")} desc={t("order.desc", { name: CURRENT_WAREHOUSE.name })}>
+      <SectionHeader title={t("order.title")} desc={t("order.desc", { name: warehouseName })}>
         <Button
           variant="outline"
           size="sm"
@@ -1494,8 +1474,8 @@ function NewTransferDialog({
   open, onOpenChange, products, onCreate,
 }: { open: boolean; onOpenChange: (o: boolean) => void; products: Product[]; onCreate: (t: Transfer) => void }) {
   const { t } = useTranslation();
-  const otherWarehouses = ALL_WAREHOUSES.filter((w) => w.id !== CURRENT_WAREHOUSE.id);
-  const [form, setForm] = useState({ source: otherWarehouses[0].name, product: products[0]?.name ?? "", qty: 100, priority: "Medium" as Transfer["priority"], notes: "" });
+  const otherWarehouses: { id: string; name: string }[] = [];
+  const [form, setForm] = useState({ source: otherWarehouses[0]?.name ?? "", product: products[0]?.name ?? "", qty: 100, priority: "Medium" as Transfer["priority"], notes: "" });
   const [loading, setLoading] = useState(false);
 
   const submit = () => {
@@ -1504,7 +1484,7 @@ function NewTransferDialog({
       onCreate({
         id: `TR-${Math.floor(200 + Math.random() * 800)}`,
         direction: "outgoing",
-        fromWarehouse: CURRENT_WAREHOUSE.name,
+        fromWarehouse: "",
         toWarehouse: form.source,
         product: form.product,
         qty: form.qty,
@@ -1630,6 +1610,8 @@ function StatisticsSection({ workers }: { workers: Worker[] }) {
     .filter((w) => w.status === "active")
     .map((w) => ({ name: w.name.split(" ")[0], orders: w.ordersProcessed, avg: w.avgHandlingMin }));
 
+  const peakHours: { hour: string; activity: number }[] = [];
+
   const heatMax = Math.max(...peakHours.map((p) => p.activity));
 
   return (
@@ -1665,7 +1647,7 @@ function StatisticsSection({ workers }: { workers: Worker[] }) {
           <h3 className="mb-3 text-sm font-semibold text-cream">{t("manager.monthly_volume")}</h3>
           <div className="h-72">
             <ResponsiveContainer>
-              <BarChart data={monthlyVolume}>
+              <BarChart data={[]}>
                 <CartesianGrid stroke="rgba(255,255,255,0.08)" />
                 <XAxis dataKey="month" stroke="#F0EBD8" tick={{ fontSize: 11 }} />
                 <YAxis stroke="#F0EBD8" tick={{ fontSize: 11 }} />
@@ -1682,7 +1664,7 @@ function StatisticsSection({ workers }: { workers: Worker[] }) {
           <h3 className="mb-3 text-sm font-semibold text-cream">{t("manager.attendance_week")}</h3>
           <div className="h-64">
             <ResponsiveContainer>
-              <LineChart data={attendanceTrend}>
+              <LineChart data={[]}>
                 <CartesianGrid stroke="rgba(255,255,255,0.08)" />
                 <XAxis dataKey="day" stroke="#F0EBD8" tick={{ fontSize: 11 }} />
                 <YAxis stroke="#F0EBD8" tick={{ fontSize: 11 }} />
@@ -1722,139 +1704,105 @@ function StatisticsSection({ workers }: { workers: Worker[] }) {
 
 /* ---------- Reports ---------- */
 
-function ReportsSection() {
-  const { t } = useTranslation();
-  const [type, setType] = useState("Inventory Report");
-  const [from, setFrom] = useState("2026-05-01");
-  const [to, setTo] = useState("2026-05-13");
-  const [format, setFormat] = useState("PDF");
-  const [generating, setGenerating] = useState(false);
-  const [preview, setPreview] = useState(false);
-  const [history, setHistory] = useState([
-    { id: "RPT-018", type: "Order Summary", date: "2026-05-10", format: "PDF" },
-    { id: "RPT-017", type: "Worker Performance", date: "2026-05-03", format: "Excel" },
-  ]);
+const MANAGER_REPORTS: { key: "orders" | "returns" | "tasks"; label: string; desc: string }[] = [
+  { key: "orders", label: "manager.report_orders", desc: "report.orders.desc" },
+  { key: "returns", label: "manager.report_returns", desc: "report.returns.desc" },
+  { key: "tasks", label: "manager.report_tasks", desc: "report.tasks.desc" },
+];
 
-  const generate = () => {
-    setGenerating(true);
-    setTimeout(() => {
-      setGenerating(false);
-      setPreview(true);
-      setHistory((h) => [{ id: `RPT-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, type, date: to, format }, ...h]);
-      toast.success(t("report.ready", { type, format }));
-    }, 900);
+function ReportsSection({ slug }: { slug: string | null }) {
+  const { t } = useTranslation();
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const reportUrl = (report: string, ext: "pdf" | "excel") => {
+    const params = new URLSearchParams();
+    if (from) params.set("date_from", from);
+    if (to) params.set("date_to", to);
+    const qs = params.toString();
+    return `/${slug}/manager/reports/${report}/${ext}${qs ? `?${qs}` : ""}`;
   };
+
+  const openPdf = (report: string) => {
+    window.open(reportUrl(report, "pdf"), "_blank");
+  };
+
+  const downloadExcel = async (report: string) => {
+    const id = `${report}-excel`;
+    setBusy(id);
+    try {
+      await getCsrfCookie();
+      const res = await api.get(reportUrl(report, "excel"), { responseType: "blob" });
+      const blobUrl = URL.createObjectURL(res.data);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = `${report}-report.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+      toast.success(t("manager.excel_downloaded", { report: t(`manager.report_${report}`) }));
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { message?: string } }; message?: string };
+      const msg = e?.response?.data?.message || e?.message || t("manager.download_failed");
+      toast.error(typeof msg === "string" ? msg : t("manager.download_failed"));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  if (!slug) return null;
 
   return (
     <div className="space-y-6">
       <SectionHeader title={t("report.title")} desc={t("report.desc")} />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <GlassCard className="p-5 lg:col-span-2">
-          <h3 className="mb-4 text-sm font-semibold text-cream">{t("report.generate")}</h3>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label className="text-cream/80">{t("report.type")}</Label>
-              <Select value={type} onValueChange={setType}>
-                <SelectTrigger className="border-white/15 bg-white/5 text-cream"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Inventory Report">Inventory Report</SelectItem>
-                  <SelectItem value="Worker Performance">Worker Performance</SelectItem>
-                  <SelectItem value="Order Summary">Order Summary</SelectItem>
-                  <SelectItem value="Transfer History">Transfer History</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-cream/80">{t("report.format")}</Label>
-              <Select value={format} onValueChange={setFormat}>
-                <SelectTrigger className="border-white/15 bg-white/5 text-cream"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="PDF">PDF</SelectItem>
-                  <SelectItem value="Excel">Excel (CSV)</SelectItem>
-                  <SelectItem value="Print">Print</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-cream/80">{t("inventory.from")}</Label>
-              <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="border-white/15 bg-white/5 text-cream" />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-cream/80">{t("inventory.to")}</Label>
-              <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="border-white/15 bg-white/5 text-cream" />
-            </div>
-          </div>
-          <div className="mt-4 flex items-center gap-2">
-            <Button onClick={generate} disabled={generating}>
-              {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-              {t("report.generate")}
-            </Button>
-           <Button 
-  variant="outline" 
-  className="border-[#eeebdd]/30 bg-[#1D2D44]/20 text-[#eeebdd] hover:bg-[#1D2D44]/40 hover:text-[#eeebdd]" 
-  onClick={() => toast.success(t("report.schedule_saved"))}
->
-  {t("report.schedule_weekly")}
-</Button>
-          </div>
-        </GlassCard>
-
-        <GlassCard className="p-5">
-          <h3 className="mb-3 text-sm font-semibold text-cream">{t("report.saved")}</h3>
+      <GlassCard className="p-5">
+        <div className="grid gap-3 sm:grid-cols-2 lg:max-w-xl">
           <div className="space-y-2">
-            {history.map((r) => (
-              <div key={r.id} className="flex items-center justify-between rounded-xl bg-white/5 p-3 text-sm text-cream">
-                <div>
-                  <p className="font-medium">{r.type}</p>
-                  <p className="text-xs text-cream/60">{r.id} · {r.date} · {r.format}</p>
-                </div>
-                <div className="flex gap-1">
-                  <Button size="icon" variant="ghost" className="text-cream hover:bg-white/10"><Download className="h-4 w-4" /></Button>
-                  <Button size="icon" variant="ghost" className="text-cream hover:bg-white/10"><Printer className="h-4 w-4" /></Button>
-                </div>
-              </div>
-            ))}
+            <Label className="text-cream/80">{t("inventory.from")}</Label>
+            <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="border-white/15 bg-white/5 text-cream" />
           </div>
-        </GlassCard>
+          <div className="space-y-2">
+            <Label className="text-cream/80">{t("inventory.to")}</Label>
+            <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="border-white/15 bg-white/5 text-cream" />
+          </div>
+        </div>
+      </GlassCard>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        {MANAGER_REPORTS.map((r) => (
+          <GlassCard key={r.key} className="p-5">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-cream">{t(r.label)}</h3>
+              <FileText className="h-4 w-4 text-cream/50" />
+            </div>
+            <p className="mt-1 text-xs text-cream/60">{t(r.desc)}</p>
+            <div className="mt-4 flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1 border-white/15 bg-white/5 text-cream hover:bg-white/10"
+                onClick={() => downloadExcel(r.key)}
+                disabled={busy === `${r.key}-excel`}
+              >
+                {busy === `${r.key}-excel` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                {t("report.excel")}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1 border-white/15 bg-white/5 text-cream hover:bg-white/10"
+                onClick={() => openPdf(r.key)}
+              >
+                <Download className="h-4 w-4" />
+                {t("report.pdf")}
+              </Button>
+            </div>
+          </GlassCard>
+        ))}
       </div>
-
-      <Dialog open={preview} onOpenChange={setPreview}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-[#1D2D44]">{t("report.preview_title", { type })}</DialogTitle>
-            <DialogDescription>{from} → {to} · {format}</DialogDescription>
-          </DialogHeader>
-          <div className="rounded-xl bg-muted p-6 text-sm">
-            <h4  className="mb-2 font-semibold text-[#1D2D44]">{CURRENT_WAREHOUSE.name}</h4>
-            <p className="text-muted-foreground">{t("report.demo_preview", { type: type.toLowerCase() })}</p>
-            <div className="mt-4 grid grid-cols-3 gap-3 text-xs">
-              <div className="rounded-lg bg-[#eeebdd] p-3 border border-[#1D2D44]/15">
-  <p className="text-xs font-medium text-[#1D2D44]/70">{t("report.records")}</p>
-  <p className="text-lg font-semibold text-[#1D2D44]">312</p>
-</div>
-
-<div className="rounded-lg bg-[#eeebdd] p-3 border border-[#1D2D44]/15">
-  <p className="text-xs font-medium text-[#1D2D44]/70">{t("report.total_volume")}</p>
-  <p className="text-lg font-semibold text-[#1D2D44]">8,420</p>
-</div>
-
-<div className="rounded-lg bg-[#eeebdd] p-3 border border-[#1D2D44]/15">
-  <p className="text-xs font-medium text-[#1D2D44]/70">{t("report.net_change")}</p>
-  <p className="text-lg font-semibold text-[#1D2D44]">+12.4%</p>
-</div>            </div>
-          </div>
-          <DialogFooter>
-<Button 
-  variant="outline" 
-  className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#d99415] hover:text-[#1D2D44] border border-[#1D2D44]/20" 
-  onClick={() => setPreview(false)}
->
-  {t("common.close")}
-</Button>            <Button onClick={() => { toast.success(t("report.download_started")); setPreview(false); }}><Download className="h-4 w-4" /> {t("report.download")}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

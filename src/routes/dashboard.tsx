@@ -4,10 +4,10 @@ import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 import {
   LayoutDashboard, Users, Warehouse, BarChart3, Wallet, Settings as SettingsIcon,
-  Search, Bell, Menu, Plus, Pencil, Trash2, ChevronLeft, ChevronRight,
+  Search, Menu, Plus, Pencil, Trash2, ChevronLeft, ChevronRight,
   Snowflake, Package, Flame, Truck, AlertTriangle, Activity,
   CreditCard, ArrowUpRight, CheckCircle2, Boxes,
-  Loader2, LogIn, LogOut, User,
+  Loader2, LogIn, LogOut, User, Send,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
@@ -22,6 +22,8 @@ import {
   Tooltip as RTooltip, BarChart, Bar, Legend, PieChart, Pie, Cell,
 } from "recharts";
 
+import { AppLogo } from "@/components/AppLogo";
+import { NotificationsBell } from "@/components/NotificationsBell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -127,7 +129,7 @@ export function DashboardPage() {
   const [collapsed, setCollapsed] = useState(false);
   const [managers, setManagers] = useState<ManagerItem[]>([]);
   const [avatar, setAvatar] = useState<string | null>(null);
-  const [slug, setSlug] = useState<string | null>(getStoredUser()?.tenant?.url_slug ?? null);
+  const [slug, setSlug] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const storedUser = getStoredUser();
   const userInitials = storedUser?.full_name
@@ -166,6 +168,8 @@ export function DashboardPage() {
         if (me.role !== "owner") {
           clearStoredUser();
           setSlug(null);
+        } else {
+          setSlug(initialSlug);
         }
       })
       .catch((err: any) => {
@@ -192,8 +196,8 @@ export function DashboardPage() {
       <div className="flex min-h-screen items-center justify-center bg-[#0f1b2d] px-4">
         <div className="w-full max-w-md">
           <div className="mb-6 text-center">
-            <div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-xl bg-[#f3a523] shadow-lg">
-              <Warehouse className="size-6 text-[#1a2942]" />
+            <div className="mx-auto mb-3">
+              <AppLogo className="size-12" />
             </div>
             <h1 className="text-2xl font-bold text-[#f0ecdb]">{t("app.name")}</h1>
             <p className="mt-1 text-sm text-[#f0ecdb]/60">{t("manager.login.subtitle")}</p>
@@ -305,9 +309,7 @@ export function DashboardPage() {
       >
         <div className="flex h-16 items-center justify-between px-4">
           <Link to="/" className="flex items-center gap-2.5">
-            <div className="flex size-9 items-center justify-center rounded-xl bg-[oklch(0.78_0.16_75)] shadow-lg">
-              <Warehouse className="size-5 text-white" />
-            </div>
+            <AppLogo className="size-9" />
             {!collapsed && <span className="text-base font-bold">{t("app.name")}</span>}
           </Link>
           <button
@@ -391,15 +393,7 @@ export function DashboardPage() {
                 className="h-9 w-64 rounded-full border border-white/15 bg-white/5 ps-9 pe-3 text-sm text-cream placeholder:text-cream/40 outline-none transition focus:w-72 focus:border-[oklch(0.78_0.16_75)]/60"
               />
             </div>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button className="relative rounded-full p-2 text-cream/80 transition hover:bg-white/10">
-                  <Bell className="size-4" />
-                  <span className="absolute end-1.5 top-1.5 size-2 rounded-full bg-[oklch(0.78_0.16_75)]" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>{t("dashboard.notifications", { count: 3 })}</TooltipContent>
-            </Tooltip>
+            <NotificationsBell slug={slug} />
             <div className="flex items-center gap-2 rounded-full border border-white/15 bg-white/5 py-1 ps-1 pe-3">
               <div className="flex size-7 items-center justify-center overflow-hidden rounded-full bg-[oklch(0.78_0.16_75)] text-xs font-bold text-navy">
                 {avatar ? <img src={avatar} alt={t("dashboard.avatar_alt")} className="h-full w-full object-cover" /> : userInitials}

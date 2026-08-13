@@ -17,6 +17,7 @@ export const Route = createFileRoute("/manager-login")({
 });
 
 const SESSION_KEY = "stockyard.manager";
+const SECRETARY_SESSION_KEY = "stockyard.secretary";
 
 function ManagerLogin() {
   const { t } = useTranslation();
@@ -28,7 +29,7 @@ function ManagerLogin() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const stored = localStorage.getItem(SESSION_KEY);
+    const stored = localStorage.getItem(SESSION_KEY) || localStorage.getItem(SECRETARY_SESSION_KEY);
     if (!stored) return;
     try {
       const parsed = JSON.parse(stored);
@@ -41,19 +42,22 @@ function ManagerLogin() {
           if (me.role === "manager") {
             navigate({ to: "/manager", replace: true });
           } else if (me.role === "warehouse_secretary") {
-            navigate({ to: "/supervisor/dashboard", replace: true });
+            navigate({ to: "/secretary", replace: true });
           }
         }).catch(() => {
           localStorage.removeItem(SESSION_KEY);
+          localStorage.removeItem(SECRETARY_SESSION_KEY);
         });
       }
     } catch {
       localStorage.removeItem(SESSION_KEY);
+      localStorage.removeItem(SECRETARY_SESSION_KEY);
     }
   }, [navigate]);
 
   const storeSession = (user: DashboardUser) => {
-    localStorage.setItem(SESSION_KEY, JSON.stringify({
+    const isSecretary = user.role === "warehouse_secretary";
+    const payload = JSON.stringify({
       id: user.id,
       full_name: user.full_name,
       role: user.role,
@@ -63,16 +67,16 @@ function ManagerLogin() {
       tenant: user.tenant,
       user_name: user.user_name,
       must_change_password: user.must_change_password,
-    }));
+    });
+    localStorage.setItem(SESSION_KEY, payload);
+    if (isSecretary) {
+      localStorage.setItem(SECRETARY_SESSION_KEY, payload);
+    }
     if (user.must_change_password) {
       navigate({ to: "/force-password-change" });
       return;
     }
-    if (user.role === "warehouse_secretary") {
-      navigate({ to: "/supervisor/dashboard" });
-      return;
-    }
-    navigate({ to: "/manager" });
+    navigate({ to: isSecretary ? "/secretary" : "/manager" });
   };
 
   const submit = async (e: React.FormEvent) => {

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   LayoutDashboard, Users, Warehouse, BarChart3, Wallet, Settings as SettingsIcon,
-  Search, Bell, Menu, Plus, Pencil, Trash2, ChevronLeft, ChevronRight,
+  Search, Menu, Plus, Pencil, Trash2, ChevronLeft, ChevronRight,
   Snowflake, Package, Flame, Truck, AlertTriangle, Activity,
   CreditCard, ArrowUpRight, CheckCircle2, Boxes,
 } from "lucide-react";
@@ -18,6 +18,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { AppLogo } from "@/components/AppLogo";
+import { NotificationsBell } from "@/components/NotificationsBell";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -75,8 +77,13 @@ function TenantDashboardPage() {
   const [section, setSection] = useState<SectionId>("dashboard");
   const [collapsed, setCollapsed] = useState(false);
 
-  const user = getStoredUser();
-  const displayName = user?.full_name || user?.tenant?.company_name || slug;
+  const [hydratedUser, setHydratedUser] = useState<ReturnType<typeof getStoredUser>>(null);
+
+  useEffect(() => {
+    setHydratedUser(getStoredUser());
+  }, []);
+
+  const displayName = hydratedUser?.full_name || hydratedUser?.tenant?.company_name || slug;
   const initials = displayName.slice(0, 2).toUpperCase();
 
   return (
@@ -89,9 +96,7 @@ function TenantDashboardPage() {
       >
         <div className="flex h-16 items-center justify-between px-4">
           <Link to="/" className="flex items-center gap-2.5">
-            <div className="flex size-9 items-center justify-center rounded-xl bg-[oklch(0.78_0.16_75)] shadow-lg">
-              <Warehouse className="size-5 text-white" />
-            </div>
+            <AppLogo className="size-9" />
             {!collapsed && <span className="text-base font-bold">{slug}</span>}
           </Link>
           <button
@@ -158,15 +163,7 @@ function TenantDashboardPage() {
                 className="h-9 w-64 rounded-full border border-white/15 bg-white/5 ps-9 pe-3 text-sm text-cream placeholder:text-cream/40 outline-none transition focus:w-72 focus:border-[oklch(0.78_0.16_75)]/60"
               />
             </div>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button className="relative rounded-full p-2 text-cream/80 transition hover:bg-white/10">
-                  <Bell className="size-4" />
-                  <span className="absolute end-1.5 top-1.5 size-2 rounded-full bg-[oklch(0.78_0.16_75)]" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>{t("dashboard.new_notifications", { count: 3 })}</TooltipContent>
-            </Tooltip>
+            <NotificationsBell slug={slug} />
             <div className="flex items-center gap-2 rounded-full border border-white/15 bg-white/5 py-1 ps-1 pe-3">
               <div className="flex size-7 items-center justify-center overflow-hidden rounded-full bg-[oklch(0.78_0.16_75)] text-xs font-bold text-navy">
                 {initials}

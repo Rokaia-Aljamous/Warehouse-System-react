@@ -431,11 +431,11 @@ export const createManagerEmployee = async (
   warehouseId: number,
   data: { full_name: string; phone_number: string; user_name: string; role: string; salary: number; status?: string }
 ): Promise<{ message: string; employee: ManagerEmployee; password?: string }> => {
-  const response = await api.post<{ message: string; worker: ManagerEmployee; password?: string }>(
+  const response = await api.post<{ message: string; employee: ManagerEmployee; password?: string }>(
     `/${slug}/manager/workers/${warehouseId}`,
     { ...data, status: data.status ?? "available" },
   );
-  return { message: response.data.message, employee: response.data.worker, password: response.data.password };
+  return { message: response.data.message, employee: response.data.employee, password: response.data.password };
 };
 
 export const updateManagerEmployee = async (
@@ -444,8 +444,8 @@ export const updateManagerEmployee = async (
   employeeId: number,
   data: Partial<{ full_name: string; phone_number: string; user_name: string; role: string; salary: number; status: string }>
 ): Promise<{ message: string; employee: ManagerEmployee }> => {
-  const response = await api.patch<{ message: string; worker: ManagerEmployee }>(`/${slug}/manager/workers/${warehouseId}/${employeeId}`, data);
-  return { message: response.data.message, employee: response.data.worker };
+  const response = await api.patch<{ message: string; employee: ManagerEmployee }>(`/${slug}/manager/workers/${warehouseId}/${employeeId}`, data);
+  return { message: response.data.message, employee: response.data.employee };
 };
 
 export const deleteManagerEmployee = async (slug: string, warehouseId: number, employeeId: number): Promise<void> => {
@@ -470,7 +470,7 @@ export interface ManagerWorkerInput {
 
 export interface ManagerWorkerResponse {
   message: string;
-  worker: ManagerEmployee;
+  employee: ManagerEmployee;
   password?: string | null;
 }
 

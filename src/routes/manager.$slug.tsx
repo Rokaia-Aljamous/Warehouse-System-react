@@ -594,6 +594,7 @@ function EmployeesSection({
 
   const handleSave = async () => {
     if (!form.full_name.trim() || !form.phone_number.trim() || !form.user_name.trim()) { toast.error(t("employee.required_fields")); return; }
+    if (!/^09\d{8}$/.test(form.phone_number.trim())) { toast.error(t("manager.toast_phone_invalid")); return; }
     if (!warehouseId) return;
     setSubmitting(true);
     try {
