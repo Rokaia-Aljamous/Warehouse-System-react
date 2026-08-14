@@ -154,6 +154,7 @@ export interface DashboardLoginResponse {
   dashboard_user: {
     id: number;
     full_name: string;
+    email?: string;
     role: string;
     owner_id: number;
     tenant: {

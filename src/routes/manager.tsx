@@ -355,7 +355,7 @@ function ManagerApp() {
       return;
     }
     fetchManagerEmployees(slug, Number(user.warehouseId))
-      .then(({ employees }) => setWorkers(employees.map(workerFromBackendEmployee)))
+      .then(({ employees }) => setWorkers(employees.filter((e) => e.role !== "manager").map(workerFromBackendEmployee)))
       .catch(() => setWorkers([]));
   }, [slug, user?.warehouseId]);
 
@@ -513,11 +513,7 @@ function ManagerApp() {
               <p className="text-xs uppercase tracking-wider text-cream/60">{t("manager.warehouse")}</p>
               <p className="text-sm font-semibold text-cream">{warehouseName}{warehouse?.type ? ` · ${warehouse.type}` : ""}</p>
             </div>
-            <div className="ms-auto hidden max-w-sm flex-1 items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-cream/80 ring-1 ring-white/10 sm:flex">
-              <Search className="h-4 w-4" />
-              <input className="w-full bg-transparent text-sm outline-none placeholder:text-cream/50" placeholder={t("placeholder.search")} />
-            </div>
-            <Button variant="ghost" size="icon" className="text-cream hover:bg-cream/10">
+            <Button variant="ghost" size="icon" className="ms-auto text-cream hover:bg-cream/10">
               <Bell className="h-4 w-4" />
             </Button>
             <div className="hidden items-center gap-2 rounded-xl bg-white/5 px-3 py-1.5 text-cream sm:flex">
@@ -1288,10 +1284,25 @@ const orderStatusBadge = (s: ManagerOrder["status"]) => {
   return map[s] ?? "bg-gray-500/15 text-gray-400 border-gray-300/40";
 };
 
+const paymentStatusBadge = (s: ManagerOrder["payment_status"]) => {
+  const map: Record<ManagerOrder["payment_status"], string> = {
+    not_started: "bg-gray-500/15 text-gray-400 border-gray-300/40",
+    pending: "bg-amber-500/15 text-amber-400 border-amber-300/40",
+    processing: "bg-blue-500/15 text-blue-400 border-blue-300/40",
+    paid: "bg-emerald-500/15 text-emerald-400 border-emerald-300/40",
+    failed: "bg-rose-500/15 text-rose-400 border-rose-300/40",
+    cancelled: "bg-gray-500/15 text-gray-400 border-gray-300/40",
+    refunded: "bg-purple-500/15 text-purple-400 border-purple-300/40",
+  };
+  return map[s] ?? "bg-gray-500/15 text-gray-400 border-gray-300/40";
+};
+
 function OrdersSection({ orders, onRefresh, warehouseName }: { orders: ManagerOrder[]; onRefresh: () => void; warehouseName: string }) {
   const { t } = useTranslation();
   const [openOrder, setOpenOrder] = useState<ManagerOrder | null>(null);
-  const sorted = [...orders].sort((a, b) => b.id - a.id);
+  const [statusFilter, setStatusFilter] = useState<ManagerOrder["status"] | "all">("all");
+  const filtered = statusFilter === "all" ? orders : orders.filter((o) => o.status === statusFilter);
+  const sorted = [...filtered].sort((a, b) => b.id - a.id);
 
   return (
     <div className="space-y-6">
@@ -1308,12 +1319,34 @@ function OrdersSection({ orders, onRefresh, warehouseName }: { orders: ManagerOr
       </SectionHeader>
 
       <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setStatusFilter("all")}
+          className={cn(
+            "rounded-full border px-3 py-1 text-xs transition",
+            statusFilter === "all"
+              ? "border-white/30 bg-white/10 text-cream ring-1 ring-white/20"
+              : "border-white/10 text-cream/60 hover:text-cream",
+          )}
+        >
+          {t("order.all")} ({orders.length})
+        </button>
         {ORDER_TABS.map((s) => {
           const count = orders.filter((o) => o.status === s).length;
+          const active = statusFilter === s;
           return (
-            <span key={s} className={cn("rounded-full border px-3 py-1 text-xs", orderStatusBadge(s))}>
+            <button
+              key={s}
+              type="button"
+              onClick={() => setStatusFilter(s)}
+              className={cn(
+                "rounded-full border px-3 py-1 text-xs transition",
+                orderStatusBadge(s),
+                active && "ring-1 ring-white/40",
+              )}
+            >
               {t(`order.status.${s}`)} ({count})
-            </span>
+            </button>
           );
         })}
       </div>
@@ -1329,6 +1362,7 @@ function OrdersSection({ orders, onRefresh, warehouseName }: { orders: ManagerOr
                 <TableHead className="text-cream/70">{t("order.items")}</TableHead>
                 <TableHead className="text-cream/70">{t("order.total")}</TableHead>
                 <TableHead className="text-cream/70">{t("order.status")}</TableHead>
+                <TableHead className="text-cream/70">{t("order.payment")}</TableHead>
                 <TableHead className="text-cream/70">{t("order.date")}</TableHead>
                 <TableHead className="text-end text-cream/70">{t("common.actions")}</TableHead>
               </TableRow>
@@ -1347,6 +1381,9 @@ function OrdersSection({ orders, onRefresh, warehouseName }: { orders: ManagerOr
                   <TableCell>
                     <Badge className={cn("border", orderStatusBadge(o.status))}>{t(`order.status.${o.status}`)}</Badge>
                   </TableCell>
+                  <TableCell>
+                    <Badge className={cn("border", paymentStatusBadge(o.payment_status))}>{t(`order.payment_status.${o.payment_status}`)}</Badge>
+                  </TableCell>
                   <TableCell className="text-sm text-cream/70">{formatOrderDate(o.order_date)}</TableCell>
                   <TableCell className="text-end">
                     <Button
@@ -1361,7 +1398,7 @@ function OrdersSection({ orders, onRefresh, warehouseName }: { orders: ManagerOr
                 </TableRow>
               ))}
               {sorted.length === 0 && (
-                <TableRow><TableCell colSpan={8} className="py-12 text-center text-cream/60">{t("order.no_orders")}</TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} className="py-12 text-center text-cream/60">{t("order.no_orders")}</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
@@ -1400,6 +1437,15 @@ function OrdersSection({ orders, onRefresh, warehouseName }: { orders: ManagerOr
                 <span className="font-medium text-[#1D2D44]">{t("order.status")}</span>
                 <Badge className="bg-[#1D2D44] text-[#eeebdd] hover:bg-[#1D2D44]/90">{t(`order.status.${openOrder.status}`)}</Badge>
               </div>
+              <div className="flex justify-between items-center">
+                <span className="font-medium text-[#1D2D44]">{t("order.payment")}</span>
+                <Badge className={cn("border", paymentStatusBadge(openOrder.payment_status))}>{t(`order.payment_status.${openOrder.payment_status}`)}</Badge>
+              </div>
+              {openOrder.status === "approved" && openOrder.payment_status !== "paid" && (
+                <div className="rounded-lg bg-amber-500/15 border border-amber-300/40 px-3 py-2 text-xs text-amber-500">
+                  {t("order.waiting_payment")}
+                </div>
+              )}
             </div>
           )}
         </DialogContent>
@@ -1886,30 +1932,12 @@ function ReportsSection({ warehouseName }: { warehouseName: string }) {
 function SettingsSection({ user, whmId, phone }: { user: { name: string; whmId: string }; whmId: string; phone: string }) {
   const { t } = useTranslation();
   const [form, setForm] = useState({ name: user.name, phone });
-  const [pw, setPw] = useState({ current: "", next: "", confirm: "" });
   const [twoFA, setTwoFA] = useState(false);
   const [emailNotif, setEmailNotif] = useState(true);
   const [smsNotif, setSmsNotif] = useState(false);
-  const [dark, setDark] = useState(false);
-
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", dark);
-  }, [dark]);
 
   const saveProfile = () => {
     toast.success(t("settings.profile_saved"));
-  };
-
-  const changePw = () => {
-    if (!pw.current) { toast.error(t("settings.enter_current_password")); return; }
-    if (pw.next.length < 8) { toast.error(t("settings.password_min_length")); return; }
-    if (pw.next !== pw.confirm) { toast.error(t("settings.password_mismatch")); return; }
-    const overridesRaw = localStorage.getItem("stockyard.manager.overrides");
-    const overrides = overridesRaw ? JSON.parse(overridesRaw) : {};
-    overrides[whmId] = { password: pw.next, isTempPassword: false, lastPasswordChange: new Date().toISOString().slice(0, 10) };
-    localStorage.setItem("stockyard.manager.overrides", JSON.stringify(overrides));
-    setPw({ current: "", next: "", confirm: "" });
-    toast.success(t("settings.password_changed"));
   };
 
   return (
@@ -1935,19 +1963,13 @@ function SettingsSection({ user, whmId, phone }: { user: { name: string; whmId: 
         </GlassCard>
 
         <GlassCard className="p-5">
-          <h3 className="mb-4 text-sm font-semibold text-cream">{t("settings.change_password")}</h3>
-          <div className="space-y-3">
-            <div className="space-y-2"><Label className="text-cream/80">{t("settings.current_password")}</Label><Input type="password" className="border-white/15 bg-white/5 text-cream" value={pw.current} onChange={(e) => setPw({ ...pw, current: e.target.value })} /></div>
-            <div className="space-y-2"><Label className="text-cream/80">{t("settings.new_password")}</Label><Input type="password" className="border-white/15 bg-white/5 text-cream" value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} /></div>
-            <div className="space-y-2"><Label className="text-cream/80">{t("settings.confirm_new_password")}</Label><Input type="password" className="border-white/15 bg-white/5 text-cream" value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} /></div>
-            <Button onClick={changePw}>{t("settings.change_password")}</Button>
-            <div className="mt-4 flex items-center justify-between rounded-xl bg-white/5 p-3">
-              <div>
-                <p className="text-sm font-medium text-cream">{t("settings.two_fa")}</p>
-                <p className="text-xs text-cream/60">{t("settings.two_fa_desc")}</p>
-              </div>
-              <Switch checked={twoFA} onCheckedChange={(v) => { setTwoFA(v); toast.success(v ? t("settings.two_fa_enabled") : t("settings.two_fa_disabled")); }} />
+          <h3 className="mb-4 text-sm font-semibold text-cream">{t("settings.account")}</h3>
+          <div className="flex items-center justify-between rounded-xl bg-white/5 p-3">
+            <div>
+              <p className="text-sm font-medium text-cream">{t("settings.two_fa")}</p>
+              <p className="text-xs text-cream/60">{t("settings.two_fa_desc")}</p>
             </div>
+            <Switch checked={twoFA} onCheckedChange={(v) => { setTwoFA(v); toast.success(v ? t("settings.two_fa_enabled") : t("settings.two_fa_disabled")); }} />
           </div>
         </GlassCard>
 
@@ -1957,12 +1979,6 @@ function SettingsSection({ user, whmId, phone }: { user: { name: string; whmId: 
             <SettingRow label={t("settings.notif_email")} checked={emailNotif} onCheckedChange={setEmailNotif} />
             <SettingRow label={t("settings.notif_sms")} checked={smsNotif} onCheckedChange={setSmsNotif} />
           </div>
-        </GlassCard>
-
-        <GlassCard className="p-5">
-          <h3 className="mb-4 text-sm font-semibold text-cream">{t("settings.appearance")}</h3>
-          <SettingRow label={t("settings.dark_theme")} checked={dark} onCheckedChange={setDark} />
-          <p className="mt-2 text-xs text-cream/60">{t("settings.dark_theme_desc")}</p>
         </GlassCard>
       </div>
     </div>

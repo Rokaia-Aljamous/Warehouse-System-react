@@ -260,6 +260,11 @@ export function DashboardPage() {
         if (me.role !== "owner") {
           clearStoredUser();
           setSlug(null);
+          return;
+        }
+        const stored = getStoredUser();
+        if (stored && me.email) {
+          setStoredUser({ ...stored, email: me.email });
         }
       })
       .catch((err: any) => {
@@ -305,11 +310,15 @@ export function DashboardPage() {
               try {
                 await getCsrfCookie();
                 const res = await loginDashboard(loginSlug.trim(), loginUsername.trim(), loginPw);
+                const loginEmail = loginUsername.trim().toLowerCase();
+                const registeredEmail = res.dashboard_user.email?.trim().toLowerCase() ?? "";
+                const nameEmail =
+                  res.dashboard_user.full_name.toLowerCase().replace(/\s+/g, ".") + "@demo.io";
+                const fallbackEmail = loginEmail.includes("@") ? loginEmail : nameEmail;
                 setStoredUser({
                   id: res.dashboard_user.id,
                   full_name: res.dashboard_user.full_name,
-                  email:
-                    res.dashboard_user.full_name.toLowerCase().replace(/\s+/g, ".") + "@demo.io",
+                  email: registeredEmail || fallbackEmail,
                   birthday: null,
                   tenant: {
                     id: res.dashboard_user.tenant.id,
@@ -518,13 +527,6 @@ export function DashboardPage() {
           </h1>
           <div className="ms-auto flex items-center gap-2 md:gap-3">
             <LanguageToggle variant="header" />
-            <div className="relative hidden md:block">
-              <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-cream/50" />
-              <input
-                placeholder={t("dashboard.search_placeholder")}
-                className="h-9 w-64 rounded-full border border-white/15 bg-white/5 ps-9 pe-3 text-sm text-cream placeholder:text-cream/40 outline-none transition focus:w-72 focus:border-[oklch(0.78_0.16_75)]/60"
-              />
-            </div>
             <Tooltip>
               <TooltipTrigger asChild>
                 <button className="relative rounded-full p-2 text-cream/80 transition hover:bg-white/10">
@@ -2640,6 +2642,7 @@ function WalletSection() {
 /* -------------------- Settings -------------------- */
 function SettingsSection() {
   const { t } = useTranslation();
+  const user = getStoredUser();
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <GlassCard>
@@ -2655,11 +2658,11 @@ function SettingsSection() {
         <div className="space-y-3">
           <div className="grid gap-2">
             <Label>{t("settings.full_name")}</Label>
-            <Input defaultValue="Amelia Carter" />
+            <Input defaultValue={user?.full_name ?? ""} />
           </div>
           <div className="grid gap-2">
             <Label>{t("settings.email")}</Label>
-            <Input defaultValue="amelia@stockyard.io" />
+            <Input defaultValue={user?.email ?? ""} />
           </div>
           <Button
             onClick={() => toast.success(t("settings.toast_profile_saved"))}

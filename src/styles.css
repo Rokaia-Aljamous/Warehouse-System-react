@@ -181,6 +181,13 @@
   .border-cream\/20 { border-color: rgba(240, 236, 219, 0.2); }
 }
 
+/* Hide the browser-native password reveal icon so password fields show only
+   the app's single eye toggle (prevents a duplicated "two icons" look). */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none;
+}
+
 @keyframes fade-up {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }

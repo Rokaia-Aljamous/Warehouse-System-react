@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 export interface DashboardUser {
   id: number;
   full_name: string;
+  email?: string;
   birthday: string | null;
   phone_number: string;
   user_name: string;
@@ -396,6 +397,11 @@ export interface ManagerOrder {
   customer: ManagerOrderCustomer;
   warehouse: ManagerOrderWarehouse;
   status: "pending" | "approved" | "in_preparation" | "shipped" | "delivered" | "rejected" | "cancelled";
+  payment_status: "not_started" | "pending" | "processing" | "paid" | "failed" | "cancelled" | "refunded";
+  payment_method: string | null;
+  payment_currency: string | null;
+  paid_at: string | null;
+  can_prepare: boolean;
   total_price: string;
   transfer_assignment: string;
   order_date: string;
@@ -406,12 +412,16 @@ export interface ManagerOrder {
 }
 
 export const fetchManagerOrders = async (slug: string): Promise<{ orders: ManagerOrder[] }> => {
-  const response = await api.get<{ orders: ManagerOrder[] }>(`/${slug}/manager/orders`);
+  const response = await api.get<{ orders: ManagerOrder[] }>(`/${slug}/manager/orders`, {
+    params: { status: "all" },
+  });
   return response.data;
 };
 
 export const fetchKeeperOrders = async (slug: string): Promise<{ orders: ManagerOrder[] }> => {
-  const response = await api.get<{ orders: ManagerOrder[] }>(`/${slug}/keeper/orders`);
+  const response = await api.get<{ orders: ManagerOrder[] }>(`/${slug}/keeper/orders`, {
+    params: { status: "all" },
+  });
   return response.data;
 };
 

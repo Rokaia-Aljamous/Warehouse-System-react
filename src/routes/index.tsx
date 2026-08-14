@@ -361,12 +361,8 @@ function Index() {
         <LoginOverlay
           onClose={() => setLoginOpen(false)}
           onLoginSuccess={() => {
-            const u = getStoredUser();
-            setUser(u);
+            setUser(getStoredUser());
             setLoginOpen(false);
-            if (!u?.is_admin) {
-              setTimeout(() => window.location.href = "/manager", 50);
-            }
           }}
           onRegisterSuccess={() => {
             setUser(getStoredUser());
@@ -892,24 +888,14 @@ function LoginOverlay({
 
         if (error.response.status === 409) {
           try {
-            await getCsrfCookie();
-            const endpoint = adminMode ? "/platform-admin/login" : "/login";
-            const res = await api.post(endpoint, { email, password });
-            const admin = adminMode ? res.data?.admin : null;
-            const recoveredUser = adminMode ? (admin ? { ...admin, is_admin: true } : null) : (res.data?.user || res.data);
-            if (recoveredUser && recoveredUser.id) {
-              setStoredUser(recoveredUser);
-              toast.success(res.data?.message || t("auth.welcome_back_toast"));
+            const valid = await verifyStoredUser();
+            if (valid) {
+              toast.success(t("auth.welcome_back_toast"));
               onLoginSuccess();
               return;
             }
           } catch {
-            if (user && user.id) {
-              setStoredUser(user);
-              toast.success(t("auth.logged_in"));
-              onLoginSuccess();
-              return;
-            }
+            /* no recoverable session → fall through to error */
           }
           toast.error(msg || t("auth.session_issue"));
         } else if (error.response.status === 419) {

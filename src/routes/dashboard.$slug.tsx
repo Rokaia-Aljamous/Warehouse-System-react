@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   LayoutDashboard, Users, Warehouse, BarChart3, Wallet, Settings as SettingsIcon,
-  Search, Bell, Menu, Plus, Pencil, Trash2, ChevronLeft, ChevronRight,
+  Bell, Menu, Plus, Pencil, Trash2, ChevronLeft, ChevronRight,
   Snowflake, Package, Flame, Truck, AlertTriangle, TrendingUp, Activity,
   CreditCard, ArrowUpRight, ArrowDownRight, CheckCircle2, Boxes,
 } from "lucide-react";
@@ -152,13 +152,6 @@ function TenantDashboardPage() {
           </h1>
           <div className="ms-auto flex items-center gap-2 md:gap-3">
             <LanguageToggle variant="header" />
-            <div className="relative hidden md:block">
-              <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-cream/50" />
-              <input
-                placeholder={t("placeholder.search_anything")}
-                className="h-9 w-64 rounded-full border border-white/15 bg-white/5 ps-9 pe-3 text-sm text-cream placeholder:text-cream/40 outline-none transition focus:w-72 focus:border-[oklch(0.78_0.16_75)]/60"
-              />
-            </div>
             <Tooltip>
               <TooltipTrigger asChild>
                 <button className="relative rounded-full p-2 text-cream/80 transition hover:bg-white/10">
