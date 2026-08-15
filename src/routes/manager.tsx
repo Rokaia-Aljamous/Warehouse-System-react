@@ -4,9 +4,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
   LayoutDashboard, Users, Boxes, ClipboardList, BarChart3, FileText,
-  Settings as SettingsIcon, ArrowLeftRight, LogOut, Menu, Search, Bell,
-  Plus, Trash2, QrCode, AlertTriangle, ArrowUpRight, ArrowDownRight,
-  CheckCircle2, Clock, Truck, Download, Printer, Loader2, ChevronLeft, ChevronRight,
+  Settings as SettingsIcon, ArrowLeftRight, LogOut, Menu, Search,
+  Plus, Trash2, QrCode, AlertTriangle,
+  Truck, Download, Loader2, ChevronLeft, ChevronRight,
   Warehouse as WarehouseIcon, Wallet as WalletIcon, Sparkles, CreditCard,
   RefreshCw, Fingerprint,
 } from "lucide-react";
@@ -19,6 +19,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { AppLogo } from "@/components/AppLogo";
+import { NotificationsBell } from "@/components/NotificationsBell";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -40,21 +42,19 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-import {
-  CURRENT_WAREHOUSE, ALL_WAREHOUSES,
-  initialProducts, initialMovements, initialTransfers,
-  dailyVolume, monthlyVolume, peakHours, attendanceTrend,
-  type Worker, type Product,
-  type Transfer, type TransferStatus,
-} from "@/lib/manager-data";
+import type { Worker, Product } from "@/lib/manager-data";
 import { ProfilePictureUpload } from "@/components/ProfilePictureUpload";
 import { SubscriptionForm } from "@/components/SubscriptionForm";
 import { getProfilePic, subscribeProfilePic } from "@/lib/profile-storage";
 import { subscriptionStore, type SubscriptionRequest } from "@/lib/subscription-data";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { fetchMe, fetchManagerEmployees, fetchManagerOrders, createManagerWorker, deleteManagerEmployee, fetchSections, fetchManagerProducts, fetchManagerWarehouse, fetchManagerShipments, fetchInventoryMovements, type ManagerEmployee, type ManagerOrder, type Section, type ManagerProduct, type ManagerShipment, type InventoryMovement } from "@/lib/manager-api";
+import { api, getCsrfCookie } from "@/lib/api";
 import { WarehouseLayout } from "@/components/WarehouseLayout";
 import { CredentialsDialog } from "@/components/CredentialsDialog";
+import { useTransferRequests } from "@/hooks/useTransferRequests";
+import { AvailableRequestsFeed } from "@/components/transfer/AvailableRequestsFeed";
+import { MyWarehouseRequests } from "@/components/transfer/MyWarehouseRequests";
 import { ManagerBiometricSection } from "@/components/ManagerBiometricSection";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
@@ -94,6 +94,7 @@ type StoredManagerSession = {
   whmId?: string;
   phone_number?: string;
   warehouse_id?: number | null;
+  owner_id?: number;
   must_change_password?: boolean;
   tenant?: { url_slug?: string };
 };
@@ -135,9 +136,7 @@ function ManagerSlugShell() {
       style={{ boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)" }}
     >
       <div className="flex items-center gap-2 px-4 py-5">
-        <div className="grid size-8 place-items-center rounded-xl bg-accent/30 text-accent-foreground">
-          <WarehouseIcon className="h-4 w-4" />
-        </div>
+        <AppLogo className="size-8" />
         {!collapsed && <span className="text-base font-semibold tracking-tight">{t("app.name")}</span>}
       </div>
       <nav className="flex-1 space-y-1 px-2">
@@ -248,14 +247,13 @@ function ManagerApp() {
 
   // shared state
   const [workers, setWorkers] = useState<Worker[]>([]);
-  const [products, setProducts] = useState<Product[]>(initialProducts);
+  const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<ManagerOrder[]>([]);
-  const [transfers, setTransfers] = useState<Transfer[]>(initialTransfers);
   const [sections, setSections] = useState<Section[]>([]);
   const [layoutProducts, setLayoutProducts] = useState<ManagerProduct[]>([]);
   const [warehouse, setWarehouse] = useState<{ id: number; name: string; type: string; location: string } | null>(null);
 
-  type Session = { whmId: string; name: string; warehouseId?: string };
+  type Session = { whmId: string; name: string; warehouseId?: string; ownerId?: number };
   const [user, setUser] = useState<Session | null>(null);
   const [slug, setSlug] = useState<string | null>(null);
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -289,6 +287,7 @@ function ManagerApp() {
       whmId: parsed.whmId ?? parsed.id?.toString?.() ?? "WHM-000",
       name: parsed.name ?? parsed.full_name ?? "",
       warehouseId: parsed.warehouse_id?.toString?.(),
+      ownerId: parsed.owner_id,
     });
     setSlug(parsed.tenant?.url_slug ?? null);
     if (parsed.tenant?.url_slug) {
@@ -372,7 +371,7 @@ function ManagerApp() {
   useEffect(() => { loadOrders(); }, [loadOrders]);
 
   const orderWarehouseName = orders.find((o) => o.warehouse?.warehouse_name)?.warehouse?.warehouse_name;
-  const warehouseName = warehouse?.name || orderWarehouseName || CURRENT_WAREHOUSE.name;
+  const warehouseName = warehouse?.name || orderWarehouseName || "";
 
   const logout = () => {
     localStorage.removeItem("stockyard.manager");
@@ -389,9 +388,7 @@ function ManagerApp() {
       style={{ boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)" }}
     >
       <div className="flex items-center gap-2 px-4 py-5">
-        <div className="grid size-8 place-items-center rounded-xl bg-accent/30 text-accent-foreground">
-          <WarehouseIcon className="h-4 w-4" />
-        </div>
+        <AppLogo className="size-8" />
         {!collapsed && <span className="text-base font-semibold tracking-tight">{t("app.name")}</span>}
       </div>
       <nav className="flex-1 space-y-1 px-2">
@@ -511,11 +508,13 @@ function ManagerApp() {
           <div className="flex flex-1 items-center gap-3">
             <div className="hidden md:block">
               <p className="text-xs uppercase tracking-wider text-cream/60">{t("manager.warehouse")}</p>
-              <p className="text-sm font-semibold text-cream">{warehouseName}{warehouse?.type ? ` · ${warehouse.type}` : ""}</p>
+<p className="text-sm font-semibold text-cream">{warehouseName}{warehouse?.type ? ` · ${warehouse.type}` : ""}</p>
             </div>
-            <Button variant="ghost" size="icon" className="ms-auto text-cream hover:bg-cream/10">
-              <Bell className="h-4 w-4" />
-            </Button>
+            <div className="ms-auto hidden max-w-sm flex-1 items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-cream/80 ring-1 ring-white/10 sm:flex">
+              <Search className="h-4 w-4" />
+              <input className="w-full bg-transparent text-sm outline-none placeholder:text-cream/50" placeholder={t("placeholder.search")} />
+            </div>
+            <NotificationsBell slug={slug} onTransferOpen={() => { setSection("transfers"); setMobileOpen(false); }} />
             <div className="hidden items-center gap-2 rounded-xl bg-white/5 px-3 py-1.5 text-cream sm:flex">
               <div className="grid h-7 w-7 place-items-center overflow-hidden rounded-full bg-accent text-foreground text-xs font-semibold">
                 {avatar ? <img src={avatar} alt={t("manager.alt_avatar")} className="h-full w-full object-cover" /> : (user?.name?.[0] ?? "M")}
@@ -566,11 +565,16 @@ function ManagerApp() {
               {section === "orders" && (
                 <OrdersSection orders={orders} onRefresh={loadOrders} warehouseName={warehouseName} />
               )}
-              {section === "transfers" && (
-                <TransfersSection transfers={transfers} setTransfers={setTransfers} products={products} warehouseName={warehouseName} />
+              {section === "transfers" && slug && user?.warehouseId && (
+                <TransfersSection
+                  slug={slug}
+                  ownerId={user.ownerId}
+                  warehouseId={Number(user.warehouseId)}
+                  products={layoutProducts}
+                />
               )}
               {section === "statistics" && <StatisticsSection workers={workers} />}
-              {section === "reports" && <ReportsSection warehouseName={warehouseName} />}
+{section === "reports" && <ReportsSection slug={slug} />}
               {section === "wallet" && user && (
                 <WalletSection user={user} />
               )}
@@ -679,7 +683,7 @@ function Overview({ workers, products, orders, warehouseName }: { workers: Worke
           </div>
           <div className="h-72">
             <ResponsiveContainer>
-              <AreaChart data={dailyVolume}>
+              <AreaChart data={[]}>
                 <defs>
                   <linearGradient id="ovIn" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#A7B3C3" stopOpacity={0.7} />
@@ -876,7 +880,7 @@ function WorkersSection({
                   <TableCell className="font-mono text-xs">{w.workerId}</TableCell>
                   <TableCell>{w.section}</TableCell>
                   <TableCell>
-                    <Badge className={cn("border", statusBadge(w.status))}>{w.status}</Badge>
+                    <Badge className={cn("border", statusBadge(w.status))}>{t(`worker.status.${w.status}`)}</Badge>
                   </TableCell>
                   <TableCell className="text-cream/70">{w.lastActive}</TableCell>
                   <TableCell className="text-end">
@@ -1000,6 +1004,10 @@ function AddWorkerDialog({
       toast.error(t("common.fields_required"));
       return;
     }
+    if (!/^09\d{8}$/.test(form.phone_number.trim())) {
+      toast.error(t("manager.toast_phone_invalid"));
+      return;
+    }
     setSubmitting(true);
     try {
       if (slug && warehouseId) {
@@ -1012,8 +1020,8 @@ function AddWorkerDialog({
           status: form.status,
           salary: form.salary,
         });
-        onAdd(workerFromBackendEmployee(res.worker));
-        onCreated?.(res.worker, res.password);
+        onAdd(workerFromBackendEmployee(res.employee));
+        onCreated?.(res.employee, res.password);
         toast.success(t("worker.created"));
       } else {
         toast.error(t("worker.save_failed"));
@@ -1208,22 +1216,7 @@ function InventorySection({ products, setProducts, warehouseName }: { products: 
 
       <GlassCard className="p-5">
         <h3 className="mb-3 text-sm font-semibold text-cream">{t("inventory.movement_history")}</h3>
-        <div className="space-y-2">
-          {initialMovements.map((m) => (
-            <div key={m.id} className="flex items-center justify-between rounded-xl bg-white/5 p-3 text-sm text-cream">
-              <div className="flex items-center gap-3">
-                {m.type === "incoming"
-                  ? <ArrowDownRight className="h-4 w-4 text-emerald-300" />
-                  : <ArrowUpRight className="h-4 w-4 text-rose-300" />}
-                <div>
-                  <p className="font-medium">{m.sku} · {t("common.units", { count: m.qty })}</p>
-                  <p className="text-xs text-cream/60">{m.date} · {m.reference}</p>
-                </div>
-              </div>
-              <Badge variant="outline" className="border-white/20 text-cream/80 capitalize">{m.type}</Badge>
-            </div>
-          ))}
-        </div>
+        <p className="text-sm text-cream/60">{t("common.no_data")}</p>
       </GlassCard>
 
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
@@ -1456,237 +1449,28 @@ function OrdersSection({ orders, onRefresh, warehouseName }: { orders: ManagerOr
 
 /* ---------- Transfers ---------- */
 
-function TransfersSection({ transfers, setTransfers, products, warehouseName }: { transfers: Transfer[]; setTransfers: React.Dispatch<React.SetStateAction<Transfer[]>>; products: Product[]; warehouseName: string }) {
+function TransfersSection({ slug, ownerId, warehouseId, products }: { slug: string; ownerId?: number; warehouseId: number; products: ManagerProduct[] }) {
   const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
-  const outgoing = transfers.filter((t) => t.direction === "outgoing");
-  const incoming = transfers.filter((t) => t.direction === "incoming");
-
-  const setStatus = (id: string, status: TransferStatus) => {
-    setTransfers((prev) => prev.map((t) => (t.id === id ? { ...t, status } : t)));
-    toast.success(t("transfer.status_changed", { id, status }));
-  };
+  const { available, mine, loading, creating, isAccepting, refresh, acceptRequest, createRequest } =
+    useTransferRequests(slug, ownerId, warehouseId);
 
   return (
     <div className="space-y-6">
-      <SectionHeader title={t("transfer.title")} desc={t("transfer.desc")}>
-        <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4" /> {t("transfer.new_request")}</Button>
+      <SectionHeader title={t("transfer_request.title")} desc={t("transfer_request.desc")}>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={refresh} className="text-cream/80 hover:bg-white/10 hover:text-cream">
+            <RefreshCw className="size-3.5 me-1" /> {t("common.refresh")}
+          </Button>
+        </div>
       </SectionHeader>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <TransferList title={t("transfer.pending_sent")} items={outgoing} onSet={setStatus} canAct={false} />
-        <TransferList title={t("transfer.received_requests")} items={incoming} onSet={setStatus} canAct />
+      <div>
+        <h3 className="mb-3 text-sm font-semibold text-cream">{t("transfer_request.available_title")}</h3>
+        <AvailableRequestsFeed requests={available} loading={loading} isAccepting={isAccepting} onAccept={acceptRequest} />
       </div>
 
-      <GlassCard className="p-4">
-        <h3 className="mb-3 text-sm font-semibold text-cream">{t("transfer.history")}</h3>
-        <div className="overflow-hidden rounded-xl border border-white/10">
-          <Table>
-            <TableHeader>
-              <TableRow className="border-white/10 hover:bg-transparent">
-                <TableHead className="text-cream/70">{t("common.id")}</TableHead>
-                <TableHead className="text-cream/70">{t("transfer.direction")}</TableHead>
-                <TableHead className="text-cream/70">{t("transfer.from_to")}</TableHead>
-                <TableHead className="text-cream/70">{t("section.product")}</TableHead>
-                <TableHead className="text-cream/70">{t("transfer.qty")}</TableHead>
-                <TableHead className="text-cream/70">{t("transfer.priority")}</TableHead>
-                <TableHead className="text-cream/70">{t("employee.status")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {transfers.map((tr) => (
-                <TableRow key={tr.id} className="border-white/10 text-cream hover:bg-white/5">
-                  <TableCell className="font-mono text-xs">{tr.id}</TableCell>
-                  <TableCell className="capitalize">{tr.direction}</TableCell>
-                  <TableCell className="text-cream/70">{tr.fromWarehouse} → {tr.toWarehouse}</TableCell>
-                  <TableCell>{tr.product}</TableCell>
-                  <TableCell>{tr.qty}</TableCell>
-                  <TableCell><Badge variant="outline" className="border-white/20 text-cream/90">{tr.priority}</Badge></TableCell>
-                  <TableCell><Badge className={cn("border", statusBadge(tr.status))}>{tr.status}</Badge></TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </GlassCard>
-
-      <NewTransferDialog
-        open={open}
-        onOpenChange={setOpen}
-        products={products}
-        warehouseName={warehouseName}
-        onCreate={(t) => setTransfers((prev) => [t, ...prev])}
-      />
+      <MyWarehouseRequests requests={mine} loading={loading} products={products} submitting={creating} onCreate={createRequest} />
     </div>
-  );
-}
-
-function TransferList({
-  title, items, onSet, canAct,
-}: { title: string; items: Transfer[]; onSet: (id: string, s: TransferStatus) => void; canAct: boolean }) {
-  const { t } = useTranslation();
-  return (
-    <GlassCard className="p-5">
-      <h3 className="mb-3 text-sm font-semibold text-cream">{title}</h3>
-      <div className="space-y-3">
-        {items.length === 0 && <p className="text-sm text-cream/60">{t("transfer.no_transfers")}</p>}
-        {items.map((tr) => (
-          <div key={tr.id} className="rounded-xl bg-white/5 p-3 text-sm text-cream">
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <p className="font-medium">{tr.product} · {t("common.units", { count: tr.qty })}</p>
-                <p className="text-xs text-cream/60">{tr.fromWarehouse} → {tr.toWarehouse}</p>
-              </div>
-              <Badge className={cn("border", statusBadge(tr.status))}>{tr.status}</Badge>
-            </div>
-            {canAct && tr.status === "Pending Approval" && (
-              <div className="mt-3 flex gap-2">
-                <Button size="sm" onClick={() => onSet(tr.id, "Approved")}>{t("transfer.approve")}</Button>
-<Button 
-  size="sm" 
-  variant="outline" 
-  className="bg-white/10 text-[#1D2D44] border-white/30 hover:bg-white/20 hover:text-[#1D2D44]" 
-  onClick={() => onSet(tr.id, "Rejected")}
->
-  {t("transfer.reject")}
-</Button>              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    </GlassCard>
-  );
-}
-
-function NewTransferDialog({
-  open, onOpenChange, products, warehouseName, onCreate,
-}: { open: boolean; onOpenChange: (o: boolean) => void; products: Product[]; warehouseName: string; onCreate: (t: Transfer) => void }) {
-  const { t } = useTranslation();
-  const otherWarehouses = ALL_WAREHOUSES.filter((w) => w.id !== CURRENT_WAREHOUSE.id);
-  const [form, setForm] = useState({ source: otherWarehouses[0].name, product: products[0]?.name ?? "", qty: 100, priority: "Medium" as Transfer["priority"], notes: "" });
-  const [loading, setLoading] = useState(false);
-
-  const submit = () => {
-    setLoading(true);
-    setTimeout(() => {
-      onCreate({
-        id: `TR-${Math.floor(200 + Math.random() * 800)}`,
-        direction: "outgoing",
-        fromWarehouse: warehouseName || CURRENT_WAREHOUSE.name,
-        toWarehouse: form.source,
-        product: form.product,
-        qty: form.qty,
-        priority: form.priority,
-        status: "Pending Approval",
-        createdAt: new Date().toISOString().slice(0, 10),
-        notes: form.notes,
-      });
-      toast.success(t("transfer.request_submitted"));
-      setLoading(false);
-      onOpenChange(false);
-    }, 600);
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle className="text-[#1D2D44]">{t("transfer.new_request")}</DialogTitle>
-          <DialogDescription>{t("transfer.new_request_desc")}</DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-2 sm:col-span-2">
-            <Label className="text-[#1D2D44]">{t("transfer.source_warehouse")}</Label>
-    <Select value={form.source} onValueChange={(v) => setForm({ ...form, source: v })}>
-      <SelectTrigger className="text-[#1D2D44] border-[#1D2D44]/20 bg-transparent focus:ring-[#1D2D44]">
-        <SelectValue className="text-[#1D2D44] placeholder:text-[#1D2D44]/50" />
-      </SelectTrigger>
-      <SelectContent className="bg-[#eeebdd] text-[#1D2D44] border-[#1D2D44]/20">
-        {otherWarehouses.map((w) => (
-          <SelectItem 
-            key={w.id} 
-            value={w.name} 
-            className="text-[#1D2D44] focus:bg-[#f2a618] focus:text-[#1D2D44] cursor-pointer"
-          >
-            {w.name}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  </div>
-
-  {/* Product */}
-  <div className="space-y-2">
-    <Label className="text-[#1D2D44]">{t("section.product")}</Label>
-    <Select value={form.product} onValueChange={(v) => setForm({ ...form, product: v })}>
-      <SelectTrigger className="text-[#1D2D44] border-[#1D2D44]/20 bg-transparent focus:ring-[#1D2D44]">
-        <SelectValue className="text-[#1D2D44] placeholder:text-[#1D2D44]/50" />
-      </SelectTrigger>
-      <SelectContent className="bg-[#eeebdd] text-[#1D2D44] border-[#1D2D44]/20">
-        {products.map((p) => (
-          <SelectItem 
-            key={p.id} 
-            value={p.name} 
-            className="text-[#1D2D44] focus:bg-[#f2a618] focus:text-[#1D2D44] cursor-pointer"
-          >
-            {p.name}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  </div>
-
-  {/* Quantity */}
-  <div className="space-y-2">
-    <Label className="text-[#1D2D44]">{t("inventory.quantity")}</Label>
-    <Input 
-      type="number" 
-      value={form.qty} 
-      onChange={(e) => setForm({ ...form, qty: parseInt(e.target.value || "0", 10) })} 
-      className="text-[#1D2D44] focus:text-[#1D2D44] focus-visible:text-[#1D2D44] border-[#1D2D44]/20"
-    />
-  </div>
-
-  {/* Priority */}
-  <div className="space-y-2 sm:col-span-2">
-    <Label className="text-[#1D2D44]">{t("transfer.priority")}</Label>
-    <Select value={form.priority} onValueChange={(v) => setForm({ ...form, priority: v as Transfer["priority"] })}>
-      <SelectTrigger className="text-[#1D2D44] border-[#1D2D44]/20 bg-transparent focus:ring-[#1D2D44]">
-        <SelectValue className="text-[#1D2D44] placeholder:text-[#1D2D44]/50" />
-      </SelectTrigger>
-      <SelectContent className="bg-[#eeebdd] text-[#1D2D44] border-[#1D2D44]/20">
-        <SelectItem value="High" className="text-[#1D2D44] focus:bg-[#f2a618] focus:text-[#1D2D44] cursor-pointer">{t("transfer.priority.high")}</SelectItem>
-        <SelectItem value="Medium" className="text-[#1D2D44] focus:bg-[#f2a618] focus:text-[#1D2D44] cursor-pointer">{t("transfer.priority.medium")}</SelectItem>
-        <SelectItem value="Low" className="text-[#1D2D44] focus:bg-[#f2a618] focus:text-[#1D2D44] cursor-pointer">{t("transfer.priority.low")}</SelectItem>
-      </SelectContent>
-    </Select>
-  </div>
-
-  {/* Internal notes */}
-  <div className="space-y-2 sm:col-span-2">
-    <Label className="text-[#1D2D44]">{t("transfer.internal_notes")}</Label>
-    <Textarea 
-      value={form.notes} 
-      onChange={(e) => setForm({ ...form, notes: e.target.value })} 
-      rows={3} 
-      className="text-[#1D2D44] focus:text-[#1D2D44] focus-visible:text-[#1D2D44] border-[#1D2D44]/20 placeholder:text-[#1D2D44]/50"
-    />
-  </div>
-</div>
-<DialogFooter>
-  <Button 
-  variant="outline" 
-  className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#d99415] hover:text-[#1D2D44] border border-[#1D2D44]/20" 
-  onClick={() => onOpenChange(false)}
->
-  {t("common.cancel")}
-</Button>          <Button onClick={submit} disabled={loading}>
-            {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-            {t("transfer.submit_request")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 
@@ -1697,6 +1481,8 @@ function StatisticsSection({ workers }: { workers: Worker[] }) {
   const productivity = workers
     .filter((w) => w.status === "active")
     .map((w) => ({ name: w.name.split(" ")[0], orders: w.ordersProcessed, avg: w.avgHandlingMin }));
+
+  const peakHours: { hour: string; activity: number }[] = [];
 
   const heatMax = Math.max(...peakHours.map((p) => p.activity));
 
@@ -1733,7 +1519,7 @@ function StatisticsSection({ workers }: { workers: Worker[] }) {
           <h3 className="mb-3 text-sm font-semibold text-cream">{t("manager.monthly_volume")}</h3>
           <div className="h-72">
             <ResponsiveContainer>
-              <BarChart data={monthlyVolume}>
+              <BarChart data={[]}>
                 <CartesianGrid stroke="rgba(255,255,255,0.08)" />
                 <XAxis dataKey="month" stroke="#F0EBD8" tick={{ fontSize: 11 }} />
                 <YAxis stroke="#F0EBD8" tick={{ fontSize: 11 }} />
@@ -1750,7 +1536,7 @@ function StatisticsSection({ workers }: { workers: Worker[] }) {
           <h3 className="mb-3 text-sm font-semibold text-cream">{t("manager.attendance_week")}</h3>
           <div className="h-64">
             <ResponsiveContainer>
-              <LineChart data={attendanceTrend}>
+              <LineChart data={[]}>
                 <CartesianGrid stroke="rgba(255,255,255,0.08)" />
                 <XAxis dataKey="day" stroke="#F0EBD8" tick={{ fontSize: 11 }} />
                 <YAxis stroke="#F0EBD8" tick={{ fontSize: 11 }} />
@@ -1790,139 +1576,105 @@ function StatisticsSection({ workers }: { workers: Worker[] }) {
 
 /* ---------- Reports ---------- */
 
-function ReportsSection({ warehouseName }: { warehouseName: string }) {
-  const { t } = useTranslation();
-  const [type, setType] = useState("Inventory Report");
-  const [from, setFrom] = useState("2026-05-01");
-  const [to, setTo] = useState("2026-05-13");
-  const [format, setFormat] = useState("PDF");
-  const [generating, setGenerating] = useState(false);
-  const [preview, setPreview] = useState(false);
-  const [history, setHistory] = useState([
-    { id: "RPT-018", type: "Order Summary", date: "2026-05-10", format: "PDF" },
-    { id: "RPT-017", type: "Worker Performance", date: "2026-05-03", format: "Excel" },
-  ]);
+const MANAGER_REPORTS: { key: "orders" | "returns" | "tasks"; label: string; desc: string }[] = [
+  { key: "orders", label: "manager.report_orders", desc: "report.orders.desc" },
+  { key: "returns", label: "manager.report_returns", desc: "report.returns.desc" },
+  { key: "tasks", label: "manager.report_tasks", desc: "report.tasks.desc" },
+];
 
-  const generate = () => {
-    setGenerating(true);
-    setTimeout(() => {
-      setGenerating(false);
-      setPreview(true);
-      setHistory((h) => [{ id: `RPT-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, type, date: to, format }, ...h]);
-      toast.success(t("report.ready", { type, format }));
-    }, 900);
+function ReportsSection({ slug }: { slug: string | null }) {
+  const { t } = useTranslation();
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const reportUrl = (report: string, ext: "pdf" | "excel") => {
+    const params = new URLSearchParams();
+    if (from) params.set("date_from", from);
+    if (to) params.set("date_to", to);
+    const qs = params.toString();
+    return `/${slug}/manager/reports/${report}/${ext}${qs ? `?${qs}` : ""}`;
   };
+
+  const openPdf = (report: string) => {
+    window.open(reportUrl(report, "pdf"), "_blank");
+  };
+
+  const downloadExcel = async (report: string) => {
+    const id = `${report}-excel`;
+    setBusy(id);
+    try {
+      await getCsrfCookie();
+      const res = await api.get(reportUrl(report, "excel"), { responseType: "blob" });
+      const blobUrl = URL.createObjectURL(res.data);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = `${report}-report.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+      toast.success(t("manager.excel_downloaded", { report: t(`manager.report_${report}`) }));
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { message?: string } }; message?: string };
+      const msg = e?.response?.data?.message || e?.message || t("manager.download_failed");
+      toast.error(typeof msg === "string" ? msg : t("manager.download_failed"));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  if (!slug) return null;
 
   return (
     <div className="space-y-6">
       <SectionHeader title={t("report.title")} desc={t("report.desc")} />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <GlassCard className="p-5 lg:col-span-2">
-          <h3 className="mb-4 text-sm font-semibold text-cream">{t("report.generate")}</h3>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label className="text-cream/80">{t("report.type")}</Label>
-              <Select value={type} onValueChange={setType}>
-                <SelectTrigger className="border-white/15 bg-white/5 text-cream"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Inventory Report">Inventory Report</SelectItem>
-                  <SelectItem value="Worker Performance">Worker Performance</SelectItem>
-                  <SelectItem value="Order Summary">Order Summary</SelectItem>
-                  <SelectItem value="Transfer History">Transfer History</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-cream/80">{t("report.format")}</Label>
-              <Select value={format} onValueChange={setFormat}>
-                <SelectTrigger className="border-white/15 bg-white/5 text-cream"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="PDF">PDF</SelectItem>
-                  <SelectItem value="Excel">Excel (CSV)</SelectItem>
-                  <SelectItem value="Print">Print</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-cream/80">{t("inventory.from")}</Label>
-              <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="border-white/15 bg-white/5 text-cream" />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-cream/80">{t("inventory.to")}</Label>
-              <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="border-white/15 bg-white/5 text-cream" />
-            </div>
-          </div>
-          <div className="mt-4 flex items-center gap-2">
-            <Button onClick={generate} disabled={generating}>
-              {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-              {t("report.generate")}
-            </Button>
-           <Button 
-  variant="outline" 
-  className="border-[#eeebdd]/30 bg-[#1D2D44]/20 text-[#eeebdd] hover:bg-[#1D2D44]/40 hover:text-[#eeebdd]" 
-  onClick={() => toast.success(t("report.schedule_saved"))}
->
-  {t("report.schedule_weekly")}
-</Button>
-          </div>
-        </GlassCard>
-
-        <GlassCard className="p-5">
-          <h3 className="mb-3 text-sm font-semibold text-cream">{t("report.saved")}</h3>
+      <GlassCard className="p-5">
+        <div className="grid gap-3 sm:grid-cols-2 lg:max-w-xl">
           <div className="space-y-2">
-            {history.map((r) => (
-              <div key={r.id} className="flex items-center justify-between rounded-xl bg-white/5 p-3 text-sm text-cream">
-                <div>
-                  <p className="font-medium">{r.type}</p>
-                  <p className="text-xs text-cream/60">{r.id} · {r.date} · {r.format}</p>
-                </div>
-                <div className="flex gap-1">
-                  <Button size="icon" variant="ghost" className="text-cream hover:bg-white/10"><Download className="h-4 w-4" /></Button>
-                  <Button size="icon" variant="ghost" className="text-cream hover:bg-white/10"><Printer className="h-4 w-4" /></Button>
-                </div>
-              </div>
-            ))}
+            <Label className="text-cream/80">{t("inventory.from")}</Label>
+            <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="border-white/15 bg-white/5 text-cream" />
           </div>
-        </GlassCard>
+          <div className="space-y-2">
+            <Label className="text-cream/80">{t("inventory.to")}</Label>
+            <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="border-white/15 bg-white/5 text-cream" />
+          </div>
+        </div>
+      </GlassCard>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        {MANAGER_REPORTS.map((r) => (
+          <GlassCard key={r.key} className="p-5">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-cream">{t(r.label)}</h3>
+              <FileText className="h-4 w-4 text-cream/50" />
+            </div>
+            <p className="mt-1 text-xs text-cream/60">{t(r.desc)}</p>
+            <div className="mt-4 flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1 border-white/15 bg-white/5 text-cream hover:bg-white/10"
+                onClick={() => downloadExcel(r.key)}
+                disabled={busy === `${r.key}-excel`}
+              >
+                {busy === `${r.key}-excel` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                {t("report.excel")}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1 border-white/15 bg-white/5 text-cream hover:bg-white/10"
+                onClick={() => openPdf(r.key)}
+              >
+                <Download className="h-4 w-4" />
+                {t("report.pdf")}
+              </Button>
+            </div>
+          </GlassCard>
+        ))}
       </div>
-
-      <Dialog open={preview} onOpenChange={setPreview}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-[#1D2D44]">{t("report.preview_title", { type })}</DialogTitle>
-            <DialogDescription>{from} → {to} · {format}</DialogDescription>
-          </DialogHeader>
-          <div className="rounded-xl bg-muted p-6 text-sm">
-            <h4  className="mb-2 font-semibold text-[#1D2D44]">{warehouseName}</h4>
-            <p className="text-muted-foreground">{t("report.demo_preview", { type: type.toLowerCase() })}</p>
-            <div className="mt-4 grid grid-cols-3 gap-3 text-xs">
-              <div className="rounded-lg bg-[#eeebdd] p-3 border border-[#1D2D44]/15">
-  <p className="text-xs font-medium text-[#1D2D44]/70">{t("report.records")}</p>
-  <p className="text-lg font-semibold text-[#1D2D44]">312</p>
-</div>
-
-<div className="rounded-lg bg-[#eeebdd] p-3 border border-[#1D2D44]/15">
-  <p className="text-xs font-medium text-[#1D2D44]/70">{t("report.total_volume")}</p>
-  <p className="text-lg font-semibold text-[#1D2D44]">8,420</p>
-</div>
-
-<div className="rounded-lg bg-[#eeebdd] p-3 border border-[#1D2D44]/15">
-  <p className="text-xs font-medium text-[#1D2D44]/70">{t("report.net_change")}</p>
-  <p className="text-lg font-semibold text-[#1D2D44]">+12.4%</p>
-</div>            </div>
-          </div>
-          <DialogFooter>
-<Button 
-  variant="outline" 
-  className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#d99415] hover:text-[#1D2D44] border border-[#1D2D44]/20" 
-  onClick={() => setPreview(false)}
->
-  {t("common.close")}
-</Button>            <Button onClick={() => { toast.success(t("report.download_started")); setPreview(false); }}><Download className="h-4 w-4" /> {t("report.download")}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
@@ -2081,7 +1833,7 @@ function WalletSection({ user }: { user: { name: string; whmId: string } }) {
                   <TableCell className="text-cream/80 font-mono text-xs">app.company.com/{s.slok}</TableCell>
                   <TableCell className="text-cream/70">{s.requestDate}</TableCell>
                   <TableCell>
-                    <Badge className={cn("capitalize", statusColor(s.status))}>{s.status}</Badge>
+                    <Badge className={cn("capitalize", statusColor(s.status))}>{t(`subscriber.status.${s.status}`)}</Badge>
                   </TableCell>
                 </TableRow>
               ))}

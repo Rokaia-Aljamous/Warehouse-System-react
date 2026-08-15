@@ -38,7 +38,7 @@ function ForcePasswordChange() {
       const parsed = JSON.parse(raw);
       if (parsed.must_change_password === false) {
         if (parsed.role === "warehouse_secretary") {
-          navigate({ to: "/supervisor/dashboard", replace: true });
+          navigate({ to: "/secretary", replace: true });
         } else {
           navigate({ to: "/manager", replace: true });
         }
@@ -92,7 +92,7 @@ function ForcePasswordChange() {
       }
       toast.success(t("settings.password_changed"));
       if (redirectRole === "warehouse_secretary") {
-        navigate({ to: "/supervisor/dashboard", replace: true });
+        navigate({ to: "/secretary", replace: true });
       } else {
         navigate({ to: "/manager", replace: true });
       }

@@ -40,6 +40,8 @@ import {
   Globe,
   Fingerprint,
   Radio,
+  FileText,
+  Download,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
@@ -65,6 +67,8 @@ import {
   Cell,
 } from "recharts";
 
+import { AppLogo } from "@/components/AppLogo";
+import { NotificationsBell } from "@/components/NotificationsBell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -105,20 +109,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
-import {
-  initialManagers,
-  initialWarehouseTypes,
-  inventoryTrend,
-  shipmentsData,
-  recentActivity,
-  walletTransactions,
-  type Manager,
-  type WarehouseType,
-} from "@/lib/demo-data";
+
 import { ProfilePictureUpload } from "@/components/ProfilePictureUpload";
 import { getProfilePic, subscribeProfilePic } from "@/lib/profile-storage";
-import { subscriptionStore, type SubscriptionRequest } from "@/lib/subscription-data";
 import { cn } from "@/lib/utils";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import {
@@ -126,11 +121,16 @@ import {
   setStoredUser,
   clearStoredUser,
   getCsrfCookie,
+  api,
   loginDashboard,
   logoutDashboard,
+  forgotDashboardPassword,
+  resetDashboardPassword,
 } from "@/lib/api";
-import { fetchMe } from "@/lib/manager-api";
+import { fetchMe, fetchInventoryMovements, getMovementTypeKey, type InventoryMovement } from "@/lib/manager-api";
 import { assignBiometricDevice } from "@/lib/biometric-api";
+import { OwnerAnalytics } from "@/components/analytics/OwnerAnalytics";
+import { formatNumber, formatMoney } from "@/lib/analytics-api";
 import {
   fetchWarehouses,
   createWarehouse,
@@ -151,6 +151,7 @@ import {
   deleteEmployee,
   logoutEmployee,
   getTypeStyle,
+  getWarehouseTypeKey,
   type Warehouse as BackendWarehouse,
   type WarehouseInput,
   type Product,
@@ -180,6 +181,7 @@ type SectionId =
   | "products"
   | "shipments"
   | "analytics"
+  | "reports"
   | "wallet"
   | "settings";
 
@@ -194,6 +196,7 @@ const NAV: {
   { id: "products", labelKey: "sidebar.products", icon: Package },
   { id: "shipments", labelKey: "sidebar.shipments", icon: Truck },
   { id: "analytics", labelKey: "feature.analytics", icon: BarChart3 },
+  { id: "reports", labelKey: "sidebar.reports", icon: FileText },
   { id: "wallet", labelKey: "sidebar.wallet", icon: Wallet },
   { id: "settings", labelKey: "sidebar.settings", icon: SettingsIcon },
 ];
@@ -207,14 +210,41 @@ const ICON_MAP: Record<string, React.ComponentType<React.SVGProps<SVGSVGElement>
   Warehouse,
 };
 
+type ManagerStatus = "active" | "inactive";
+
+interface ManagerItem {
+  id: string;
+  whmId: string;
+  name: string;
+  age: number;
+  password: string;
+  warehouseId: string;
+  status: ManagerStatus;
+  isTempPassword: boolean;
+  lastPasswordChange: string;
+  role?: "Manager" | "Supervisor" | "Lead";
+  email?: string;
+  phone?: string;
+  salary?: number;
+  joinDate?: string;
+}
+
+interface WarehouseTypeOption {
+  id: string;
+  name: string;
+  description: string;
+  color: string;
+  icon: string;
+  status: "active" | "inactive";
+}
+
 export function DashboardPage() {
   const { t } = useTranslation();
   const [section, setSection] = useState<SectionId>("dashboard");
   const [collapsed, setCollapsed] = useState(false);
-  const [managers, setManagers] = useState<Manager[]>([]);
-  const [types, setTypes] = useState<WarehouseType[]>(initialWarehouseTypes);
+  const [managers, setManagers] = useState<ManagerItem[]>([]);
   const [avatar, setAvatar] = useState<string | null>(null);
-  const [slug, setSlug] = useState<string | null>(getStoredUser()?.tenant?.url_slug ?? null);
+  const [slug, setSlug] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const storedUser = getStoredUser();
   const userInitials = storedUser?.full_name
@@ -230,6 +260,14 @@ export function DashboardPage() {
   const [loginUsername, setLoginUsername] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
+  const [authStep, setAuthStep] = useState<"login" | "forgot" | "reset">("login");
+  const [forgotPhone, setForgotPhone] = useState("");
+  const [forgotSending, setForgotSending] = useState(false);
+  const [debugOtp, setDebugOtp] = useState<string | null>(null);
+  const [resetOtp, setResetOtp] = useState("");
+  const [resetPw, setResetPw] = useState("");
+  const [resetConfirm, setResetConfirm] = useState("");
+  const [resetSending, setResetSending] = useState(false);
 
   const handleLogout = async () => {
     if (!slug) return;
@@ -242,6 +280,80 @@ export function DashboardPage() {
     clearStoredUser();
     setSlug(null);
     setLogoutLoading(false);
+  };
+
+  const sendForgotOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!loginSlug.trim()) {
+      toast.error(t("auth.slug_required"));
+      return;
+    }
+    if (!forgotPhone.trim()) {
+      toast.error(t("auth.phone_required"));
+      return;
+    }
+    setForgotSending(true);
+    setDebugOtp(null);
+    try {
+      await getCsrfCookie();
+      const res = await forgotDashboardPassword(loginSlug.trim(), forgotPhone.trim());
+      if (res.debug_otp && import.meta.env.DEV) {
+        setDebugOtp(res.debug_otp);
+      }
+      setAuthStep("reset");
+      toast.success(t("auth.otp_sent"));
+    } catch (err: any) {
+      const firstErrorKey = Object.keys(err.response?.data?.errors ?? {})[0];
+      const msg =
+        err.response?.data?.message ||
+        err.response?.data?.errors?.[firstErrorKey]?.[0] ||
+        t("auth.send_otp_failed");
+      toast.error(msg);
+    } finally {
+      setForgotSending(false);
+    }
+  };
+
+  const submitReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (resetOtp.length !== 6) {
+      toast.error(t("auth.otp_invalid_length"));
+      return;
+    }
+    if (resetPw.length < 8) {
+      toast.error(t("auth.password_too_short"));
+      return;
+    }
+    if (resetPw !== resetConfirm) {
+      toast.error(t("auth.password_mismatch"));
+      return;
+    }
+    setResetSending(true);
+    try {
+      await getCsrfCookie();
+      await resetDashboardPassword(loginSlug.trim(), {
+        phone_number: forgotPhone.trim(),
+        otp: resetOtp,
+        password: resetPw,
+        password_confirmation: resetConfirm,
+      });
+      setAuthStep("login");
+      setDebugOtp(null);
+      setResetOtp("");
+      setResetPw("");
+      setResetConfirm("");
+      setLoginPw("");
+      toast.success(t("auth.password_reset_success"));
+    } catch (err: any) {
+      const firstErrorKey = Object.keys(err.response?.data?.errors ?? {})[0];
+      const msg =
+        err.response?.data?.message ||
+        err.response?.data?.errors?.[firstErrorKey]?.[0] ||
+        t("auth.reset_failed");
+      toast.error(msg);
+    } finally {
+      setResetSending(false);
+    }
   };
 
   useEffect(() => {
@@ -262,6 +374,7 @@ export function DashboardPage() {
           setSlug(null);
           return;
         }
+        setSlug(initialSlug);
         const stored = getStoredUser();
         if (stored && me.email) {
           setStoredUser({ ...stored, email: me.email });
@@ -293,12 +406,13 @@ export function DashboardPage() {
       <div className="flex min-h-screen items-center justify-center bg-[#0f1b2d] px-4">
         <div className="w-full max-w-md">
           <div className="mb-6 text-center">
-            <div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-xl bg-[#f3a523] shadow-lg">
-              <Warehouse className="size-6 text-[#1a2942]" />
+            <div className="mx-auto mb-3">
+              <AppLogo className="size-12" />
             </div>
             <h1 className="text-2xl font-bold text-[#f0ecdb]">{t("app.name")}</h1>
             <p className="mt-1 text-sm text-[#f0ecdb]/60">{t("manager.login.subtitle")}</p>
           </div>
+          {authStep === "login" ? (
           <form
             onSubmit={async (e) => {
               e.preventDefault();
@@ -410,7 +524,130 @@ export function DashboardPage() {
                 </>
               )}
             </button>
+            <button
+              type="button"
+              onClick={() => setAuthStep("forgot")}
+              className="w-full text-center text-sm font-medium text-[#1a2942]/70 transition hover:text-[#1a2942]"
+            >
+              {t("auth.forgot_password")}
+            </button>
           </form>
+          ) : authStep === "forgot" ? (
+            <form onSubmit={sendForgotOtp} className="space-y-4 rounded-2xl bg-[#f0ecdb] p-6 shadow-xl">
+              <h2 className="text-center text-lg font-bold text-[#1a2942]">{t("auth.forgot_password")}</h2>
+              <p className="text-center text-sm text-[#1a2942]/70">{t("auth.forgot_desc")}</p>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-[#1a2942]">
+                  {t("auth.phone_number")}
+                </label>
+                <input
+                  value={forgotPhone}
+                  onChange={(e) => setForgotPhone(e.target.value)}
+                  placeholder={t("auth.phone_number")}
+                  required
+                  className="w-full rounded-xl border border-[#1a2942]/20 bg-white px-4 py-2.5 text-sm text-[#1a2942] outline-none transition focus:border-[#f3a523]"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={forgotSending}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a2942] py-2.5 text-sm font-semibold text-[#f0ecdb] transition hover:bg-[#26384c] disabled:opacity-60"
+              >
+                {forgotSending ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" /> {t("auth.sending_otp")}
+                  </>
+                ) : (
+                  <>
+                    <Send className="size-4" /> {t("auth.send_otp")}
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuthStep("login")}
+                className="w-full text-center text-sm font-medium text-[#1a2942]/70 transition hover:text-[#1a2942]"
+              >
+                {t("auth.back_to_login")}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={submitReset} className="space-y-4 rounded-2xl bg-[#f0ecdb] p-6 shadow-xl">
+              <h2 className="text-center text-lg font-bold text-[#1a2942]">{t("auth.reset_password")}</h2>
+              <p className="text-center text-sm text-[#1a2942]/70">{t("auth.check_whatsapp")}</p>
+              {debugOtp && (
+                <div className="rounded-xl border border-[#f3a523]/40 bg-[#f3a523]/10 px-4 py-2.5 text-center text-sm font-medium text-[#1a2942]">
+                  {t("auth.dev_otp_helper")}: {debugOtp}
+                </div>
+              )}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-[#1a2942]">
+                  {t("auth.enter_otp")}
+                </label>
+                <InputOTP
+                  maxLength={6}
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={resetOtp}
+                  onChange={setResetOtp}
+                >
+                  <InputOTPGroup className="gap-0">
+                    {[0, 1, 2, 3, 4, 5].map((i) => (
+                      <InputOTPSlot key={i} index={i} />
+                    ))}
+                  </InputOTPGroup>
+                </InputOTP>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-[#1a2942]">
+                  {t("auth.new_password")}
+                </label>
+                <input
+                  type="password"
+                  value={resetPw}
+                  onChange={(e) => setResetPw(e.target.value)}
+                  placeholder={t("auth.new_password")}
+                  required
+                  className="w-full rounded-xl border border-[#1a2942]/20 bg-white px-4 py-2.5 text-sm text-[#1a2942] outline-none transition focus:border-[#f3a523]"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-[#1a2942]">
+                  {t("auth.confirm_password")}
+                </label>
+                <input
+                  type="password"
+                  value={resetConfirm}
+                  onChange={(e) => setResetConfirm(e.target.value)}
+                  placeholder={t("auth.confirm_password")}
+                  required
+                  className="w-full rounded-xl border border-[#1a2942]/20 bg-white px-4 py-2.5 text-sm text-[#1a2942] outline-none transition focus:border-[#f3a523]"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={
+                  resetSending || resetOtp.length !== 6 || !resetPw || resetPw !== resetConfirm
+                }
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a2942] py-2.5 text-sm font-semibold text-[#f0ecdb] transition hover:bg-[#26384c] disabled:opacity-60"
+              >
+                {resetSending ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" /> {t("auth.resetting")}
+                  </>
+                ) : (
+                  <>{t("auth.reset_password")}</>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuthStep("login")}
+                className="w-full text-center text-sm font-medium text-[#1a2942]/70 transition hover:text-[#1a2942]"
+              >
+                {t("auth.back_to_login")}
+              </button>
+            </form>
+          )}
         </div>
       </div>
     );
@@ -427,9 +664,7 @@ export function DashboardPage() {
       >
         <div className="flex h-16 items-center justify-between px-4">
           <Link to="/" className="flex items-center gap-2.5">
-            <div className="flex size-9 items-center justify-center rounded-xl bg-[oklch(0.78_0.16_75)] shadow-lg">
-              <Warehouse className="size-5 text-white" />
-            </div>
+            <AppLogo className="size-9" />
             {!collapsed && <span className="text-base font-bold">{t("app.name")}</span>}
           </Link>
           <button
@@ -527,15 +762,14 @@ export function DashboardPage() {
           </h1>
           <div className="ms-auto flex items-center gap-2 md:gap-3">
             <LanguageToggle variant="header" />
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button className="relative rounded-full p-2 text-cream/80 transition hover:bg-white/10">
-                  <Bell className="size-4" />
-                  <span className="absolute end-1.5 top-1.5 size-2 rounded-full bg-[oklch(0.78_0.16_75)]" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>{t("dashboard.notifications", { count: 3 })}</TooltipContent>
-            </Tooltip>
+<div className="relative hidden md:block">
+              <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-cream/50" />
+              <input
+                placeholder={t("dashboard.search_placeholder")}
+                className="h-9 w-64 rounded-full border border-white/15 bg-white/5 ps-9 pe-3 text-sm text-cream placeholder:text-cream/40 outline-none transition focus:w-72 focus:border-[oklch(0.78_0.16_75)]/60"
+              />
+            </div>
+            <NotificationsBell slug={slug} />
             <div className="flex items-center gap-2 rounded-full border border-white/15 bg-white/5 py-1 ps-1 pe-3">
               <div className="flex size-7 items-center justify-center overflow-hidden rounded-full bg-[oklch(0.78_0.16_75)] text-xs font-bold text-navy">
                 {avatar ? (
@@ -567,24 +801,13 @@ export function DashboardPage() {
             >
               {section === "dashboard" && <Overview slug={slug} />}
               {section === "managers" && (
-                <ManagersSection
-                  slug={slug}
-                  managers={managers}
-                  setManagers={setManagers}
-                  types={types}
-                />
+                <ManagersSection slug={slug} managers={managers} setManagers={setManagers} />
               )}
-              {section === "warehouses" && (
-                <WarehousesSection
-                  types={types}
-                  setTypes={setTypes}
-                  managers={managers}
-                  slug={slug}
-                />
-              )}
+              {section === "warehouses" && <WarehouseManager slug={slug} />}
               {section === "products" && <ProductsSection slug={slug} />}
               {section === "shipments" && <ShipmentsSection slug={slug} />}
               {section === "analytics" && <AnalyticsSection slug={slug} />}
+              {section === "reports" && <OwnerReportsSection slug={slug} />}
               {section === "wallet" && <WalletSection />}
               {section === "settings" && <SettingsSection />}
             </motion.div>
@@ -609,65 +832,90 @@ function Overview({ slug }: { slug: string | null }) {
   const { t } = useTranslation();
   const [data, setData] = useState<{
     warehouses: number;
+    allowedWarehouses: number;
     products: number;
     shipments: number;
+    totalShipments: number;
+    pendingShipments: number;
+    inventoryUnits: number;
     employees: number;
+    activeManagers: number;
+    movements: InventoryMovement[];
   } | null>(null);
 
   useEffect(() => {
     if (!slug) return;
-    Promise.all([
-      fetchWarehouses(slug).catch(() => ({
-        warehouses: [],
-        allowed_warehouses_count: 0,
-        current_warehouses_count: 0,
-      })),
-      fetchProducts(slug).catch(() => ({ products: [] })),
-      fetchShipments(slug).catch(() => ({ shipments: [] })),
-    ]).then(([wRes, pRes, sRes]) => {
-      const employees = new Set<number>();
-      for (const w of wRes.warehouses) {
-        fetchEmployees(slug, w.id)
-          .then((eRes) => {
-            eRes.employees.forEach((e) => employees.add(e.id));
-          })
-          .catch(() => {});
-      }
+let cancelled = false;
+    (async () => {
+      const [wRes, pRes, sRes, mRes] = await Promise.all([
+        fetchWarehouses(slug).catch(() => ({ warehouses: [], allowed_warehouses_count: 0, current_warehouses_count: 0 })),
+        fetchProducts(slug).catch(() => ({ products: [] })),
+        fetchShipments(slug).catch(() => ({ shipments: [] })),
+        fetchInventoryMovements(slug).catch(() => ({
+          inventory_movements: [],
+          meta: { current_page: 1, per_page: 1, total: 0, last_page: 1 },
+        })),
+      ]);
+
+      const employeeResults = await Promise.all(
+        wRes.warehouses.map((w) => fetchEmployees(slug, w.id).catch(() => ({ employees: [] }))),
+      );
+      const employees = employeeResults.flatMap((r) => r.employees);
+      const activeManagers = employees.filter((e) =>
+        (e.role === "manager" || e.role === "warehouse_secretary") && e.status === "available",
+      ).length;
+
+      const now = new Date();
+      const inventoryUnits = wRes.warehouses.reduce(
+        (sum, w) => sum + (w.products ?? []).reduce((s, p) => s + (p.pivot.quantity ?? 0), 0),
+        0,
+      );
+
+      if (cancelled) return;
       setData({
         warehouses: wRes.warehouses.length,
+        allowedWarehouses: wRes.allowed_warehouses_count,
         products: pRes.products.length,
-        shipments: sRes.shipments.length,
-        employees: 0,
+        shipments: sRes.shipments.filter((s) => {
+          if (!s.created_at) return false;
+          const d = new Date(s.created_at);
+          return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        }).length,
+        totalShipments: sRes.shipments.length,
+        pendingShipments: sRes.shipments.filter((s) => s.status !== "received").length,
+        inventoryUnits,
+        employees: employees.length,
+        activeManagers,
+        movements: mRes.inventory_movements,
       });
-    });
+    })();
+    return () => { cancelled = true; };
   }, [slug]);
 
+  const chartData = (data?.movements ?? []).slice(-30).reduce<{ date: string; incoming: number; outgoing: number }[]>((acc, m) => {
+    const date = m.created_at?.slice(0, 10) ?? "";
+    const isInbound = m.movement_type === "section_fill" || m.movement_type === "shipment_received";
+    const existing = acc.find((d) => d.date === date);
+    if (existing) {
+      if (isInbound) existing.incoming += m.quantity_units;
+      else existing.outgoing += m.quantity_units;
+    } else {
+      acc.push({
+        date,
+        incoming: isInbound ? m.quantity_units : 0,
+        outgoing: isInbound ? 0 : m.quantity_units,
+      });
+    }
+    return acc;
+  }, []);
+
   const stats = [
-    {
-      labelKey: "sidebar.warehouses",
-      value: data ? data.warehouses.toString() : "—",
-      icon: Warehouse,
-      trendKey: "dashboard.trend_active",
-    },
-    {
-      labelKey: "sidebar.products",
-      value: data ? data.products.toString() : "—",
-      icon: Package,
-      trendKey: "dashboard.trend_in_stock",
-    },
-    {
-      labelKey: "sidebar.shipments",
-      value: data ? data.shipments.toString() : "—",
-      icon: Truck,
-      trendKey: "dashboard.trend_this_month",
-    },
-    {
-      labelKey: "sidebar.employees",
-      value: data ? (data.employees || "—").toString() : "—",
-      icon: Users,
-      trendKey: "dashboard.trend_on_staff",
-    },
+    { labelKey: "sidebar.warehouses", value: data ? formatNumber(data.warehouses) : "—", icon: Warehouse, sub: data ? t("manager.total_count", { count: data.warehouses }) : "" },
+    { labelKey: "sidebar.products", value: data ? formatNumber(data.products) : "—", icon: Package, sub: data ? `${formatNumber(data.inventoryUnits)} ${t("analytics.units")}` : "" },
+    { labelKey: "dashboard.stat_monthly_shipments", value: data ? formatNumber(data.shipments) : "—", icon: Truck, sub: data ? t("manager.awaiting_receipt", { count: data.pendingShipments }) : "" },
+    { labelKey: "dashboard.stat_active_managers", value: data ? formatNumber(data.activeManagers) : "—", icon: Users, sub: data ? t("manager.active_of", { count: data.activeManagers, total: data.employees }) : "" },
   ];
+
   return (
     <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -686,9 +934,7 @@ function Overview({ slug }: { slug: string | null }) {
                 <s.icon className="size-4 text-[oklch(0.74_0.02_252)]" />
               </div>
               <p className="mt-3 text-3xl font-bold text-[#1a2942]">{s.value}</p>
-              <p className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-emerald-600">
-                <TrendingUp className="size-3" /> {t(s.trendKey)}
-              </p>
+              {s.sub && <p className="mt-1 text-xs font-semibold text-emerald-600">{s.sub}</p>}
             </GlassCard>
           </motion.div>
         ))}
@@ -698,11 +944,30 @@ function Overview({ slug }: { slug: string | null }) {
         <GlassCard className="lg:col-span-2">
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-semibold">{t("dashboard.inventory_trend")}</h3>
-              <p className="text-xs text-[#1a2942]/70">{t("dashboard.last_30_days_demo")}</p>
+              <h3 className="text-sm font-semibold">{t("manager.inventory_trend")}</h3>
+              <p className="text-xs text-[#1a2942]/70">{t("dashboard.incoming_outgoing")}</p>
             </div>
           </div>
-          <ChartArea />
+          {chartData.length > 0 ? (
+            <div className="h-[260px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData}>
+                  <defs>
+                    <linearGradient id="incomingGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#10B981" stopOpacity={0.3} /><stop offset="100%" stopColor="#10B981" stopOpacity={0} /></linearGradient>
+                    <linearGradient id="outgoingGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#6366f1" stopOpacity={0.3} /><stop offset="100%" stopColor="#6366f1" stopOpacity={0} /></linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} />
+                  <RTooltip />
+                  <Area type="monotone" dataKey="incoming" stroke="#10B981" fill="url(#incomingGrad)" name={t("manager.incoming")} />
+                  <Area type="monotone" dataKey="outgoing" stroke="#6366f1" fill="url(#outgoingGrad)" name={t("manager.outgoing")} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <p className="py-8 text-center text-sm text-[#1a2942]/50">{t("manager.no_movement_data")}</p>
+          )}
         </GlassCard>
 
         <GlassCard>
@@ -714,7 +979,7 @@ function Overview({ slug }: { slug: string | null }) {
               </div>
               <div className="flex-1">
                 <p className="text-sm font-semibold">{t("dashboard.total_warehouses")}</p>
-                <p className="text-xs text-[#1a2942]/70">{data ? data.warehouses : "—"}</p>
+                <p className="text-xs text-[#1a2942]/70">{data ? formatNumber(data.warehouses) : "—"}</p>
               </div>
             </div>
             <div className="flex items-center gap-3 rounded-xl border border-white/40 bg-white/40 p-3 transition hover:bg-white/60">
@@ -723,7 +988,7 @@ function Overview({ slug }: { slug: string | null }) {
               </div>
               <div className="flex-1">
                 <p className="text-sm font-semibold">{t("dashboard.total_products")}</p>
-                <p className="text-xs text-[#1a2942]/70">{data ? data.products : "—"}</p>
+                <p className="text-xs text-[#1a2942]/70">{data ? formatNumber(data.products) : "—"}</p>
               </div>
             </div>
             <div className="flex items-center gap-3 rounded-xl border border-white/40 bg-white/40 p-3 transition hover:bg-white/60">
@@ -732,7 +997,7 @@ function Overview({ slug }: { slug: string | null }) {
               </div>
               <div className="flex-1">
                 <p className="text-sm font-semibold">{t("dashboard.total_shipments")}</p>
-                <p className="text-xs text-[#1a2942]/70">{data ? data.shipments : "—"}</p>
+                <p className="text-xs text-[#1a2942]/70">{data ? formatNumber(data.totalShipments) : "—"}</p>
               </div>
             </div>
           </div>
@@ -741,14 +1006,21 @@ function Overview({ slug }: { slug: string | null }) {
 
       <GlassCard>
         <h3 className="mb-4 text-sm font-semibold">{t("dashboard.recent_activity")}</h3>
-        <ul className="divide-y divide-white/40">
-          {recentActivity.map((a) => (
-            <li key={a.id} className="flex items-center justify-between py-3 text-sm">
-              <span>{a.text}</span>
-              <span className="text-xs text-[#1a2942]/70">{a.time}</span>
-            </li>
-          ))}
-        </ul>
+        {(data?.movements.length ?? 0) > 0 ? (
+          <ul className="divide-y divide-white/40">
+            {data!.movements.slice(0, 6).map((m) => (
+              <li key={m.id} className="flex items-center justify-between gap-3 py-3 text-sm">
+                <span className="min-w-0 truncate">
+                  <span className="font-medium">{getMovementTypeKey(m.movement_type) ? t(getMovementTypeKey(m.movement_type)) : m.movement_type}</span>
+                  <span className="text-[#1a2942]/60"> — {m.product.name} · {m.warehouse.warehouse_name}</span>
+                </span>
+                <span className="shrink-0 text-xs text-[#1a2942]/70">{m.created_at ? format(new Date(m.created_at), "MMM dd, HH:mm") : "—"}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="py-8 text-center text-sm text-[#1a2942]/50">{t("manager.no_movement_data")}</p>
+        )}
       </GlassCard>
     </div>
   );
@@ -756,18 +1028,12 @@ function Overview({ slug }: { slug: string | null }) {
 
 /* -------------------- Managers (CRUD) -------------------- */
 function ManagersSection({
-  slug,
-  managers,
-  setManagers,
-  types,
+  slug, managers, setManagers,
 }: {
-  slug?: string | null;
-  managers: Manager[];
-  setManagers: React.Dispatch<React.SetStateAction<Manager[]>>;
-  types: WarehouseType[];
+  slug?: string | null; managers: ManagerItem[]; setManagers: React.Dispatch<React.SetStateAction<ManagerItem[]>>;
 }) {
   const { t } = useTranslation();
-  const [realTypes, setRealTypes] = useState<WarehouseType[]>([]);
+  const [realTypes, setRealTypes] = useState<WarehouseTypeOption[]>([]);
   useEffect(() => {
     if (!slug) return;
     load();
@@ -776,17 +1042,15 @@ function ManagersSection({
     if (!slug) return;
     try {
       const wRes = await fetchWarehouses(slug);
-      setRealTypes(
-        wRes.warehouses.map((w) => ({
-          id: String(w.id),
-          name: w.warehouse_name,
-          description: w.location ?? "",
-          color: getTypeStyle(w.type).color,
-          icon: getTypeStyle(w.type).icon,
-          status: "active",
-        })),
-      );
-      const all: Manager[] = [];
+      setRealTypes(wRes.warehouses.map((w) => ({
+        id: String(w.id),
+        name: w.warehouse_name,
+        description: w.location ?? "",
+        color: getTypeStyle(w.type).color,
+        icon: getTypeStyle(w.type).icon,
+        status: "active",
+      })));
+      const all: ManagerItem[] = [];
       for (const w of wRes.warehouses) {
         const eRes = await fetchEmployees(slug, w.id);
         for (const emp of eRes.employees) {
@@ -813,11 +1077,11 @@ function ManagersSection({
       /* ignore */
     }
   };
-  const effectiveTypes = slug ? realTypes : types;
+  const effectiveTypes = realTypes;
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 5;
-  const [editing, setEditing] = useState<Manager | null>(null);
+  const [editing, setEditing] = useState<ManagerItem | null>(null);
   const [open, setOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [resetId, setResetId] = useState<string | null>(null);
@@ -842,15 +1106,7 @@ function ManagersSection({
 
   const [created, setCreated] = useState<{ user_name: string; password: string } | null>(null);
 
-  const handleSave = async (data: {
-    id?: string;
-    name: string;
-    user_name: string;
-    phone_number: string;
-    salary: number;
-    warehouseId: string;
-    status: Manager["status"];
-  }) => {
+const handleSave = async (data: { id?: string; name: string; user_name: string; phone_number: string; salary: number; warehouseId: string; status: ManagerStatus }) => {
     if (!slug) {
       setLoading(true);
       toast.error(t("common.operation_failed"));
@@ -1250,29 +1506,15 @@ function ManagerDialog({
   onSave,
   loading,
 }: {
-  open: boolean;
-  onOpenChange: (o: boolean) => void;
-  editing: Manager | null;
-  types: WarehouseType[];
-  onSave: (m: {
-    id?: string;
-    name: string;
-    user_name: string;
-    phone_number: string;
-    salary: number;
-    warehouseId: string;
-    status: Manager["status"];
-  }) => void;
+  open: boolean; onOpenChange: (o: boolean) => void;
+  editing: ManagerItem | null; types: WarehouseTypeOption[];
+  onSave: (m: { id?: string; name: string; user_name: string; phone_number: string; salary: number; warehouseId: string; status: ManagerStatus }) => void;
   loading: boolean;
 }) {
   const { t } = useTranslation();
   const [form, setForm] = useState({
-    name: "",
-    user_name: "",
-    phone_number: "",
-    salary: 0,
-    warehouseId: types[0]?.id ?? "",
-    status: "active" as Manager["status"],
+    name: "", user_name: "", phone_number: "", salary: 0,
+    warehouseId: types[0]?.id ?? "", status: "active" as ManagerStatus,
   });
 
   useMemo(() => {
@@ -1412,10 +1654,7 @@ function ManagerDialog({
           )}
           <div className="grid gap-2">
             <Label className="text-[#1D2D44]">{t("common.status")}</Label>
-            <Select
-              value={form.status}
-              onValueChange={(v) => setForm({ ...form, status: v as Manager["status"] })}
-            >
+            <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as ManagerStatus })}>
               <SelectTrigger className="text-[#1D2D44] placeholder:text-[#1D2D44]/50">
                 <SelectValue />
               </SelectTrigger>
@@ -1447,27 +1686,7 @@ function ManagerDialog({
   );
 }
 
-/* -------------------- Warehouses -------------------- */
-function WarehousesSection({
-  types,
-  setTypes,
-  managers,
-  slug,
-}: {
-  types: WarehouseType[];
-  setTypes: React.Dispatch<React.SetStateAction<WarehouseType[]>>;
-  managers: Manager[];
-  slug?: string | null;
-}) {
-  const hasBackend = !!slug;
-
-  if (!hasBackend) {
-    return <WarehouseTypesSection types={types} setTypes={setTypes} managers={managers} />;
-  }
-  return <WarehouseManager slug={slug} />;
-}
-
-/* -------------------- My Warehouses (Backend) -------------------- */
+/* -------------------- Warehouses (Backend) -------------------- */
 function WarehouseManager({ slug }: { slug: string }) {
   const { t } = useTranslation();
   const [warehouses, setWarehouses] = useState<BackendWarehouse[]>([]);
@@ -1647,7 +1866,7 @@ function WarehouseManager({ slug }: { slug: string }) {
                       <Icon className="size-5" style={{ color: style.color }} />
                     </div>
                     <Badge variant="secondary" className="text-[10px]">
-                      {w.type}
+                      {getWarehouseTypeKey(w.type) ? t(getWarehouseTypeKey(w.type)) : w.type}
                     </Badge>
                   </div>
                   <h4 className="mt-3 text-base font-semibold">{w.warehouse_name}</h4>
@@ -2091,458 +2310,266 @@ function WarehouseDialog({
   );
 }
 
-/* -------------------- Warehouse Types -------------------- */
-function WarehouseTypesSection({
-  types,
-  setTypes,
-  managers,
-}: {
-  types: WarehouseType[];
-  setTypes: React.Dispatch<React.SetStateAction<WarehouseType[]>>;
-  managers: Manager[];
-}) {
-  const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<WarehouseType | null>(null);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+/* -------------------- Analytics -------------------- */
+function AnalyticsSection({ slug }: { slug: string | null }) {
+  if (!slug) return null;
+  return <OwnerAnalytics slug={slug} />;
+}
 
-  const handleSave = (wtype: WarehouseType) => {
-    if (types.some((x) => x.id === wtype.id)) {
-      setTypes((prev) => prev.map((x) => (x.id === wtype.id ? wtype : x)));
-      toast.success(t("warehouse.toast_type_updated"));
-    } else {
-      setTypes((prev) => [...prev, wtype]);
-      toast.success(t("warehouse.toast_type_added"));
+/* -------------------- Reports -------------------- */
+
+const OWNER_REPORTS: { key: "orders" | "returns" | "tasks"; label: string; desc: string }[] = [
+  { key: "orders", label: "manager.report_orders", desc: "report.orders.desc" },
+  { key: "returns", label: "manager.report_returns", desc: "report.returns.desc" },
+  { key: "tasks", label: "manager.report_tasks", desc: "report.tasks.desc" },
+];
+
+const ORDER_STATUS_OPTIONS = ["pending", "approved", "in_preparation", "shipped", "delivered", "rejected", "cancelled"] as const;
+
+const RETURN_STATUS_OPTIONS = [
+  "pending",
+  "picked_by_driver",
+  "return_to_warehouse",
+  "return_to_stock",
+  "damaged",
+  "rejected",
+  "approved",
+  "cancelled",
+] as const;
+
+const TASK_STATUS_OPTIONS = ["in_preparation", "completed"] as const;
+
+const TASK_TYPE_OPTIONS = [
+  "order_preparation",
+  "order_delivery",
+  "transfer_preparation",
+  "transfer_delivery",
+  "shipment_receiving",
+  "damage_disposal",
+  "return_pickup",
+  "restock_product",
+] as const;
+
+function OwnerReportsSection({ slug }: { slug: string | null }) {
+  const { t } = useTranslation();
+  const [warehouses, setWarehouses] = useState<BackendWarehouse[]>([]);
+  const [warehouseId, setWarehouseId] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [ordersStatus, setOrdersStatus] = useState("");
+  const [returnsStatus, setReturnsStatus] = useState("");
+  const [tasksStatus, setTasksStatus] = useState("");
+  const [tasksType, setTasksType] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!slug) return;
+    let cancelled = false;
+    fetchWarehouses(slug)
+      .then((res) => {
+        if (!cancelled) setWarehouses(res.warehouses);
+      })
+      .catch(() => {
+        /* ignore */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [slug]);
+
+  const reportUrl = (report: "orders" | "returns" | "tasks", ext: "pdf" | "excel") => {
+    const params = new URLSearchParams();
+    if (report !== "tasks" && warehouseId && warehouseId !== "all") {
+      params.set("warehouse_id", warehouseId);
     }
-    setOpen(false);
-    setEditing(null);
+    if (from) params.set("date_from", from);
+    if (to) params.set("date_to", to);
+    if (report === "orders" && ordersStatus && ordersStatus !== "all") params.set("status", ordersStatus);
+    if (report === "returns" && returnsStatus && returnsStatus !== "all") params.set("status", returnsStatus);
+    if (report === "tasks") {
+      if (tasksStatus && tasksStatus !== "all") params.set("status", tasksStatus);
+      if (tasksType && tasksType !== "all") params.set("task_type", tasksType);
+    }
+    const qs = params.toString();
+    return `/${slug}/owner/reports/${report}/${ext}${qs ? `?${qs}` : ""}`;
   };
+
+  const openPdf = (report: "orders" | "returns" | "tasks") => {
+    window.open(reportUrl(report, "pdf"), "_blank");
+  };
+
+  const downloadExcel = async (report: "orders" | "returns" | "tasks") => {
+    const id = `${report}-excel`;
+    setBusy(id);
+    try {
+      await getCsrfCookie();
+      const res = await api.get(reportUrl(report, "excel"), { responseType: "blob" });
+      const blobUrl = URL.createObjectURL(res.data);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = `${report}-report.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+      toast.success(t("manager.excel_downloaded", { report: t(`manager.report_${report}`) }));
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { message?: string } }; message?: string };
+      const msg = e?.response?.data?.message || e?.message || t("manager.download_failed");
+      toast.error(typeof msg === "string" ? msg : t("manager.download_failed"));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  if (!slug) return null;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-cream/80">{t("warehouse.types_subtitle")}</p>
-        <Button
-          onClick={() => {
-            setEditing(null);
-            setOpen(true);
-          }}
-          className="bg-navy text-cream hover:bg-navy/90"
-        >
-          <Plus className="size-4" /> {t("warehouse.add_type")}
-        </Button>
-      </div>
-
-      {types.length === 0 ? (
-        <GlassCard>
-          <EmptyState
-            icon={Warehouse}
-            title={t("warehouse.no_types_title")}
-            subtitle={t("warehouse.no_types_subtitle")}
-          />
-        </GlassCard>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {types.map((wtype, i) => {
-            const Icon = ICON_MAP[wtype.icon] ?? Package;
-            const count = managers.filter((m) => m.warehouseId === wtype.id).length;
-            return (
-              <motion.div
-                key={wtype.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05 }}
-              >
-                <GlassCard className="group h-full transition hover:-translate-y-0.5 hover:shadow-2xl">
-                  <div className="flex items-start justify-between">
-                    <div
-                      className="flex size-11 items-center justify-center rounded-xl"
-                      style={{ background: `${wtype.color}25` }}
-                    >
-                      <Icon className="size-5" style={{ color: wtype.color }} />
-                    </div>
-                    <Badge variant="secondary" className="text-[10px]">
-                      {wtype.status}
-                    </Badge>
-                  </div>
-                  <h4 className="mt-3 text-base font-semibold">{wtype.name}</h4>
-                  <p className="mt-1 text-sm text-[#1a2942]/70">{wtype.description}</p>
-                  <div className="mt-4 flex items-center justify-between border-t border-white/40 pt-3">
-                    <span className="inline-flex items-center gap-1.5 text-xs text-[#1a2942]/70">
-                      <Users className="size-3.5" /> {t("warehouse.manager_count", { count })}
-                    </span>
-                    <div className="flex gap-1 opacity-0 transition group-hover:opacity-100">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                          setEditing(wtype);
-                          setOpen(true);
-                        }}
-                      >
-                        <Pencil className="size-3.5" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-destructive"
-                        onClick={() => setDeleteId(wtype.id)}
-                      >
-                        <Trash2 className="size-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                </GlassCard>
-              </motion.div>
-            );
-          })}
-        </div>
-      )}
-
-      <WarehouseTypeDialog
-        open={open}
-        onOpenChange={setOpen}
-        editing={editing}
-        onSave={handleSave}
-      />
-
-      <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("warehouse.delete_type_title")}</AlertDialogTitle>
-            <AlertDialogDescription>{t("warehouse.delete_type_desc")}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                setTypes((prev) => prev.filter((t) => t.id !== deleteId));
-                toast.success(t("warehouse.toast_type_deleted"));
-                setDeleteId(null);
-              }}
-              className="bg-destructive hover:bg-destructive/90"
-            >
-              {t("common.delete")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
-  );
-}
-
-const ICON_OPTIONS = ["Snowflake", "Package", "Flame", "Truck", "Boxes", "Warehouse"];
-
-function WarehouseTypeDialog({
-  open,
-  onOpenChange,
-  editing,
-  onSave,
-}: {
-  open: boolean;
-  onOpenChange: (o: boolean) => void;
-  editing: WarehouseType | null;
-  onSave: (t: WarehouseType) => void;
-}) {
-  const { t } = useTranslation();
-  const [form, setForm] = useState<WarehouseType>({
-    id: "",
-    name: "",
-    description: "",
-    color: "#A7B3C3",
-    icon: "Package",
-    status: "active",
-  });
-
-  useMemo(() => {
-    if (editing) setForm(editing);
-    else
-      setForm({
-        id: `w${Date.now()}`,
-        name: "",
-        description: "",
-        color: "#A7B3C3",
-        icon: "Package",
-        status: "active",
-      });
-  }, [editing]);
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{editing ? t("warehouse.edit_type") : t("warehouse.add_type")}</DialogTitle>
-        </DialogHeader>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!form.name) {
-              toast.error(t("warehouse.toast_name_required"));
-              return;
-            }
-            onSave(form);
-          }}
-          className="grid gap-4 py-2"
-        >
-          <div className="grid gap-2">
-            <Label>{t("warehouse.type_name")}</Label>
-            <Input
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              placeholder="Cold Storage"
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label>{t("warehouse.description")}</Label>
-            <Input
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-            />
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label>{t("warehouse.color_code")}</Label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="color"
-                  value={form.color}
-                  onChange={(e) => setForm({ ...form, color: e.target.value })}
-                  className="h-10 w-14 cursor-pointer rounded-lg border border-white/40 bg-transparent"
-                />
-                <Input
-                  value={form.color}
-                  onChange={(e) => setForm({ ...form, color: e.target.value })}
-                  className="flex-1"
-                />
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <Label>{t("warehouse.icon")}</Label>
-              <div className="grid grid-cols-6 gap-2">
-                {ICON_OPTIONS.map((name) => {
-                  const I = ICON_MAP[name];
-                  const active = form.icon === name;
-                  return (
-                    <button
-                      key={name}
-                      type="button"
-                      onClick={() => setForm({ ...form, icon: name })}
-                      className={cn(
-                        "flex aspect-square items-center justify-center rounded-lg border transition",
-                        active
-                          ? "border-navy bg-navy text-cream"
-                          : "border-white/40 bg-white/40 hover:bg-white/70",
-                      )}
-                    >
-                      <I className="size-4" />
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              {t("common.cancel")}
-            </Button>
-            <Button type="submit" className="bg-navy text-cream hover:bg-navy/90">
-              {editing ? t("common.save") : t("common.create")}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-/* -------------------- Analytics -------------------- */
-function AnalyticsSection({ slug }: { slug?: string | null }) {
-  const { t } = useTranslation();
-  const [types] = useState<WarehouseType[]>(initialWarehouseTypes);
-  const [managers] = useState<Manager[]>(initialManagers);
-  const [selected, setSelected] = useState(types[0]?.id ?? "");
-  const wh = types.find((t) => t.id === selected);
-  const assigned = managers.filter((m) => m.warehouseId === selected).length;
-
-  const capacity = [
-    { name: "Used", value: 72, color: "#1D2D44" },
-    { name: "Free", value: 28, color: "#A7B3C3" },
-  ];
-
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h3 className="text-lg font-semibold text-cream">{t("dashboard.analytics_title")}</h3>
-          <p className="text-sm text-cream/70">{t("dashboard.analytics_subtitle")}</p>
-        </div>
-        <Select value={selected} onValueChange={setSelected}>
-          <SelectTrigger className="w-full bg-white/10 text-cream sm:w-64">
-            <SelectValue placeholder={t("dashboard.select_warehouse")} />
-          </SelectTrigger>
-          <SelectContent>
-            {types.map((t) => (
-              <SelectItem key={t.id} value={t.id}>
-                {t.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {[
-          { labelKey: "dashboard.stat_total_inventory", value: "12,840", icon: Boxes },
-          { labelKey: "dashboard.stat_active_managers", value: assigned.toString(), icon: Users },
-          { labelKey: "dashboard.stat_monthly_shipments", value: "684", icon: Truck },
-          { labelKey: "dashboard.stat_capacity_used", value: "72%", icon: Activity },
-        ].map((s) => (
-          <GlassCard key={s.labelKey}>
-            <div className="flex items-center justify-between">
-              <p className="text-xs uppercase tracking-wider text-[#1a2942]/70">{t(s.labelKey)}</p>
-              <s.icon className="size-4 text-[oklch(0.74_0.02_252)]" />
-            </div>
-            <p className="mt-2 text-2xl font-bold">{s.value}</p>
-            <p className="text-xs text-[#1a2942]/70">{wh?.name}</p>
-          </GlassCard>
-        ))}
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        <GlassCard className="lg:col-span-2">
-          <h4 className="mb-4 text-sm font-semibold">{t("dashboard.inventory_trend")}</h4>
-          <ChartArea />
-        </GlassCard>
-        <GlassCard>
-          <h4 className="mb-4 text-sm font-semibold">{t("dashboard.capacity_utilization")}</h4>
-          <div className="h-[240px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={capacity}
-                  dataKey="value"
-                  innerRadius={55}
-                  outerRadius={85}
-                  paddingAngle={2}
-                >
-                  {capacity.map((c) => (
-                    <Cell key={c.name} fill={c.color} />
-                  ))}
-                </Pie>
-                <RTooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="mt-2 flex justify-center gap-4 text-xs">
-            {capacity.map((c) => (
-              <span key={c.name} className="flex items-center gap-1.5">
-                <span className="size-2 rounded-full" style={{ background: c.color }} />
-                {t(`dashboard.capacity_${c.name.toLowerCase()}`)} {c.value}%
-              </span>
-            ))}
-          </div>
-        </GlassCard>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        <GlassCard className="lg:col-span-2">
-          <h4 className="mb-4 text-sm font-semibold">{t("dashboard.incoming_outgoing")}</h4>
-          <div className="h-[260px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={shipmentsData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#A7B3C355" />
-                <XAxis dataKey="month" stroke="#1D2D44" fontSize={12} />
-                <YAxis stroke="#1D2D44" fontSize={12} />
-                <RTooltip />
-                <Legend />
-                <Bar dataKey="incoming" fill="#1D2D44" radius={[6, 6, 0, 0]} />
-                <Bar dataKey="outgoing" fill="#A7B3C3" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </GlassCard>
-        <GlassCard>
-          <h4 className="mb-4 text-sm font-semibold">{t("dashboard.performance")}</h4>
-          <div className="space-y-4">
-            <Metric label={t("dashboard.metric_fulfillment")} value={96} />
-            <Metric label={t("dashboard.metric_ontime")} value={89} />
-            <Metric label={t("dashboard.metric_processing")} raw="3.2h" value={68} />
-            <Metric label={t("dashboard.metric_damage")} raw="0.4%" value={4} inverted />
-          </div>
-        </GlassCard>
+      <div>
+        <h2 className="text-lg font-bold">{t("report.title")}</h2>
+        <p className="mt-1 text-sm text-[#1a2942]/70">{t("report.desc")}</p>
       </div>
 
       <GlassCard>
-        <h4 className="mb-4 text-sm font-semibold">
-          {t("dashboard.recent_activity")} — {wh?.name}
-        </h4>
-        <ul className="divide-y divide-white/40">
-          {recentActivity.map((a) => (
-            <li key={a.id} className="flex items-center justify-between py-3 text-sm">
-              <span>{a.text}</span>
-              <span className="text-xs text-[#1a2942]/70">{a.time}</span>
-            </li>
-          ))}
-        </ul>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="space-y-2 lg:col-span-2">
+            <Label>{t("owner.reports.warehouse")}</Label>
+            <Select value={warehouseId} onValueChange={setWarehouseId}>
+              <SelectTrigger className="text-[#1D2D44] placeholder:text-[#1D2D44]/50">
+                <SelectValue placeholder={t("owner.reports.all_warehouses")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("owner.reports.all_warehouses")}</SelectItem>
+                {warehouses.map((w) => (
+                  <SelectItem key={w.id} value={String(w.id)}>
+                    {w.warehouse_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>{t("inventory.from")}</Label>
+            <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label>{t("inventory.to")}</Label>
+            <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+          </div>
+        </div>
       </GlassCard>
-    </div>
-  );
-}
 
-function Metric({
-  label,
-  value,
-  raw,
-  inverted,
-}: {
-  label: string;
-  value: number;
-  raw?: string;
-  inverted?: boolean;
-}) {
-  return (
-    <div>
-      <div className="mb-1 flex justify-between text-xs">
-        <span className="text-[#1a2942]/70">{label}</span>
-        <span className="font-semibold">{raw ?? `${value}%`}</span>
-      </div>
-      <div className="h-2 overflow-hidden rounded-full bg-white/40">
-        <div
-          className="h-full rounded-full transition-all"
-          style={{
-            width: `${value}%`,
-            background: inverted ? "#ef4444" : "linear-gradient(90deg, #1D2D44, #A7B3C3)",
-          }}
-        />
-      </div>
-    </div>
-  );
-}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        {OWNER_REPORTS.map((r) => {
+          const busyExcel = busy === `${r.key}-excel`;
+          return (
+            <GlassCard key={r.key} className="flex flex-col">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold">{t(r.label)}</h3>
+                <FileText className="h-4 w-4 text-[#1a2942]/50" />
+              </div>
+              <p className="mt-1 text-xs text-[#1a2942]/70">{t(r.desc)}</p>
 
-function ChartArea() {
-  return (
-    <div className="h-[260px]">
-      <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={inventoryTrend}>
-          <defs>
-            <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#1D2D44" stopOpacity={0.5} />
-              <stop offset="100%" stopColor="#1D2D44" stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#A7B3C355" />
-          <XAxis dataKey="day" stroke="#1D2D44" fontSize={11} />
-          <YAxis stroke="#1D2D44" fontSize={11} />
-          <RTooltip />
-          <Area
-            type="monotone"
-            dataKey="inventory"
-            stroke="#1D2D44"
-            strokeWidth={2}
-            fill="url(#g1)"
-          />
-        </AreaChart>
-      </ResponsiveContainer>
+              <div className="mt-4 space-y-3">
+                {r.key === "orders" && (
+                  <div className="space-y-2">
+                    <Label>{t("order.status")}</Label>
+                    <Select value={ordersStatus} onValueChange={setOrdersStatus}>
+                      <SelectTrigger className="text-[#1D2D44] placeholder:text-[#1D2D44]/50">
+                        <SelectValue placeholder={t("owner.reports.all_statuses")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">{t("owner.reports.all_statuses")}</SelectItem>
+                        {ORDER_STATUS_OPTIONS.map((s) => (
+                          <SelectItem key={s} value={s}>
+                            {t(`order.status.${s}`)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                {r.key === "returns" && (
+                  <div className="space-y-2">
+                    <Label>{t("return.status")}</Label>
+                    <Select value={returnsStatus} onValueChange={setReturnsStatus}>
+                      <SelectTrigger className="text-[#1D2D44] placeholder:text-[#1D2D44]/50">
+                        <SelectValue placeholder={t("owner.reports.all_statuses")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">{t("owner.reports.all_statuses")}</SelectItem>
+                        {RETURN_STATUS_OPTIONS.map((s) => (
+                          <SelectItem key={s} value={s}>
+                            {t(`owner.reports.return_status.${s}`)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                {r.key === "tasks" && (
+                  <>
+                    <div className="space-y-2">
+                      <Label>{t("task.status")}</Label>
+                      <Select value={tasksStatus} onValueChange={setTasksStatus}>
+                        <SelectTrigger className="text-[#1D2D44] placeholder:text-[#1D2D44]/50">
+                          <SelectValue placeholder={t("owner.reports.all_statuses")} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">{t("owner.reports.all_statuses")}</SelectItem>
+                          {TASK_STATUS_OPTIONS.map((s) => (
+                            <SelectItem key={s} value={s}>
+                              {t(`task.status.${s}`)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>{t("task.type")}</Label>
+                      <Select value={tasksType} onValueChange={setTasksType}>
+                        <SelectTrigger className="text-[#1D2D44] placeholder:text-[#1D2D44]/50">
+                          <SelectValue placeholder={t("owner.reports.all_types")} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">{t("owner.reports.all_types")}</SelectItem>
+                          {TASK_TYPE_OPTIONS.map((s) => (
+                            <SelectItem key={s} value={s}>
+                              {t(`task.type.${s}`)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="mt-4 flex gap-2">
+                <Button
+                  size="sm"
+                  className="flex-1 bg-navy text-cream hover:bg-navy/90"
+                  onClick={() => downloadExcel(r.key)}
+                  disabled={busyExcel}
+                >
+                  {busyExcel ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                  {t("report.excel")}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => openPdf(r.key)}
+                >
+                  <Download className="h-4 w-4" />
+                  {t("report.pdf")}
+                </Button>
+              </div>
+            </GlassCard>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -2556,10 +2583,8 @@ function WalletSection() {
         <GlassCard className="lg:col-span-2 relative overflow-hidden">
           <div className="absolute -end-20 -top-20 size-64 rounded-full bg-[oklch(0.78_0.16_75)]/30 blur-3xl" />
           <div className="relative">
-            <p className="text-xs uppercase tracking-wider text-[#1a2942]/70">
-              {t("wallet.available_balance")}
-            </p>
-            <p className="mt-2 text-4xl font-bold">$24,820.45</p>
+<p className="text-xs uppercase tracking-wider text-[#1a2942]/70">{t("wallet.available_balance")}</p>
+            <p className="mt-2 text-4xl font-bold">{formatMoney(0, "USD")}</p>
             <p className="mt-1 text-xs text-[#1a2942]/70">{t("wallet.updated_just_now")}</p>
             <div className="mt-6 flex flex-wrap gap-2">
               <Button className="bg-navy text-cream hover:bg-navy/90">
@@ -2579,61 +2604,15 @@ function WalletSection() {
             {t("wallet.this_month")}
           </p>
           <div className="mt-2 space-y-3 text-sm">
-            <div className="flex justify-between">
-              <span className="text-[#1a2942]/70">{t("wallet.income")}</span>
-              <span className="font-semibold text-emerald-600">+ $7,090</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-[#1a2942]/70">{t("wallet.spending")}</span>
-              <span className="font-semibold text-rose-600">− $2,369</span>
-            </div>
-            <div className="flex justify-between border-t border-white/40 pt-2">
-              <span>{t("wallet.net")}</span>
-              <span className="font-bold">+ $4,721</span>
-            </div>
+<div className="flex justify-between"><span className="text-[#1a2942]/70">{t("wallet.income")}</span><span className="font-semibold text-emerald-600">{formatMoney(0, "USD")}</span></div>
+            <div className="flex justify-between"><span className="text-[#1a2942]/70">{t("wallet.spending")}</span><span className="font-semibold text-rose-600">{formatMoney(0, "USD")}</span></div>
+            <div className="flex justify-between border-t border-white/40 pt-2"><span>{t("wallet.net")}</span><span className="font-bold">{formatMoney(0, "USD")}</span></div>
           </div>
         </GlassCard>
       </div>
 
-      <GlassCard className="p-0 overflow-hidden">
-        <div className="flex items-center justify-between border-b border-white/40 px-5 py-3">
-          <h4 className="text-sm font-semibold">{t("wallet.recent_transactions")}</h4>
-          <Button size="sm" variant="ghost">
-            {t("wallet.view_all")}
-          </Button>
-        </div>
-        <Table>
-          <TableHeader>
-            <TableRow className="border-white/40 hover:bg-transparent">
-              <TableHead>{t("common.date")}</TableHead>
-              <TableHead>{t("common.description")}</TableHead>
-              <TableHead className="text-end">{t("common.amount")}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {walletTransactions.map((t) => (
-              <TableRow key={t.id} className="border-white/40">
-                <TableCell className="text-[#1a2942]/70">{t.date}</TableCell>
-                <TableCell className="font-medium">{t.description}</TableCell>
-                <TableCell className="text-end">
-                  <span
-                    className={cn(
-                      "inline-flex items-center gap-1 font-semibold",
-                      t.amount > 0 ? "text-emerald-600" : "text-rose-600",
-                    )}
-                  >
-                    {t.amount > 0 ? (
-                      <ArrowUpRight className="size-3" />
-                    ) : (
-                      <ArrowDownRight className="size-3" />
-                    )}
-                    {t.amount > 0 ? "+" : "−"}${Math.abs(t.amount).toLocaleString()}
-                  </span>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+<GlassCard>
+        <EmptyState icon={CreditCard} title={t("wallet.no_transactions")} subtitle={t("wallet.no_transactions_desc")} />
       </GlassCard>
     </div>
   );
@@ -2642,7 +2621,7 @@ function WalletSection() {
 /* -------------------- Settings -------------------- */
 function SettingsSection() {
   const { t } = useTranslation();
-  const user = getStoredUser();
+const storedUser = getStoredUser();
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <GlassCard>
@@ -2656,20 +2635,9 @@ function SettingsSection() {
         <h4 className="text-sm font-semibold">{t("settings.account")}</h4>
         <p className="mb-4 text-xs text-[#1a2942]/70">{t("settings.account.desc")}</p>
         <div className="space-y-3">
-          <div className="grid gap-2">
-            <Label>{t("settings.full_name")}</Label>
-            <Input defaultValue={user?.full_name ?? ""} />
-          </div>
-          <div className="grid gap-2">
-            <Label>{t("settings.email")}</Label>
-            <Input defaultValue={user?.email ?? ""} />
-          </div>
-          <Button
-            onClick={() => toast.success(t("settings.toast_profile_saved"))}
-            className="bg-navy text-cream hover:bg-navy/90"
-          >
-            {t("common.save_changes")}
-          </Button>
+<div className="grid gap-2"><Label>{t("settings.full_name")}</Label><Input defaultValue={storedUser?.full_name ?? ""} /></div>
+          <div className="grid gap-2"><Label>{t("settings.email")}</Label><Input defaultValue={storedUser?.email ?? ""} /></div>
+          <Button onClick={() => toast.success(t("settings.toast_profile_saved"))} className="bg-navy text-cream hover:bg-navy/90">{t("common.save_changes")}</Button>
         </div>
       </GlassCard>
       <GlassCard className="lg:col-span-2">
@@ -2700,110 +2668,7 @@ function SettingsSection() {
   );
 }
 
-/* -------------------- Subscription Requests -------------------- */
-function SubscriptionRequestsSection() {
-  const { t } = useTranslation();
-  const [subs, setSubs] = useState<SubscriptionRequest[]>(() => subscriptionStore.list());
-  useEffect(() => subscriptionStore.subscribe(() => setSubs(subscriptionStore.list())), []);
-
-  const act = (id: string, status: "approved" | "rejected" | "active") => {
-    subscriptionStore.update(id, status);
-    toast.success(t("dashboard.toast_request_status", { status }));
-  };
-
-  const badge = (s: SubscriptionRequest["status"]) =>
-    s === "active"
-      ? "bg-emerald-500/15 text-emerald-700 border-emerald-300"
-      : s === "approved"
-        ? "bg-sky-500/15 text-sky-700 border-sky-300"
-        : s === "rejected"
-          ? "bg-rose-500/15 text-rose-700 border-rose-300"
-          : "bg-amber-500/15 text-amber-700 border-amber-300";
-
-  return (
-    <div className="space-y-4">
-      <GlassCard className="p-0 overflow-hidden">
-        <div className="flex items-center justify-between border-b border-white/40 px-5 py-3">
-          <h4 className="text-sm font-semibold">{t("dashboard.subscription_requests")}</h4>
-          <Badge variant="outline">
-            {t("dashboard.pending_count", {
-              count: subs.filter((s) => s.status === "pending").length,
-            })}
-          </Badge>
-        </div>
-        <Table>
-          <TableHeader>
-            <TableRow className="border-white/40 hover:bg-transparent">
-              <TableHead>{t("common.company")}</TableHead>
-              <TableHead>{t("sidebar.warehouses")}</TableHead>
-              <TableHead>{t("dashboard.slok")}</TableHead>
-              <TableHead>{t("dashboard.request_date")}</TableHead>
-              <TableHead>{t("common.status")}</TableHead>
-              <TableHead className="text-end">{t("common.actions")}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {subs.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={6} className="py-8 text-center text-[#1a2942]/70">
-                  {t("dashboard.no_requests")}
-                </TableCell>
-              </TableRow>
-            )}
-            {subs.map((s) => (
-              <TableRow key={s.id} className="border-white/40">
-                <TableCell className="font-medium">{s.companyName}</TableCell>
-                <TableCell>{s.warehouses}</TableCell>
-                <TableCell className="font-mono text-xs">{s.slok}</TableCell>
-                <TableCell className="text-[#1a2942]/70">{s.requestDate}</TableCell>
-                <TableCell>
-                  <Badge variant="outline" className={cn("capitalize", badge(s.status))}>
-                    {s.status}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-end">
-                  {s.status === "pending" && (
-                    <div className="inline-flex gap-2">
-                      <Button
-                        size="sm"
-                        onClick={() => act(s.id, "approved")}
-                        className="bg-navy text-cream hover:bg-navy/90"
-                      >
-                        {t("dashboard.approve")}
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => act(s.id, "rejected")}>
-                        {t("order.reject")}
-                      </Button>
-                    </div>
-                  )}
-                  {s.status === "approved" && (
-                    <Button
-                      size="sm"
-                      onClick={() => act(s.id, "active")}
-                      className="bg-navy text-cream hover:bg-navy/90"
-                    >
-                      {t("dashboard.activate")}
-                    </Button>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </GlassCard>
-    </div>
-  );
-}
-
-function EmptyState({
-  icon: Icon,
-  title,
-  subtitle,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  subtitle: string;
-}) {
+function EmptyState({ icon: Icon, title, subtitle }: { icon: React.ComponentType<{ className?: string }>; title: string; subtitle: string }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
       <div className="flex size-14 items-center justify-center rounded-2xl bg-white/40">
@@ -3190,7 +3055,7 @@ function ShipmentsSection({ slug }: { slug?: string | null }) {
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline" className={cn("text-[10px]", statusBadge(s.status))}>
-                      {s.status_label}
+                      {t(`shipment.status.${s.status}`)}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-end">

@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Users, Boxes, ClipboardList, BarChart3, FileText, LogOut, Loader2, Plus, Trash2,
   ArrowLeftRight, CheckCircle2, Truck, RefreshCw, Eye, Pencil, X, Search,
   Warehouse as WarehouseIcon, Wallet as WalletIcon, Settings as SettingsIcon,
-  AlertTriangle, TrendingUp, Package, ListChecks, Download,
+  AlertTriangle, TrendingUp, Package, ListChecks, Download, Send,
 } from "lucide-react";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip,
@@ -53,6 +53,13 @@ import i18n from "@/lib/i18n";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { WarehouseLayout } from "@/components/WarehouseLayout";
 import { CredentialsDialog } from "@/components/CredentialsDialog";
+import { useTransferRequests } from "@/hooks/useTransferRequests";
+import { AvailableRequestsFeed } from "@/components/transfer/AvailableRequestsFeed";
+import { MyWarehouseRequests } from "@/components/transfer/MyWarehouseRequests";
+import { ManagerAnalytics } from "@/components/analytics/ManagerAnalytics";
+import { StorekeeperAnalytics } from "@/components/analytics/StorekeeperAnalytics";
+import { OwnerAnalytics } from "@/components/analytics/OwnerAnalytics";
+import { OwnerFinancialSettings } from "@/components/analytics/OwnerFinancialSettings";
 
 export const Route = createFileRoute("/manager/$slug")({
   component: ManagerDashboard,
@@ -65,7 +72,7 @@ export const Route = createFileRoute("/manager/$slug")({
 });
 
 type SectionId =
-  | "overview" | "layout" | "sections" | "employees" | "shipments" | "movements" | "tasks" | "reports" | "settings";
+  | "overview" | "sections" | "employees" | "shipments" | "movements" | "tasks" | "transfers" | "reports" | "analytics" | "financial" | "settings"| "layout";
 
 const NAV: { id: SectionId; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: "overview", label: "manager.overview", icon: LayoutDashboard },
@@ -75,7 +82,10 @@ const NAV: { id: SectionId; label: string; icon: React.ComponentType<{ className
   { id: "shipments", label: "sidebar.shipments", icon: Truck },
   { id: "movements", label: "manager.movements", icon: ArrowLeftRight },
   { id: "tasks", label: "sidebar.tasks", icon: ListChecks },
+  { id: "transfers", label: "sidebar.transfers", icon: Send },
   { id: "reports", label: "sidebar.reports", icon: FileText },
+  { id: "analytics", label: "sidebar.analytics", icon: BarChart3 },
+  { id: "financial", label: "sidebar.financial", icon: WalletIcon },
   { id: "settings", label: "sidebar.settings", icon: SettingsIcon },
 ];
 
@@ -173,7 +183,7 @@ function ManagerDashboard() {
       {/* Section tabs */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex flex-wrap gap-1 rounded-xl bg-white/10 p-1">
-          {NAV.map((item) => {
+          {NAV.filter((item) => item.id !== "financial" || session?.role === "owner").map((item) => {
             const Icon = item.icon;
             const active = section === item.id;
             return (
@@ -252,8 +262,22 @@ function ManagerDashboard() {
           warehouseId={session?.warehouse_id}
         />
       )}
+      {section === "transfers" && (
+        <TransfersSection
+          slug={slug}
+          ownerId={session?.owner_id}
+          warehouseId={session?.warehouse_id}
+          products={products}
+        />
+      )}
       {section === "reports" && (
         <ReportsSection slug={slug} />
+      )}
+      {section === "analytics" && (
+        <AnalyticsSection slug={slug} role={session?.role} />
+      )}
+      {section === "financial" && (
+        <OwnerFinancialSettings slug={slug} />
       )}
       {section === "settings" && (
         <SettingsSection session={session} onLogout={handleLogout} slug={slug} />
@@ -570,6 +594,7 @@ function EmployeesSection({
 
   const handleSave = async () => {
     if (!form.full_name.trim() || !form.phone_number.trim() || !form.user_name.trim()) { toast.error(t("employee.required_fields")); return; }
+    if (!/^09\d{8}$/.test(form.phone_number.trim())) { toast.error(t("manager.toast_phone_invalid")); return; }
     if (!warehouseId) return;
     setSubmitting(true);
     try {
@@ -926,6 +951,41 @@ function TasksSection({
   );
 }
 
+/* ===== Inter-Warehouse Transfers ===== */
+function TransfersSection({
+  slug, ownerId, warehouseId, products,
+}: {
+  slug: string;
+  ownerId: number | null | undefined;
+  warehouseId: number | null | undefined;
+  products: ManagerProduct[];
+}) {
+  const { t } = useTranslation();
+  const { available, mine, loading, creating, isAccepting, refresh, acceptRequest, createRequest } =
+    useTransferRequests(slug, ownerId, warehouseId);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-bold text-[#1a2942]">{t("transfer_request.title")}</h2>
+          <p className="text-xs text-[#1a2942]/60">{t("transfer_request.desc")}</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={refresh} className="text-[#1a2942]">
+          <RefreshCw className="size-3.5 me-1" /> {t("common.refresh")}
+        </Button>
+      </div>
+
+      <div>
+        <h3 className="mb-3 text-sm font-bold text-[#1a2942]">{t("transfer_request.available_title")}</h3>
+        <AvailableRequestsFeed requests={available} loading={loading} isAccepting={isAccepting} onAccept={acceptRequest} />
+      </div>
+
+      <MyWarehouseRequests requests={mine} loading={loading} products={products} submitting={creating} onCreate={createRequest} />
+    </div>
+  );
+}
+
 /* ===== Reports ===== */
 const MANAGER_REPORTS = [
   { key: "orders", label: "manager.report_orders" },
@@ -1008,6 +1068,13 @@ function ReportsSection({ slug }: { slug: string }) {
       </div>
     </div>
   );
+}
+
+/* ===== Analytics ===== */
+function AnalyticsSection({ slug, role }: { slug: string; role?: string }) {
+  if (role === "owner") return <OwnerAnalytics slug={slug} />;
+  if (role === "warehouse_secretary") return <StorekeeperAnalytics slug={slug} />;
+  return <ManagerAnalytics slug={slug} currency="EGP" />;
 }
 
 /* ===== Settings ===== */
