@@ -82,7 +82,13 @@ export function useTransferRequests(
 
         setAvailable((prev) => {
           const exists = prev.some((r) => r.id === id);
-          if (!exists) return prev;
+          if (!exists) {
+            const incoming = payload.transfer_request;
+            if (status === "pending" && incoming && incoming.warehouse_id !== warehouseId) {
+              return [incoming, ...prev];
+            }
+            return prev;
+          }
           if (status === "pending") {
             return prev.map((r) =>
               r.id === id ? { ...r, ...(payload.transfer_request ?? {}) } : r,

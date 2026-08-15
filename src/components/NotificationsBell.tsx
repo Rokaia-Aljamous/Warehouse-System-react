@@ -11,6 +11,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useNotifications } from "@/hooks/useNotifications";
 import type { DashboardNotification } from "@/lib/notifications-api";
+import { translateNotificationMessage, translateNotificationTitle } from "@/lib/notification-i18n";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -40,7 +41,7 @@ function NotificationRow({
 }: {
   notification: DashboardNotification;
   now: number;
-  onOpen: (id: number) => void;
+  onOpen: (notification: DashboardNotification) => void;
   onDelete: (id: number) => void;
   deleting: boolean;
 }) {
@@ -56,9 +57,7 @@ function NotificationRow({
     >
       <button
         type="button"
-        onClick={() => {
-          if (!isRead) onOpen(notification.id);
-        }}
+        onClick={() => onOpen(notification)}
         className="flex min-w-0 flex-1 items-start gap-2.5 text-start"
       >
         <span
@@ -69,11 +68,11 @@ function NotificationRow({
         />
         <span className="min-w-0 flex-1">
           <span className={cn("block truncate text-sm", isRead ? "font-medium" : "font-semibold")}>
-            {notification.title}
+            {translateNotificationTitle(notification, t)}
           </span>
           {notification.message && (
             <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-              {notification.message}
+              {translateNotificationMessage(notification, t)}
             </span>
           )}
           <span className="mt-0.5 block text-[11px] text-muted-foreground/70">
@@ -93,7 +92,7 @@ function NotificationRow({
     </div>
   );
 }
-export function NotificationsBell({ slug }: { slug: string | null }) {
+export function NotificationsBell({ slug, onTransferOpen }: { slug: string | null; onTransferOpen?: () => void }) {
   const { t } = useTranslation();
   const { items, unreadCount, loading, error, refresh, markAllAsRead, markOneAsRead, deleteOne } =
     useNotifications(slug);
@@ -141,6 +140,14 @@ export function NotificationsBell({ slug }: { slug: string | null }) {
         return next;
       });
     }
+  };
+
+  const handleRowClick = (notification: DashboardNotification) => {
+    if (!notification.read_at) void markOneAsRead(notification.id);
+    const isTransferNotification =
+      notification.notification_type === "transfer_request" ||
+      (notification.group_id ?? "").startsWith("transfer-");
+    if (isTransferNotification && onTransferOpen) onTransferOpen();
   };
 
   return (
@@ -209,7 +216,7 @@ export function NotificationsBell({ slug }: { slug: string | null }) {
                   <NotificationRow
                     notification={notification}
                     now={now}
-                    onOpen={markOneAsRead}
+                    onOpen={handleRowClick}
                     onDelete={handleDelete}
                     deleting={deletingIds.has(notification.id)}
                   />

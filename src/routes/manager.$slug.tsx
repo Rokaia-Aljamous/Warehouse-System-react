@@ -45,6 +45,7 @@ import {
   type ManagerProduct,
   type ManagerShipment, type ManagerShipmentStatus,
   type ManagerEmployee,
+  getMovementTypeKey,
   type InventoryMovement,
   type ManagerTask, type AssignTaskInput,
 } from "@/lib/manager-api";
@@ -755,7 +756,7 @@ function ShipmentsSection({
                 <TableCell className="font-medium text-[#1a2942]">{s.factory_name}</TableCell>
                 <TableCell className="text-[#1a2942]">${s.total_price}</TableCell>
                 <TableCell className="text-[#1a2942]/80">{s.arrival_date ?? "—"}</TableCell>
-                <TableCell><Badge className={cn("text-xs font-medium", statusColors[s.status] ?? "")}>{s.status_label}</Badge></TableCell>
+                <TableCell><Badge className={cn("text-xs font-medium", statusColors[s.status] ?? "")}>{t(`shipment.status.${s.status}`)}</Badge></TableCell>
                 <TableCell className="text-end">
                   {s.can_receive ? (
                     <Button size="sm" className="h-8 text-xs" onClick={() => handleReceive(s.id)} disabled={receiving === s.id}>
@@ -807,7 +808,7 @@ function MovementsSection({ movements }: { movements: InventoryMovement[] }) {
             {movements.slice(0, 100).map((m) => (
               <TableRow key={m.id} className="border-white/40">
                 <TableCell className="text-xs text-[#1a2942]/80">{m.created_at?.slice(0, 16).replace("T", " ")}</TableCell>
-                <TableCell><Badge className={cn("text-xs font-medium", typeColors[m.movement_type] ?? "")}>{m.movement_type_label}</Badge></TableCell>
+                <TableCell><Badge className={cn("text-xs font-medium", typeColors[m.movement_type] ?? "")}>{getMovementTypeKey(m.movement_type) ? t(getMovementTypeKey(m.movement_type)) : m.movement_type}</Badge></TableCell>
                 <TableCell className="font-medium text-[#1a2942] text-sm">{m.product.name}</TableCell>
                 <TableCell className="text-[#1a2942]">{m.quantity_parcels}</TableCell>
                 <TableCell className="text-[#1a2942]">{m.quantity_units}</TableCell>
@@ -909,7 +910,7 @@ function TasksSection({
                 <TableCell className="font-medium text-[#1a2942] text-sm capitalize">{task.task_type.replace(/_/g, " ")}</TableCell>
                 <TableCell className="text-[#1a2942]/80">{task.worker.full_name}</TableCell>
                 <TableCell className="text-xs text-[#1a2942]/80">{task.related?.label ?? "—"}</TableCell>
-                <TableCell><Badge className={cn("text-xs font-medium", statusColors[task.status] ?? "")}>{task.status.replace(/_/g, " ")}</Badge></TableCell>
+                <TableCell><Badge className={cn("text-xs font-medium", statusColors[task.status] ?? "")}>{t(`task.status.${task.status}`)}</Badge></TableCell>
                 <TableCell className="text-xs text-[#1a2942]/60">{task.created_at?.slice(0, 10)}</TableCell>
                 <TableCell className="text-end">
                   {task.status === "in_preparation" ? (

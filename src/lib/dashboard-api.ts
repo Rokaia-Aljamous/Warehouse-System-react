@@ -63,6 +63,17 @@ export function getTypeStyle(type: string): { color: string; icon: string } {
   return WAREHOUSE_TYPE_STYLES[type] ?? { color: "#6366f1", icon: "Warehouse" };
 }
 
+const WAREHOUSE_TYPE_KEYS: Record<string, string> = {
+  "Cold Storage": "warehouse.type.cold_storage",
+  "Dry Storage": "warehouse.type.dry_storage",
+  Hazardous: "warehouse.type.hazardous",
+  "Fulfillment Center": "warehouse.type.fulfillment_center",
+};
+
+export function getWarehouseTypeKey(type: string): string {
+  return WAREHOUSE_TYPE_KEYS[type] ?? "";
+}
+
 export const fetchWarehouses = async (slug: string): Promise<WarehouseListResponse> => {
   const response = await api.get<WarehouseListResponse>(`/${slug}/owner/warehouses`);
   return response.data;

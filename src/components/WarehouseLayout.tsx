@@ -810,12 +810,13 @@ export function WarehouseLayout({
           </div>
           <DialogFooter className="gap-2 sm:gap-2">
             <Button
-              variant="outline"
-              onClick={() => setDialogOpen(false)}
-              className={OUTLINE_BTN_CLS}
-            >
-              {t("common.cancel")}
-            </Button>
+  type="button"
+  variant="outline"
+  onClick={() => setDialogOpen(false)}
+  className={`${OUTLINE_BTN_CLS} bg-[#f2a618] text-[#1D2D44] border border-[#1D2D44]/20 hover:bg-[#f2a618]/90 hover:text-[#1D2D44] opacity-100 cursor-pointer pointer-events-auto`}
+>
+  {t("common.cancel")}
+</Button>
             <Button onClick={handleSave} disabled={submitting} className={PRIMARY_BTN_CLS}>
               {submitting ? t("common.saving") : t("common.save")}
             </Button>
@@ -832,13 +833,18 @@ export function WarehouseLayout({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("section.delete_confirm_title")}</AlertDialogTitle>
+            <AlertDialogTitle className="text-[#1D2D44]">
+  {t("section.delete_confirm_title")}
+</AlertDialogTitle>
             <AlertDialogDescription>{t("common.cannot_undo")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setDeleteId(null)}>
-              {t("common.cancel")}
-            </AlertDialogCancel>
+           <AlertDialogCancel 
+  onClick={() => setDeleteId(null)}
+  className="bg-[#f2a618] text-[#1D2D44] border border-[#1D2D44]/20 hover:bg-[#f2a618]/90 hover:text-[#1D2D44] opacity-100 cursor-pointer pointer-events-auto"
+>
+  {t("common.cancel")}
+</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
               {t("common.delete")}
             </AlertDialogAction>
@@ -1076,13 +1082,14 @@ export function WarehouseLayout({
             </p>
           </div>
           <DialogFooter className="gap-2 sm:gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setQrSection(null)}
-              className={OUTLINE_BTN_CLS}
-            >
-              {t("common.close")}
-            </Button>
+           <Button
+  type="button"
+  variant="outline"
+  onClick={() => setQrSection(null)}
+  className={`${OUTLINE_BTN_CLS} bg-[#f2a618] text-[#1D2D44] border border-[#1D2D44]/20 hover:bg-[#f2a618]/90 hover:text-[#1D2D44] opacity-100 cursor-pointer pointer-events-auto`}
+>
+  {t("common.close")}
+</Button>
             <Button onClick={handleCopyQr} className={PRIMARY_BTN_CLS}>
               {qrCopied ? <Check className="size-4 me-1" /> : <Copy className="size-4 me-1" />}
               {qrCopied ? t("layout.copied") : t("layout.copy")}

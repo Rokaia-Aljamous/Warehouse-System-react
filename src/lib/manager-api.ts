@@ -63,6 +63,14 @@ export const forceChangePassword = async (slug: string, password: string, passwo
   return response.data;
 };
 
+export const updateDashboardProfile = async (
+  slug: string,
+  data: { full_name?: string; phone_number?: string },
+): Promise<{ message: string }> => {
+  const response = await api.patch<{ message: string }>(`/${slug}/profile`, data);
+  return response.data;
+};
+
 /* ===== Sections ===== */
 
 export interface SectionProduct {
@@ -258,6 +266,19 @@ export interface InventoryMovement {
   performed_by: InventoryMovementPerformer;
   created_at: string;
   updated_at: string;
+}
+
+const MOVEMENT_TYPE_KEYS: Record<string, string> = {
+  shipment_received: "inventory.movement.shipment_received",
+  section_fill: "inventory.movement.section_fill",
+  section_remove: "inventory.movement.section_remove",
+  section_transfer: "inventory.movement.section_transfer",
+  return_restock: "inventory.movement.return_restock",
+  disposal: "inventory.movement.disposal",
+};
+
+export function getMovementTypeKey(type: string): string {
+  return MOVEMENT_TYPE_KEYS[type] ?? "";
 }
 
 export interface InventoryMovementsResponse {
@@ -490,12 +511,16 @@ export const createManagerEmployee = async (
   slug: string,
   warehouseId: number,
   data: { full_name: string; phone_number: string; user_name: string; role: string; salary: number; status?: string }
-): Promise<{ message: string; employee: ManagerEmployee; password?: string }> => {
-  const response = await api.post<{ message: string; employee: ManagerEmployee; password?: string }>(
+): Promise<{ message: string; employee: ManagerEmployee; worker?: ManagerEmployee; password?: string }> => {
+  const response = await api.post<{ message: string; employee: ManagerEmployee; worker?: ManagerEmployee; password?: string }>(
     `/${slug}/manager/workers/${warehouseId}`,
     { ...data, status: data.status ?? "available" },
   );
-  return { message: response.data.message, employee: response.data.employee, password: response.data.password };
+  return {
+    message: response.data.message,
+    employee: response.data.employee ?? response.data.worker!,
+    password: response.data.password,
+  };
 };
 
 export const updateManagerEmployee = async (
@@ -531,6 +556,7 @@ export interface ManagerWorkerInput {
 export interface ManagerWorkerResponse {
   message: string;
   employee: ManagerEmployee;
+  worker?: ManagerEmployee;
   password?: string | null;
 }
 
@@ -540,7 +566,8 @@ export const createManagerWorker = async (
   data: ManagerWorkerInput,
 ): Promise<ManagerWorkerResponse> => {
   const response = await api.post<ManagerWorkerResponse>(`/${slug}/manager/workers/${warehouseId}`, data);
-  return response.data;
+  const body = response.data;
+  return { ...body, employee: body.employee ?? body.worker! };
 };
 
 /* ===== Tasks ===== */
@@ -608,9 +635,74 @@ export const updateTaskStatus = async (slug: string, taskId: number, data: Updat
   return response.data;
 };
 
+/* ===== Keeper (Supervisor) Tasks & Worker Roster ===== */
+
+export interface KeeperTaskWorker {
+  id: number;
+  full_name: string;
+  phone_number: string;
+}
+
+export interface KeeperTaskEmployee {
+  id: number | null;
+  full_name: string | null;
+}
+
+export interface KeeperTaskRelated {
+  id: number;
+  type?: string;
+  label?: string;
+  status?: string;
+  total_price?: number;
+}
+
+export interface KeeperTask {
+  id: number;
+  status: "in_preparation" | "completed";
+  task_type: string;
+  worker: KeeperTaskWorker;
+  employee: KeeperTaskEmployee | null;
+  related_type: string | null;
+  related_id: number | null;
+  related: KeeperTaskRelated | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export const fetchKeeperTasks = async (slug: string, params?: { status?: string; task_type?: string; worker_id?: number }): Promise<{ tasks: KeeperTask[] }> => {
+  const response = await api.get<{ tasks: KeeperTask[] }>(`/${slug}/keeper/tasks`, { params });
+  return response.data;
+};
+
+export const assignKeeperTask = async (slug: string, data: AssignTaskInput): Promise<{ message: string; task: KeeperTask }> => {
+  const response = await api.post<{ message: string; task: KeeperTask }>(`/${slug}/keeper/tasks/assign`, data);
+  return response.data;
+};
+
+export interface KeeperRosterSystemUser {
+  id: number;
+  full_name: string;
+  phone_number: string | null;
+}
+
+export interface KeeperWorker {
+  id: number;
+  system_user_id: number;
+  warehouse_id: number;
+  role: "manager" | "warehouse_secretary" | "staff" | "driver";
+  status: string;
+  salary: string | number | null;
+  system_user?: KeeperRosterSystemUser;
+}
+
+export const fetchKeeperWorkers = async (slug: string, warehouseId: number): Promise<{ employees: KeeperWorker[] }> => {
+  const response = await api.get<{ employees: KeeperWorker[] }>(`/${slug}/keeper/workers/${warehouseId}`);
+  return response.data;
+};
+
 /* ===== Inter-Warehouse Transfer Requests ===== */
 
-export type TransferRequestStatus = "pending" | "accepted" | "fulfilled" | "cancelled";
+export type TransferRequestStatus = "pending" | "accepted" | "fulfilled" | "rejected" | "cancelled";
 
 export interface TransferRequestWarehouse {
   id: number;
