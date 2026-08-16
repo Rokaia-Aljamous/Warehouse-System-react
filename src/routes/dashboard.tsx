@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Users, Warehouse, BarChart3, Wallet, Settings as SettingsIcon,
   Search, Bell, Menu, Plus, Pencil, Trash2, ChevronLeft, ChevronRight,
   Snowflake, Package, Flame, Truck, AlertTriangle, Activity,
-  CreditCard, ArrowUpRight, CheckCircle2, Boxes,
+  CreditCard, ArrowUpRight, CheckCircle2, Boxes, Send,
   Loader2, LogIn, LogOut, User,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -51,6 +51,7 @@ import {
   getCsrfCookie, loginDashboard, logoutDashboard,
 } from "@/lib/api";
 import { fetchMe, fetchInventoryMovements, type InventoryMovement } from "@/lib/manager-api";
+import { isValidInternationalPhone } from "@/lib/validation";
 import { OwnerAnalytics } from "@/components/analytics/OwnerAnalytics";
 import { formatNumber, formatMoney } from "@/lib/analytics-api";
 import {
@@ -1028,7 +1029,7 @@ function ManagerDialog({
       toast.error(t("manager.toast_username_short"));
       return;
     }
-    if (!/^09[0-9]{8}$/.test(form.phone_number)) {
+    if (!isValidInternationalPhone(form.phone_number)) {
       toast.error(t("manager.toast_phone_invalid"));
       return;
     }

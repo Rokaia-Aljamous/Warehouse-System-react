@@ -145,12 +145,6 @@ function ManagerLogin() {
               {loading ? t("auth.signing_in") : t("auth.log_in")}
             </Button>
           </form>
-          <div className="mt-6 rounded-xl bg-muted/60 p-3 text-xs">
-            <p className="font-medium text-foreground">{t("manager.login.demo_credentials")}</p>
-            <p className="mt-1 text-[#1e293b]">{t("manager.login.slug")}: <strong>delta</strong></p>
-            <p className="text-[#1e293b]">{t("manager.login.username")}: <strong>mgr_delta_2</strong> (or _3 / _4 / _5 / _6)</p>
-            <p className="text-[#1e293b]">{t("manager.login.password")}: <strong>password</strong></p>
-          </div>
         </div>
         <p className="mt-4 text-center text-xs text-cream/70">
           <Link to="/" className="hover:underline">

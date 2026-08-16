@@ -257,6 +257,19 @@
 .stagger-fade > *:nth-child(15) { animation-delay: 560ms; }
 .stagger-fade > *:nth-child(16) { animation-delay: 600ms; }
 
+/* Pulse ring for the live driver marker on the tracking map. */
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 12px rgba(37, 99, 235, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0);
+  }
+}
+
 /* Respect users who prefer reduced motion. */
 @media (prefers-reduced-motion: reduce) {
   *,

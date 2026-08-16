@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { LanguageToggle } from "@/components/LanguageToggle";
+import { validatePasswordStrength, isValidInternationalPhone } from "@/lib/validation";
 import i18n from "@/lib/i18n";
 
 export const Route = createFileRoute("/manager-register")({
@@ -27,6 +28,14 @@ function ManagerRegister() {
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isValidInternationalPhone(form.phone)) {
+      toast.error(t("validation.phone_international"));
+      return;
+    }
+    if (!validatePasswordStrength(form.password)) {
+      toast.error(t("validation.password_policy"));
+      return;
+    }
     setLoading(true);
     setTimeout(() => {
       setLoading(false);
@@ -88,6 +97,7 @@ function ManagerRegister() {
               <div className="space-y-2">
                 <Label htmlFor="pw">{t("auth.password")}</Label>
                 <Input id="pw" type="password" value={form.password} onChange={update("password")} required />
+                <p className="text-xs text-muted-foreground">{t("validation.password_policy_hint")}</p>
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}

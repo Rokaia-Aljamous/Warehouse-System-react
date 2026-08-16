@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { getCsrfCookie } from "@/lib/api";
 import { forceChangePassword, logoutManager } from "@/lib/manager-api";
+import { validatePasswordStrength } from "@/lib/validation";
 import i18n from "@/lib/i18n";
 
 export const Route = createFileRoute("/force-password-change")({
@@ -68,6 +69,10 @@ function ForcePasswordChange() {
     e.preventDefault();
     if (password.length < 8) {
       toast.error(t("settings.password_min_length"));
+      return;
+    }
+    if (!validatePasswordStrength(password)) {
+      toast.error(t("validation.password_policy"));
       return;
     }
     if (password !== confirm) {
@@ -169,7 +174,7 @@ function ForcePasswordChange() {
                 {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
-            <p className="text-xs text-muted-foreground">{t("settings.password_min_length")}</p>
+            <p className="text-xs text-muted-foreground">{t("validation.password_policy_hint")}</p>
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
               {loading ? t("common.submitting") : t("manager.change_password_continue")}
