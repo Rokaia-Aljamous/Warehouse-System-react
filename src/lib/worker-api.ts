@@ -2,7 +2,7 @@ import { api } from "@/lib/api";
 
 /* ===== Worker (Staff / Driver) API client =====
  * These endpoints are bearer-token authenticated (workers-token) and live
- * under /workers/*. Call setWorkerToken() after a successful login.
+ * under /api/workers/*. Call setWorkerToken() after a successful login.
  */
 
 let workerToken: string | null = null;
@@ -44,21 +44,21 @@ export interface WorkerLoginResponse {
 }
 
 export const loginWorker = async (user_name: string, password: string): Promise<WorkerLoginResponse> => {
-  const response = await api.post<WorkerLoginResponse>("/workers/login", { user_name, password });
+  const response = await api.post<WorkerLoginResponse>("/api/workers/login", { user_name, password });
   return response.data;
 };
 
 export const logoutWorker = async (): Promise<void> => {
-  await api.post("/workers/logout", null, { headers: authHeaders() });
+  await api.post("/api/workers/logout", null, { headers: authHeaders() });
 };
 
 export const sendWorkerLoginOtp = async (phone_number: string): Promise<{ message: string }> => {
-  const response = await api.post<{ message: string }>("/workers/login/otp", { phone_number });
+  const response = await api.post<{ message: string }>("/api/workers/login/otp", { phone_number });
   return response.data;
 };
 
 export const verifyWorkerLoginOtp = async (phone_number: string, code: string): Promise<WorkerLoginResponse> => {
-  const response = await api.post<WorkerLoginResponse>("/workers/login/otp/verify", { phone_number, code });
+  const response = await api.post<WorkerLoginResponse>("/api/workers/login/otp/verify", { phone_number, code });
   return response.data;
 };
 
@@ -75,14 +75,14 @@ export interface WorkerFullProfile {
 }
 
 export const fetchWorkerProfile = async (): Promise<WorkerFullProfile> => {
-  const response = await api.get<WorkerFullProfile>("/workers/profile", { headers: authHeaders() });
+  const response = await api.get<WorkerFullProfile>("/api/workers/profile", { headers: authHeaders() });
   return response.data;
 };
 
 export const updateWorkerProfile = async (
   data: Partial<{ full_name: string; birthday: string | null; phone_number: string }>,
 ): Promise<{ message: string; profile: WorkerFullProfile }> => {
-  const response = await api.patch<{ message: string; profile: WorkerFullProfile }>("/workers/profile", data, {
+  const response = await api.patch<{ message: string; profile: WorkerFullProfile }>("/api/workers/profile", data, {
     headers: authHeaders(),
   });
   return response.data;
@@ -93,7 +93,7 @@ export const changeWorkerPassword = async (
   password_confirmation: string,
 ): Promise<{ message: string }> => {
   const response = await api.post<{ message: string }>(
-    "/workers/password/change",
+    "/api/workers/password/change",
     { password, password_confirmation },
     { headers: authHeaders() },
   );
@@ -118,7 +118,7 @@ export const updateWorkerLocation = async (
   longitude: number,
 ): Promise<WorkerLocationUpdateResponse> => {
   const response = await api.post<WorkerLocationUpdateResponse>(
-    "/workers/location",
+    "/api/workers/location",
     { latitude, longitude },
     { headers: authHeaders() },
   );
@@ -146,7 +146,7 @@ export const pushDriverTrackingLocation = async (
     speed: number;
   },
 ): Promise<DriverTrackingPushResponse> => {
-  const response = await api.post<DriverTrackingPushResponse>("/workers/tracking/location", data, {
+  const response = await api.post<DriverTrackingPushResponse>("/api/workers/tracking/location", data, {
     headers: authHeaders(),
   });
   return response.data;
@@ -176,7 +176,7 @@ export const fetchWorkerTasks = async (params?: {
   status?: string;
   task_type?: string;
 }): Promise<WorkerTasksResponse> => {
-  const response = await api.get<WorkerTasksResponse>("/workers/tasks", {
+  const response = await api.get<WorkerTasksResponse>("/api/workers/tasks", {
     params,
     headers: authHeaders(),
   });
@@ -184,6 +184,6 @@ export const fetchWorkerTasks = async (params?: {
 };
 
 export const fetchWorkerTasksSummary = async (): Promise<Record<string, unknown>> => {
-  const response = await api.get<Record<string, unknown>>("/workers/tasks/summary", { headers: authHeaders() });
+  const response = await api.get<Record<string, unknown>>("/api/workers/tasks/summary", { headers: authHeaders() });
   return response.data;
 };

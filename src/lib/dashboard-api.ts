@@ -312,6 +312,7 @@ export interface EmployeeStoreResponse {
 
 export interface EmployeeInput {
   full_name: string;
+  birthday?: string | null;
   phone_number: string;
   user_name: string;
   password?: string;

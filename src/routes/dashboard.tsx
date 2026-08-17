@@ -51,7 +51,7 @@ import {
   getCsrfCookie, loginDashboard, logoutDashboard,
 } from "@/lib/api";
 import { fetchMe, fetchInventoryMovements, type InventoryMovement } from "@/lib/manager-api";
-import { isValidInternationalPhone } from "@/lib/validation";
+import { isValidInternationalPhone, isAtLeast18 } from "@/lib/validation";
 import { OwnerAnalytics } from "@/components/analytics/OwnerAnalytics";
 import { formatNumber, formatMoney } from "@/lib/analytics-api";
 import {
@@ -109,6 +109,7 @@ interface ManagerItem {
   role?: "Manager" | "Supervisor" | "Lead";
   email?: string;
   phone?: string;
+  birthday?: string;
   salary?: number;
   joinDate?: string;
 }
@@ -679,6 +680,7 @@ function ManagersSection({
             role: "Manager" as const,
             email: emp.system_user.user_name + "@warehouse.io",
             phone: emp.system_user.phone_number,
+            birthday: emp.system_user.birthday ?? undefined,
             salary: emp.salary,
           });
         }
@@ -711,11 +713,15 @@ function ManagersSection({
 
   const [created, setCreated] = useState<{ user_name: string; password: string } | null>(null);
 
-  const handleSave = async (data: { id?: string; name: string; user_name: string; phone_number: string; salary: number; warehouseId: string; status: ManagerStatus }) => {
+  const handleSave = async (data: { id?: string; name: string; birthday: string; user_name: string; phone_number: string; salary: number; warehouseId: string; status: ManagerStatus }) => {
     if (!slug) {
       setLoading(true);
       toast.error(t("common.operation_failed"));
       setLoading(false);
+      return;
+    }
+    if (!isAtLeast18(data.birthday)) {
+      toast.error(t("manager.birthday_min_age"));
       return;
     }
     setLoading(true);
@@ -726,6 +732,7 @@ function ManagersSection({
         const employeeId = parseInt(data.id.replace("emp_", ""), 10);
         await updateEmployee(slug, warehouseId, employeeId, {
           full_name: data.name,
+          birthday: data.birthday,
           user_name: data.user_name,
           phone_number: data.phone_number,
           salary: data.salary,
@@ -735,6 +742,7 @@ function ManagersSection({
       } else {
         const res = await createEmployee(slug, warehouseId, {
           full_name: data.name,
+          birthday: data.birthday,
           user_name: data.user_name,
           phone_number: data.phone_number,
           salary: data.salary,
@@ -995,12 +1003,12 @@ function ManagerDialog({
 }: {
   open: boolean; onOpenChange: (o: boolean) => void;
   editing: ManagerItem | null; types: WarehouseTypeOption[];
-  onSave: (m: { id?: string; name: string; user_name: string; phone_number: string; salary: number; warehouseId: string; status: ManagerStatus }) => void;
+  onSave: (m: { id?: string; name: string; birthday: string; user_name: string; phone_number: string; salary: number; warehouseId: string; status: ManagerStatus }) => void;
   loading: boolean;
 }) {
   const { t } = useTranslation();
   const [form, setForm] = useState({
-    name: "", user_name: "", phone_number: "", salary: 0,
+    name: "", birthday: "", user_name: "", phone_number: "", salary: 0,
     warehouseId: types[0]?.id ?? "", status: "active" as ManagerStatus,
   });
 
@@ -1008,6 +1016,7 @@ function ManagerDialog({
     if (editing) {
       setForm({
         name: editing.name,
+        birthday: editing.birthday ?? "",
         user_name: editing.whmId,
         phone_number: editing.phone ?? "",
         salary: editing.salary ?? 0,
@@ -1015,14 +1024,28 @@ function ManagerDialog({
         status: editing.status,
       });
     } else {
-      setForm({ name: "", user_name: "", phone_number: "", salary: 0, warehouseId: types[0]?.id ?? "", status: "active" });
+      setForm({ name: "", birthday: "", user_name: "", phone_number: "", salary: 0, warehouseId: types[0]?.id ?? "", status: "active" });
     }
   }, [editing, types]);
+
+  const maxBirthday = () => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - 18);
+    return d.toISOString().split("T")[0];
+  };
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.user_name || !form.phone_number || !form.warehouseId) {
       toast.error(t("manager.toast_required_fields"));
+      return;
+    }
+    if (!form.birthday) {
+      toast.error(t("manager.birthday_required"));
+      return;
+    }
+    if (!isAtLeast18(form.birthday)) {
+      toast.error(t("manager.birthday_min_age"));
       return;
     }
     if (!editing && form.user_name.length < 3) {
@@ -1040,6 +1063,7 @@ function ManagerDialog({
     onSave({
       ...(editing ? { id: editing.id } : {}),
       name: form.name,
+      birthday: form.birthday,
       user_name: form.user_name,
       phone_number: form.phone_number,
       salary: form.salary,
@@ -1090,6 +1114,17 @@ function ManagerDialog({
                 placeholder={t("manager.phone_placeholder")}
                 required
                 inputMode="numeric"
+                className="text-[#1D2D44] placeholder:text-[#1D2D44]/50 focus:text-[#1D2D44]"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label className="text-[#1D2D44]">{t("manager.birthday")}</Label>
+              <Input
+                type="date"
+                max={maxBirthday()}
+                value={form.birthday}
+                onChange={(e) => setForm({ ...form, birthday: e.target.value })}
+                required
                 className="text-[#1D2D44] placeholder:text-[#1D2D44]/50 focus:text-[#1D2D44]"
               />
             </div>

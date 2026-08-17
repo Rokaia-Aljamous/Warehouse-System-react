@@ -53,7 +53,7 @@ import { useTransferRequests } from "@/hooks/useTransferRequests";
 import { AvailableRequestsFeed } from "@/components/transfer/AvailableRequestsFeed";
 import { MyWarehouseRequests } from "@/components/transfer/MyWarehouseRequests";
 import { ManagerAnalytics } from "@/components/analytics/ManagerAnalytics";
-import { isValidInternationalPhone } from "@/lib/validation";
+import { isValidInternationalPhone, isAtLeast18 } from "@/lib/validation";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 
@@ -1054,9 +1054,23 @@ function AddWorkerDialog({
 
   const set = (patch: Partial<WorkerFormState>) => setForm((prev) => ({ ...prev, ...patch }));
 
+  const maxBirthday = () => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - 18);
+    return d.toISOString().split("T")[0];
+  };
+
   const submit = async () => {
     if (!form.full_name.trim() || !form.phone_number.trim() || !form.user_name.trim()) {
       toast.error(t("common.fields_required"));
+      return;
+    }
+    if (!form.birthday) {
+      toast.error(t("worker.birthday_required"));
+      return;
+    }
+    if (!isAtLeast18(form.birthday)) {
+      toast.error(t("worker.birthday_min_age"));
       return;
     }
     if (!isValidInternationalPhone(form.phone_number)) {
@@ -1131,6 +1145,7 @@ function AddWorkerDialog({
               <Label className="text-[#1D2D44]">{t("worker.birthday")}</Label>
               <Input
                 type="date"
+                max={maxBirthday()}
                 value={form.birthday}
                 onChange={(e) => set({ birthday: e.target.value })}
                 className="text-[#1D2D44]"
@@ -1404,6 +1419,14 @@ function OrdersSection({ orders, onRefresh }: { orders: ManagerOrder[]; onRefres
               <div className="flex justify-between">
                 <span className="font-medium text-[#1D2D44]">{t("order.total")}</span>
                 <span className="font-bold text-[#1D2D44]">{formatOrderMoney(openOrder.total_price)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-medium text-[#1D2D44]">{t("order.delivery_fee")}</span>
+                <span className="text-[#1D2D44]">{formatOrderMoney(openOrder.delivery_fee)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="font-medium text-[#1D2D44]">{t("order.delivery_region")}</span>
+                <span className="text-end text-[#1D2D44]">{openOrder.delivery_region ?? "—"}</span>
               </div>
               <div className="flex justify-between">
                 <span className="font-medium text-[#1D2D44]">{t("order.location")}</span>
