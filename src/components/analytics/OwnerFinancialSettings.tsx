@@ -14,6 +14,7 @@ import { useAnalyticsQuery, httpErrorMessage } from "@/components/analytics/use-
 const DEFAULT_SETTINGS: FinancialSettings = {
   default_margin_percent: 0,
   delivery_fee_per_order: 0,
+  delivery_cross_region_multiplier: 1.5,
   insurance_percent: 0,
   storage_percent: 0,
   capital_cost_percent: 0,
@@ -35,6 +36,7 @@ export function OwnerFinancialSettings({ slug }: { slug: string }) {
       setForm({
         default_margin_percent: Number(s.default_margin_percent ?? 0),
         delivery_fee_per_order: Number(s.delivery_fee_per_order ?? 0),
+        delivery_cross_region_multiplier: Number(s.delivery_cross_region_multiplier ?? 1.5),
         insurance_percent: Number(s.insurance_percent ?? 0),
         storage_percent: Number(s.storage_percent ?? 0),
         capital_cost_percent: Number(s.capital_cost_percent ?? 0),
@@ -70,6 +72,7 @@ export function OwnerFinancialSettings({ slug }: { slug: string }) {
     return (
       a.default_margin_percent !== Number(b.default_margin_percent ?? 0) ||
       a.delivery_fee_per_order !== Number(b.delivery_fee_per_order ?? 0) ||
+      a.delivery_cross_region_multiplier !== Number(b.delivery_cross_region_multiplier ?? 1.5) ||
       a.insurance_percent !== Number(b.insurance_percent ?? 0) ||
       a.storage_percent !== Number(b.storage_percent ?? 0) ||
       a.capital_cost_percent !== Number(b.capital_cost_percent ?? 0) ||
@@ -87,6 +90,7 @@ export function OwnerFinancialSettings({ slug }: { slug: string }) {
       await ownerAnalytics.updateFinancialSettings(slug, {
         default_margin_percent: form.default_margin_percent,
         delivery_fee_per_order: form.delivery_fee_per_order,
+        delivery_cross_region_multiplier: form.delivery_cross_region_multiplier,
         insurance_percent: form.insurance_percent,
         storage_percent: form.storage_percent,
         capital_cost_percent: form.capital_cost_percent,
@@ -102,7 +106,7 @@ export function OwnerFinancialSettings({ slug }: { slug: string }) {
     }
   };
 
-  const field = (label: string, key: "default_margin_percent" | "delivery_fee_per_order" | "insurance_percent" | "storage_percent" | "capital_cost_percent" | "obsolescence_percent", suffix?: string) => (
+  const field = (label: string, key: "default_margin_percent" | "delivery_fee_per_order" | "delivery_cross_region_multiplier" | "insurance_percent" | "storage_percent" | "capital_cost_percent" | "obsolescence_percent", suffix?: string) => (
     <div>
       <Label className="text-xs text-[#1a2942]/70">{label}</Label>
       <div className="relative">
@@ -144,6 +148,7 @@ export function OwnerFinancialSettings({ slug }: { slug: string }) {
             <CardContent className="space-y-4">
               {field(t("analytics.settings.margin"), "default_margin_percent", "%")}
               {field(t("analytics.settings.delivery_fee"), "delivery_fee_per_order", form.currency)}
+              {field(t("analytics.settings.cross_region_multiplier"), "delivery_cross_region_multiplier", "×")}
             </CardContent>
           </Card>
 

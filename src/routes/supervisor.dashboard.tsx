@@ -32,8 +32,8 @@ import { cn } from "@/lib/utils";
 import i18n from "@/lib/i18n";
 import { useTranslation } from "react-i18next";
 import { LanguageToggle } from "@/components/LanguageToggle";
-import { fetchMe, logoutManager, fetchDriverTracking, fetchDriverRoute, fetchKeeperWorkers } from "@/lib/manager-api";
-import type { DriverLivePosition, DriverRouteWaypoint } from "@/lib/manager-api";
+import { fetchMe, logoutManager, fetchDriverTracking, fetchDriverRoute, fetchKeeperWorkers, fetchKeeperDisposals, decideKeeperDisposal, fetchKeeperReturns, decideKeeperReturn, processKeeperReturn } from "@/lib/manager-api";
+import type { DriverLivePosition, DriverRouteWaypoint, KeeperDisposal, DisposalStatus, KeeperReturn, KeeperReturnStatus, KeeperWorker } from "@/lib/manager-api";
 import { DriverTrackingMap } from "@/components/DriverTrackingMap";
 import { isValidInternationalPhone } from "@/lib/validation";
 
@@ -100,7 +100,7 @@ const seedReturns: Return[] = [
 // ---------------- Sidebar ----------------
 type SectionId =
   | "overview" | "incoming" | "preparation" | "receiving"
-  | "drivers" | "returns" | "workers" | "reports" | "settings";
+  | "drivers" | "returns" | "disposals" | "workers" | "reports" | "settings";
 
 const NAV: { id: SectionId; labelKey: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: "overview",    labelKey: "sidebar.dashboard",          icon: LayoutDashboard },
@@ -109,6 +109,7 @@ const NAV: { id: SectionId; labelKey: string; icon: React.ComponentType<{ classN
   { id: "receiving",   labelKey: "supervisor.nav.receiving",   icon: ClipboardList },
   { id: "drivers",     labelKey: "supervisor.nav.drivers",     icon: Truck },
   { id: "returns",     labelKey: "supervisor.nav.returns",     icon: RotateCcw },
+  { id: "disposals",   labelKey: "supervisor.nav.disposals",   icon: AlertTriangle },
   { id: "workers",     labelKey: "supervisor.workers",         icon: Users },
   { id: "reports",     labelKey: "sidebar.reports",            icon: FileText },
   { id: "settings",    labelKey: "sidebar.settings",           icon: SettingsIcon },
@@ -307,7 +308,8 @@ function SupervisorApp() {
               {section === "preparation" && <Preparation orders={orders} setOrders={setOrders} workers={workers} setWorkers={setWorkers} />}
               {section === "receiving"   && <Receiving shipments={shipments} setShipments={setShipments} workers={workers} />}
               {section === "drivers"     && <DriversSection slug={slug ?? ""} warehouseId={warehouseId} drivers={drivers} setDrivers={setDrivers} orders={orders} setOrders={setOrders} />}
-              {section === "returns"     && <ReturnsSection returns={returns} setReturns={setReturns} workers={workers} />}
+              {section === "returns"     && <ReturnsSection slug={slug ?? ""} warehouseId={warehouseId} />}
+              {section === "disposals"   && <DisposalsSection slug={slug ?? ""} />}
               {section === "workers"     && <WorkersSection workers={workers} setWorkers={setWorkers} />}
               {section === "reports"     && <Reports orders={orders} returns={returns} workers={workers} />}
               {section === "settings"    && <SettingsPanel />}
@@ -355,6 +357,11 @@ function StatusBadge({ status }: { status: string }) {
     pending:          "bg-amber-500/20 text-amber-700",
     approved:         "bg-emerald-500/20 text-emerald-700",
     refunded:         "bg-violet-500/20 text-violet-700",
+    return_to_stock:  "bg-emerald-600/20 text-emerald-800",
+    damaged:          "bg-rose-500/20 text-rose-700",
+    picked_by_driver: "bg-violet-500/20 text-violet-700",
+    return_to_warehouse: "bg-amber-500/20 text-amber-700",
+    cancelled:        "bg-zinc-500/20 text-zinc-700",
     available:        "bg-emerald-500/20 text-emerald-700",
     busy:             "bg-amber-500/20 text-amber-700",
     on_delivery:      "bg-violet-500/20 text-violet-700",
@@ -1117,85 +1124,486 @@ function DriverTrackingPanel({ slug, warehouseId, drivers }: { slug: string; war
   );
 }
 
-// ---------------- Returns ----------------
-function ReturnsSection({
-  returns, setReturns, workers,
-}: {
-  returns: Return[]; setReturns: React.Dispatch<React.SetStateAction<Return[]>>;
-  workers: SWorker[];
-}) {
-  const { t } = useTranslation();
-  const [tab, setTab] = useState("pending");
-  const retWorkers = workers.filter(w => w.section === "Returns");
-  const list = returns.filter(r => tab === "all" ? true : r.status === tab);
+// ---------------- Returns (keeper decides then processes) ----------------
+type DisposeDecision = "return_to_stock" | "damaged";
 
-  const setStatus = (id: string, status: Return["status"]) => {
-    setReturns(prev => prev.map(r => r.id === id ? { ...r, status } : r));
-    toast.success(t("supervisor.returns.toast_status", { id, status }));
+function ReturnsSection({ slug, warehouseId }: { slug: string; warehouseId: number | null }) {
+  const { t } = useTranslation();
+  const [tab, setTab] = useState<KeeperReturnStatus | "all">("pending");
+  const [returns, setReturns] = useState<KeeperReturn[]>([]);
+  const [staff, setStaff] = useState<KeeperWorker[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [approveTarget, setApproveTarget] = useState<KeeperReturn | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<KeeperReturn | null>(null);
+  const [disposeTarget, setDisposeTarget] = useState<{ return: KeeperReturn; decision: DisposeDecision } | null>(null);
+  const [selectedWorker, setSelectedWorker] = useState<string>("");
+  const [reason, setReason] = useState("");
+
+  useEffect(() => {
+    if (!warehouseId) return;
+    let cancelled = false;
+    fetchKeeperWorkers(slug, warehouseId)
+      .then((res) => {
+        if (cancelled) return;
+        setStaff((res.employees ?? []).filter((e) => e.role === "staff"));
+      })
+      .catch(() => {
+        if (!cancelled) setStaff([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [slug, warehouseId]);
+
+  const load = useCallback(async (status?: KeeperReturnStatus | "all") => {
+    setLoading(true);
+    try {
+      const res = await fetchKeeperReturns(slug, status && status !== "all" ? status : undefined);
+      setReturns(res.returns ?? []);
+    } catch {
+      toast.error(t("supervisor.returns.toast_load_failed"));
+    } finally {
+      setLoading(false);
+    }
+  }, [slug, t]);
+
+  useEffect(() => {
+    load(tab);
+  }, [tab, load]);
+
+  const refresh = () => {
+    setApproveTarget(null);
+    setRejectTarget(null);
+    setDisposeTarget(null);
+    setSelectedWorker("");
+    setReason("");
+    load(tab);
   };
-  const assign = (id: string, workerId: string) => {
-    setReturns(prev => prev.map(r => r.id === id ? { ...r, workerId } : r));
-    toast.success(t("supervisor.returns.toast_assigned", { id: workerId }));
+
+  const decide = async (target: KeeperReturn, decision: "approved" | "rejected") => {
+    setBusyId(target.id);
+    try {
+      await decideKeeperReturn(slug, target.id, {
+        status: decision,
+        reason: decision === "rejected" ? reason.trim() : undefined,
+      });
+      toast.success(decision === "approved" ? t("supervisor.returns.toast_approved") : t("supervisor.returns.toast_rejected"));
+      refresh();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      toast.error(msg ?? t("supervisor.returns.toast_decision_failed"));
+    } finally {
+      setBusyId(null);
+    }
   };
+
+  const process = async (target: KeeperReturn, decision: DisposeDecision) => {
+    const workerId = Number(selectedWorker);
+    if (!workerId) {
+      toast.error(t("supervisor.returns.worker_required"));
+      return;
+    }
+    setBusyId(target.id);
+    try {
+      await processKeeperReturn(slug, target.id, {
+        status: decision,
+        worker_or_driver_id: workerId,
+      });
+      toast.success(decision === "return_to_stock" ? t("supervisor.returns.toast_restocked") : t("supervisor.returns.toast_damaged"));
+      refresh();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      toast.error(msg ?? t("supervisor.returns.toast_decision_failed"));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const openDispose = (target: KeeperReturn, decision: DisposeDecision) => {
+    setSelectedWorker("");
+    setDisposeTarget({ return: target, decision });
+  };
+
+  const list = tab === "all" ? returns : returns.filter(r => r.status === tab);
 
   return (
-    <GlassCard>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-base font-semibold">{t("supervisor.returns.title")}</h2>
-        <Tabs value={tab} onValueChange={setTab}>
-          <TabsList>
-            <TabsTrigger value="pending">{t("supervisor.returns.tab_pending")}</TabsTrigger>
-            <TabsTrigger value="approved">{t("supervisor.returns.tab_approved")}</TabsTrigger>
-            <TabsTrigger value="rejected">{t("supervisor.returns.tab_rejected")}</TabsTrigger>
-            <TabsTrigger value="refunded">{t("supervisor.returns.tab_refunded")}</TabsTrigger>
-            <TabsTrigger value="all">{t("supervisor.returns.tab_all")}</TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>{t("supervisor.col_return")}</TableHead><TableHead>{t("supervisor.col_order")}</TableHead>
-            <TableHead>{t("order.customer")}</TableHead><TableHead>{t("return.reason")}</TableHead>
-            <TableHead>{t("task.worker")}</TableHead><TableHead>{t("order.status")}</TableHead>
-            <TableHead className="text-end">{t("supervisor.col_actions")}</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {list.map(r => (
-            <TableRow key={r.id}>
-              <TableCell className="font-medium">{r.id}</TableCell>
-              <TableCell>{r.orderId}</TableCell>
-              <TableCell>{r.customer}</TableCell>
-              <TableCell className="max-w-[220px] truncate">{r.reason}</TableCell>
-              <TableCell>
-                <Select value={r.workerId ?? ""} onValueChange={(v) => assign(r.id, v)}>
-                  <SelectTrigger className="h-8 w-[150px]"><SelectValue placeholder={t("supervisor.assign_placeholder")} /></SelectTrigger>
-                  <SelectContent>
-                    {retWorkers.map(w => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </TableCell>
-              <TableCell><StatusBadge status={r.status} /></TableCell>
-              <TableCell className="flex items-center justify-end gap-1">
-                {r.status === "pending" && (
-                  <>
-                    <Button size="sm" onClick={() => setStatus(r.id, "approved")}>{t("supervisor.approve")}</Button>
-                    <Button size="sm" variant="outline" onClick={() => setStatus(r.id, "rejected")}>{t("supervisor.reject")}</Button>
-                  </>
-                )}
-                {r.status === "approved" && (
-                  <Button size="sm" onClick={() => setStatus(r.id, "refunded")}>{t("supervisor.returns.process_refund")}</Button>
-                )}
-              </TableCell>
-            </TableRow>
-          ))}
-          {list.length === 0 && (
-            <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">{t("supervisor.no_items")}</TableCell></TableRow>
-          )}
-        </TableBody>
-      </Table>
-    </GlassCard>
+    <div className="space-y-6">
+      <GlassCard>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-base font-semibold">{t("supervisor.returns.title")}</h2>
+          <Tabs value={tab} onValueChange={(v) => setTab(v as KeeperReturnStatus | "all")}>
+            <TabsList>
+              <TabsTrigger value="pending">{t("supervisor.returns.tab_pending")}</TabsTrigger>
+              <TabsTrigger value="approved">{t("supervisor.returns.tab_approved")}</TabsTrigger>
+              <TabsTrigger value="return_to_stock">{t("supervisor.returns.tab_return_to_stock")}</TabsTrigger>
+              <TabsTrigger value="damaged">{t("supervisor.returns.tab_damaged")}</TabsTrigger>
+              <TabsTrigger value="rejected">{t("supervisor.returns.tab_rejected")}</TabsTrigger>
+              <TabsTrigger value="all">{t("supervisor.returns.tab_all")}</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+
+        {loading ? (
+          <div className="grid place-items-center py-12"><Loader2 className="size-6 animate-spin text-[#1a2942]" /></div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t("supervisor.col_return")}</TableHead>
+                <TableHead>{t("supervisor.col_order")}</TableHead>
+                <TableHead>{t("order.customer")}</TableHead>
+                <TableHead>{t("return.reason")}</TableHead>
+                <TableHead>{t("supervisor.returns.col_items")}</TableHead>
+                <TableHead>{t("supervisor.returns.col_requested")}</TableHead>
+                <TableHead>{t("order.status")}</TableHead>
+                <TableHead className="text-end">{t("supervisor.col_actions")}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {list.map(r => (
+                <TableRow key={r.id}>
+                  <TableCell className="font-medium">#{r.id}</TableCell>
+                  <TableCell>#{r.order.id}</TableCell>
+                  <TableCell>{r.order.customer.full_name}</TableCell>
+                  <TableCell className="max-w-[200px] truncate">{r.return_reason || "—"}</TableCell>
+                  <TableCell className="max-w-[220px]">
+                    {r.items.map(it => `${it.product.name} ×${it.quantity}`).join(", ") || "—"}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {r.created_at ? new Date(r.created_at).toLocaleString() : "—"}
+                  </TableCell>
+                  <TableCell><StatusBadge status={r.status} /></TableCell>
+                  <TableCell className="flex items-center justify-end gap-1">
+                    {r.status === "pending" ? (
+                      <>
+                        <Button size="sm" onClick={() => setApproveTarget(r)} disabled={busyId !== null}>
+                          {busyId === r.id ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
+                          {t("supervisor.approve")}
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => setRejectTarget(r)} disabled={busyId !== null}>
+                          <XCircle className="size-4" /> {t("supervisor.reject")}
+                        </Button>
+                      </>
+                    ) : r.status === "approved" ? (
+                      <>
+                        <Button size="sm" variant="outline" onClick={() => openDispose(r, "return_to_stock")} disabled={busyId !== null}>
+                          {busyId === r.id ? <Loader2 className="size-4 animate-spin" /> : <PackageCheck className="size-4" />}
+                          {t("supervisor.returns.return_to_stock")}
+                        </Button>
+                        <Button size="sm" variant="destructive" onClick={() => openDispose(r, "damaged")} disabled={busyId !== null}>
+                          {busyId === r.id ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+                          {t("supervisor.returns.destroy_damaged")}
+                        </Button>
+                      </>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">{t("supervisor.returns.reviewed")}</span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+              {list.length === 0 && (
+                <TableRow><TableCell colSpan={8} className="py-8 text-center text-muted-foreground">{t("supervisor.returns.no_items")}</TableCell></TableRow>
+              )}
+            </TableBody>
+          </Table>
+        )}
+      </GlassCard>
+
+      <AlertDialog open={!!approveTarget} onOpenChange={(o) => !o && setApproveTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-[#1D2D44]">{t("supervisor.returns.approve_confirm_title")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {approveTarget
+                ? t("supervisor.returns.approve_confirm_desc", {
+                    id: approveTarget.id,
+                    customer: approveTarget.order.customer.full_name,
+                  })
+                : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#d99415] hover:text-[#1D2D44] border border-[#1D2D44]/20">{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => approveTarget && decide(approveTarget, "approved")}>{t("supervisor.approve")}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog open={!!rejectTarget} onOpenChange={(o) => !o && setRejectTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-[#1D2D44]">{t("supervisor.returns.reject_title")}</DialogTitle>
+            <DialogDescription>{t("supervisor.returns.reject_desc")}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label className="text-[#1D2D44]">{t("supervisor.returns.reason_label")}</Label>
+            <Textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder={t("supervisor.returns.reason_placeholder")}
+              className="bg-[#eeebdd] text-[#1D2D44] placeholder:text-[#1D2D44]/60 border-[#1D2D44]/30 focus:border-[#f2a618]"
+              rows={4}
+            />
+          </div>
+          <DialogFooter className="mt-4">
+            <Button type="button" variant="outline" onClick={() => setRejectTarget(null)}
+              className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#d99415] hover:text-[#1D2D44] border border-[#1D2D44]/20">
+              {t("common.cancel")}
+            </Button>
+            <Button
+              onClick={() => {
+                if (!reason.trim()) {
+                  toast.error(t("supervisor.returns.reason_required"));
+                  return;
+                }
+                if (rejectTarget) decide(rejectTarget, "rejected");
+              }}
+              disabled={busyId !== null}
+              variant="destructive"
+            >
+              {busyId === rejectTarget?.id ? <Loader2 className="size-4 animate-spin" /> : <XCircle className="size-4" />}
+              {t("supervisor.reject")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!disposeTarget} onOpenChange={(o) => !o && setDisposeTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-[#1D2D44]">
+              {disposeTarget?.decision === "damaged" ? t("supervisor.returns.damage_confirm_title") : t("supervisor.returns.restock_confirm_title")}
+            </DialogTitle>
+            <DialogDescription>
+              {disposeTarget
+                ? (disposeTarget.decision === "damaged"
+                    ? t("supervisor.returns.damage_confirm_desc", { id: disposeTarget.return.id })
+                    : t("supervisor.returns.restock_confirm_desc", { id: disposeTarget.return.id }))
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="rounded-xl bg-[#1D2D44]/5 p-3 text-sm text-[#1D2D44]">
+              {disposeTarget?.return.items.map(it => `${it.product.name} ×${it.quantity}`).join(", ") || "—"}
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[#1D2D44]">{t("supervisor.returns.worker_label")}</Label>
+              <Select value={selectedWorker} onValueChange={setSelectedWorker}>
+                <SelectTrigger className="bg-[#eeebdd] text-[#1D2D44]">
+                  <SelectValue placeholder={t("supervisor.returns.worker_placeholder")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {staff.length === 0 && (
+                    <SelectItem value="__none__" disabled>{t("supervisor.returns.no_staff")}</SelectItem>
+                  )}
+                  {staff.map(w => (
+                    <SelectItem key={w.system_user.id} value={String(w.system_user.id)}>
+                      {w.system_user.full_name}
+                      <span className="ms-2 text-xs text-muted-foreground">({w.status})</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button type="button" variant="outline" onClick={() => setDisposeTarget(null)}
+              className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#d99415] hover:text-[#1D2D44] border border-[#1D2D44]/20">
+              {t("common.cancel")}
+            </Button>
+            <Button
+              onClick={() => disposeTarget && process(disposeTarget.return, disposeTarget.decision)}
+              disabled={busyId !== null || !selectedWorker}
+              className={disposeTarget?.decision === "damaged" ? "bg-rose-600 text-white hover:bg-rose-700" : undefined}
+            >
+              {busyId === disposeTarget?.return.id ? <Loader2 className="size-4 animate-spin" /> : null}
+              {t("supervisor.returns.assign_task")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ---------------- Disposals (keeper approves/rejects) ----------------
+function DisposalsSection({ slug }: { slug: string }) {
+  const { t } = useTranslation();
+  const [tab, setTab] = useState<DisposalStatus | "all">("pending");
+  const [disposals, setDisposals] = useState<KeeperDisposal[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [decidingId, setDecidingId] = useState<number | null>(null);
+  const [approveTarget, setApproveTarget] = useState<KeeperDisposal | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<KeeperDisposal | null>(null);
+  const [reason, setReason] = useState("");
+
+  const load = useCallback(async (status?: DisposalStatus | "all") => {
+    setLoading(true);
+    try {
+      const res = await fetchKeeperDisposals(slug, status && status !== "all" ? status : undefined);
+      setDisposals(res.disposals ?? []);
+    } catch {
+      toast.error(t("supervisor.disposals.toast_load_failed"));
+    } finally {
+      setLoading(false);
+    }
+  }, [slug, t]);
+
+  useEffect(() => {
+    load(tab);
+  }, [tab, load]);
+
+  const decide = async (target: KeeperDisposal, decision: "approved" | "rejected") => {
+    setDecidingId(target.id);
+    try {
+      await decideKeeperDisposal(slug, target.id, {
+        status: decision,
+        reason: decision === "rejected" ? reason.trim() : undefined,
+      });
+      toast.success(decision === "approved" ? t("supervisor.disposals.toast_approved") : t("supervisor.disposals.toast_rejected"));
+      setApproveTarget(null);
+      setRejectTarget(null);
+      setReason("");
+      load(tab);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      toast.error(msg ?? t("supervisor.disposals.toast_decision_failed"));
+    } finally {
+      setDecidingId(null);
+    }
+  };
+
+  const list = tab === "all" ? disposals : disposals.filter(d => d.status === tab);
+
+  return (
+    <div className="space-y-6">
+      <GlassCard>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-base font-semibold">{t("supervisor.disposals.title")}</h2>
+          <Tabs value={tab} onValueChange={(v) => setTab(v as DisposalStatus | "all")}>
+            <TabsList>
+              <TabsTrigger value="pending">{t("supervisor.disposals.tab_pending")}</TabsTrigger>
+              <TabsTrigger value="approved">{t("supervisor.disposals.tab_approved")}</TabsTrigger>
+              <TabsTrigger value="rejected">{t("supervisor.disposals.tab_rejected")}</TabsTrigger>
+              <TabsTrigger value="all">{t("supervisor.disposals.tab_all")}</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+
+        {loading ? (
+          <div className="grid place-items-center py-12"><Loader2 className="size-6 animate-spin text-[#1a2942]" /></div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t("supervisor.disposals.col_barcode")}</TableHead>
+                <TableHead>{t("supervisor.disposals.col_product")}</TableHead>
+                <TableHead>{t("supervisor.disposals.col_quantity")}</TableHead>
+                <TableHead>{t("supervisor.disposals.col_damage_reason")}</TableHead>
+                <TableHead>{t("supervisor.disposals.col_worker")}</TableHead>
+                <TableHead>{t("supervisor.disposals.col_requested_at")}</TableHead>
+                <TableHead>{t("order.status")}</TableHead>
+                <TableHead className="text-end">{t("supervisor.col_actions")}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {list.map(d => (
+                <TableRow key={d.id}>
+                  <TableCell className="font-mono text-xs">{d.barcode ?? `#${d.id}`}</TableCell>
+                  <TableCell className="font-medium">{d.product?.name ?? "—"}</TableCell>
+                  <TableCell>{d.quantity}</TableCell>
+                  <TableCell className="max-w-[220px] truncate">{d.damage_reason || "—"}</TableCell>
+                  <TableCell>{d.worker?.full_name ?? "—"}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {d.created_at ? new Date(d.created_at).toLocaleString() : "—"}
+                  </TableCell>
+                  <TableCell><StatusBadge status={d.status} /></TableCell>
+                  <TableCell className="flex items-center justify-end gap-1">
+                    {d.status === "pending" ? (
+                      <>
+                        <Button size="sm" onClick={() => setApproveTarget(d)} disabled={decidingId !== null}>
+                          {decidingId === d.id ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
+                          {t("supervisor.approve")}
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => setRejectTarget(d)} disabled={decidingId !== null}>
+                          <XCircle className="size-4" /> {t("supervisor.reject")}
+                        </Button>
+                      </>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">{t("supervisor.disposals.reviewed")}</span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+              {list.length === 0 && (
+                <TableRow><TableCell colSpan={8} className="py-8 text-center text-muted-foreground">{t("supervisor.disposals.no_items")}</TableCell></TableRow>
+              )}
+            </TableBody>
+          </Table>
+        )}
+      </GlassCard>
+
+      <AlertDialog open={!!approveTarget} onOpenChange={(o) => !o && setApproveTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-[#1D2D44]">{t("supervisor.disposals.approve_confirm_title")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {approveTarget
+                ? t("supervisor.disposals.approve_confirm_desc", {
+                    barcode: approveTarget.barcode ?? `#${approveTarget.id}`,
+                    quantity: approveTarget.quantity,
+                    product: approveTarget.product?.name ?? "",
+                  })
+                : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#d99415] hover:text-[#1D2D44] border border-[#1D2D44]/20">{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => approveTarget && decide(approveTarget, "approved")}>{t("supervisor.approve")}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog open={!!rejectTarget} onOpenChange={(o) => !o && setRejectTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-[#1D2D44]">{t("supervisor.disposals.reject_title")}</DialogTitle>
+            <DialogDescription>{t("supervisor.disposals.reject_desc")}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label className="text-[#1D2D44]">{t("supervisor.disposals.reason_label")}</Label>
+            <Textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder={t("supervisor.disposals.reason_placeholder")}
+              className="bg-[#eeebdd] text-[#1D2D44] placeholder:text-[#1D2D44]/60 border-[#1D2D44]/30 focus:border-[#f2a618]"
+              rows={4}
+            />
+          </div>
+          <DialogFooter className="mt-4">
+            <Button type="button" variant="outline" onClick={() => setRejectTarget(null)}
+              className="bg-[#f2a618] text-[#1D2D44] hover:bg-[#d99415] hover:text-[#1D2D44] border border-[#1D2D44]/20">
+              {t("common.cancel")}
+            </Button>
+            <Button
+              onClick={() => {
+                if (!reason.trim()) {
+                  toast.error(t("supervisor.disposals.reason_required"));
+                  return;
+                }
+                if (rejectTarget) decide(rejectTarget, "rejected");
+              }}
+              disabled={decidingId !== null}
+              variant="destructive"
+            >
+              {decidingId !== null ? <Loader2 className="size-4 animate-spin" /> : <XCircle className="size-4" />}
+              {t("supervisor.reject")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
 

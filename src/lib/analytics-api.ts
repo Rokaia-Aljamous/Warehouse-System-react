@@ -294,6 +294,8 @@ export interface HoldingCosts {
 export interface PnlMonth {
   month: string;
   orders_count: number;
+  product_revenue: number;
+  shipping_revenue: number;
   revenue: number;
   cogs: number;
   gross_profit: number;
@@ -308,6 +310,8 @@ export interface MonthlyPnl {
   currency: Currency;
   period: PeriodRange;
   totals: {
+    product_revenue: number;
+    shipping_revenue: number;
     revenue: number;
     cogs: number;
     gross_profit: number;
@@ -350,6 +354,7 @@ export interface DemandForecast {
 export interface FinancialSettings {
   default_margin_percent: number;
   delivery_fee_per_order: number;
+  delivery_cross_region_multiplier: number;
   insurance_percent: number;
   storage_percent: number;
   capital_cost_percent: number;

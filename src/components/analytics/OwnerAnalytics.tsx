@@ -276,6 +276,8 @@ export function OwnerAnalytics({ slug }: { slug: string }) {
           <div className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <StatCard label={t("analytics.pnl.revenue")} value={formatMoney(pnl.data.totals.revenue, currency)} tone="positive" />
+              <StatCard label={t("analytics.pnl.product_revenue")} value={formatMoney(pnl.data.totals.product_revenue, currency)} />
+              <StatCard label={t("analytics.pnl.shipping_revenue")} value={formatMoney(pnl.data.totals.shipping_revenue, currency)} />
               <StatCard label={t("analytics.pnl.gross_profit")} value={formatMoney(pnl.data.totals.gross_profit, currency)} />
               <StatCard label={t("analytics.pnl.net_profit")} value={formatMoney(pnl.data.totals.net_profit, currency)} tone={pnl.data.totals.net_profit >= 0 ? "positive" : "negative"} />
               <StatCard label={t("analytics.pnl.orders")} value={formatNumber(pnl.data.months.reduce((s, m) => s + m.orders_count, 0))} />

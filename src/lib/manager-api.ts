@@ -400,6 +400,8 @@ export interface ManagerOrder {
   warehouse: ManagerOrderWarehouse;
   status: "pending" | "approved" | "in_preparation" | "shipped" | "delivered" | "rejected" | "cancelled";
   total_price: string;
+  delivery_fee: string;
+  delivery_region: string | null;
   order_date: string;
   customer_location: string;
   order_qr_code: string;
@@ -457,6 +459,148 @@ export interface KeeperWorker {
 
 export const fetchKeeperWorkers = async (slug: string, warehouseId: number): Promise<{ employees: KeeperWorker[] }> => {
   const response = await api.get<{ employees: KeeperWorker[] }>(`/${slug}/keeper/workers/${warehouseId}`);
+  return response.data;
+};
+
+/* ===== Keeper (warehouse secretary) disposals ===== */
+
+export type DisposalStatus = "pending" | "approved" | "rejected";
+
+export interface KeeperDisposal {
+  id: number;
+  status: DisposalStatus;
+  quantity: number;
+  damage_reason: string;
+  barcode: string;
+  task_id: number | null;
+  created_at: string | null;
+  product: { id: number; name: string } | null;
+  warehouse: { id: number; warehouse_name: string } | null;
+  worker: { id: number; full_name: string | null } | null;
+  employee: { id: number; full_name: string | null } | null;
+}
+
+export const fetchKeeperDisposals = async (
+  slug: string,
+  status?: DisposalStatus,
+): Promise<{ disposals: KeeperDisposal[] }> => {
+  const response = await api.get<{ disposals: KeeperDisposal[] }>(`/${slug}/keeper/disposals`, {
+    params: status ? { status } : undefined,
+  });
+  return response.data;
+};
+
+export const decideKeeperDisposal = async (
+  slug: string,
+  disposalId: number,
+  data: { status: "approved" | "rejected"; reason?: string },
+): Promise<{ message: string; disposal: KeeperDisposal }> => {
+  const response = await api.post<{ message: string; disposal: KeeperDisposal }>(
+    `/${slug}/keeper/disposals/${disposalId}/decision`,
+    data,
+  );
+  return response.data;
+};
+
+/* ===== Keeper (warehouse secretary) returns ===== */
+
+export type KeeperReturnStatus =
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "return_to_stock"
+  | "damaged"
+  | "picked_by_driver"
+  | "return_to_warehouse"
+  | "cancelled";
+
+export interface KeeperReturnItem {
+  id: number;
+  quantity: number;
+  product: { id: number; name: string; selling_price: string };
+  unit_price: string;
+  subtotal: string;
+}
+
+export interface KeeperReturn {
+  id: number;
+  status: KeeperReturnStatus;
+  return_type: string;
+  return_reason: string;
+  order: {
+    id: number;
+    status: string;
+    total_price: string;
+    order_date: string;
+    order_qr_code: string;
+    customer: { id: number; full_name: string; phone_number: string };
+  };
+  warehouse: { id: number; warehouse_name: string };
+  employee: { id: number; full_name: string | null } | null;
+  items: KeeperReturnItem[];
+  created_at: string;
+}
+
+export const fetchKeeperReturns = async (
+  slug: string,
+  status?: KeeperReturnStatus,
+): Promise<{ returns: KeeperReturn[] }> => {
+  const response = await api.get<{ returns: KeeperReturn[] }>(`/${slug}/keeper/returns`, {
+    params: status ? { status } : undefined,
+  });
+  return response.data;
+};
+
+export const decideKeeperReturn = async (
+  slug: string,
+  returnId: number,
+  data: { status: "approved" | "rejected"; reason?: string },
+): Promise<{ message: string; return: KeeperReturn }> => {
+  const response = await api.post<{ message: string; return: KeeperReturn }>(
+    `/${slug}/keeper/returns/${returnId}/decision`,
+    data,
+  );
+  return response.data;
+};
+
+export const processKeeperReturn = async (
+  slug: string,
+  returnId: number,
+  data: { status: "return_to_stock" | "damaged" | "rejected"; worker_or_driver_id?: number },
+): Promise<{ message: string; return: KeeperReturn }> => {
+  const response = await api.post<{ message: string; return: KeeperReturn }>(
+    `/${slug}/keeper/returns/${returnId}/process`,
+    data,
+  );
+  return response.data;
+};
+
+/* ===== Keeper (warehouse secretary) tasks ===== */
+
+export interface KeeperTask {
+  id: number;
+  status: string;
+  task_type: string;
+  worker: { id: number; full_name: string; phone_number: string };
+  employee: { id: number; full_name: string | null } | null;
+  related_type: string;
+  related_id: number;
+  related: { id: number; type: string; label: string } | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export const fetchKeeperTasks = async (
+  slug: string,
+  status?: string,
+  taskType?: string,
+): Promise<{ tasks: KeeperTask[] }> => {
+  const response = await api.get<{ tasks: KeeperTask[] }>(`/${slug}/keeper/tasks`, {
+    params: {
+      ...(status ? { status } : {}),
+      ...(taskType ? { task_type: taskType } : {}),
+    },
+  });
   return response.data;
 };
 
