@@ -42,6 +42,9 @@ import {
   Radio,
   FileText,
   Download,
+  ImagePlus,
+  Upload,
+  X,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
@@ -156,6 +159,7 @@ import {
   type WarehouseInput,
   type Product,
   type ProductInput,
+  type ProductSubmitInput,
   type Shipment,
   type ShipmentStatus,
   type ShipmentInput,
@@ -2718,7 +2722,7 @@ function ProductsSection({ slug }: { slug?: string | null }) {
       )
     : products;
 
-  const handleSave = async (data: ProductInput & { id?: number }) => {
+  const handleSave = async (data: ProductSubmitInput) => {
     if (!slug) return;
     setSaving(true);
     try {
@@ -2802,6 +2806,15 @@ function ProductsSection({ slug }: { slug?: string | null }) {
           {filtered.map((p) => (
             <motion.div key={p.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
               <GlassCard className="group transition hover:-translate-y-0.5 hover:shadow-2xl">
+                {p.main_image_url && (
+                  <div className="mb-3 flex justify-center">
+                    <img
+                      src={p.main_image_url}
+                      alt={p.name}
+                      className="h-28 w-full rounded-xl object-cover"
+                    />
+                  </div>
+                )}
                 <div className="flex items-start justify-between">
                   <div className="flex size-11 items-center justify-center rounded-xl bg-[#6366f1]/20">
                     <Package className="size-5 text-[#6366f1]" />
@@ -3239,7 +3252,7 @@ function ProductDialog({
   open: boolean;
   onOpenChange: (o: boolean) => void;
   editing: Product | null;
-  onSave: (d: ProductInput & { id?: number }) => void;
+  onSave: (d: ProductSubmitInput) => void;
   saving: boolean;
 }) {
   const { t } = useTranslation();
@@ -3256,6 +3269,11 @@ function ProductDialog({
     parcel_width: 0,
     parcel_height: 0,
   });
+
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imageRemoved, setImageRemoved] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [extraRows, setExtraRows] = useState<{ key: string; value: string }[]>([]);
 
   const toBarcode = (name: string, parcel = false) => {
     const cleaned = name
@@ -3300,6 +3318,59 @@ function ProductDialog({
     }
   }, [editing]);
 
+  useEffect(() => {
+    setImageFile(null);
+    setImageRemoved(false);
+    setImagePreview(null);
+    setExtraRows(
+      editing?.extra_data
+        ? Object.entries(editing.extra_data).map(([key, value]) => ({
+            key,
+            value: typeof value === "string" ? value : value === null ? "" : JSON.stringify(value),
+          }))
+        : [],
+    );
+  }, [editing]);
+
+  useEffect(() => {
+    if (!imageFile) {
+      setImagePreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(imageFile);
+    setImagePreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [imageFile]);
+
+  const onImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error(t("product.image_too_large"));
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      toast.error(t("product.image_invalid"));
+      return;
+    }
+    setImageFile(file);
+    setImageRemoved(false);
+  };
+
+  const removeImage = () => {
+    setImageFile(null);
+    setImageRemoved(true);
+  };
+
+  const addExtraRow = () => setExtraRows((rows) => [...rows, { key: "", value: "" }]);
+
+  const updateExtraRow = (index: number, patch: Partial<{ key: string; value: string }>) =>
+    setExtraRows((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+
+  const removeExtraRow = (index: number) =>
+    setExtraRows((rows) => rows.filter((_, i) => i !== index));
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.brand || !form.type) {
@@ -3310,7 +3381,29 @@ function ProductDialog({
       toast.error(t("product.toast_barcode_required"));
       return;
     }
-    onSave(form);
+
+    const extraData: Record<string, unknown> = {};
+    const seenKeys = new Set<string>();
+    for (const row of extraRows) {
+      const key = row.key.trim();
+      if (!key) continue;
+      if (!/^[A-Za-z0-9_\-]+$/.test(key)) {
+        toast.error(t("product.extra_key_invalid"));
+        return;
+      }
+      if (seenKeys.has(key)) {
+        toast.error(t("product.extra_key_duplicate"));
+        return;
+      }
+      seenKeys.add(key);
+      extraData[key] = row.value || null;
+    }
+
+    onSave({
+      ...form,
+      main_image: imageFile ?? (imageRemoved ? null : undefined),
+      extra_data: Object.keys(extraData).length ? extraData : null,
+    });
   };
 
   return (
@@ -3422,6 +3515,85 @@ function ProductDialog({
                 className="text-[#1D2D44] placeholder:text-[#1D2D44]/50 focus:text-[#1D2D44]"
               />
             </div>
+          </div>
+
+          {/* Image */}
+          <div className="grid gap-2">
+            <Label className="text-[#1D2D44]">{t("product.image")}</Label>
+            <div className="flex items-center gap-3">
+              <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-dashed border-[#1D2D44]/30 bg-white/60">
+                {imageFile || (editing?.main_image_url && !imageRemoved) ? (
+                  <img
+                    src={imageFile ? (imagePreview ?? undefined) : (editing?.main_image_url ?? undefined)}
+                    alt={form.name || "product"}
+                    className="size-full object-cover"
+                  />
+                ) : (
+                  <ImagePlus className="size-6 text-[#1D2D44]/40" />
+                )}
+              </div>
+              <div className="flex flex-col items-start gap-2">
+                <label className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-lg border border-[#1D2D44]/20 px-3 py-1.5 text-sm text-[#1D2D44] transition hover:bg-[#1D2D44]/5">
+                  <Upload className="size-4" />
+                  {imageFile ? t("product.image_replace") : t("product.image_upload")}
+                  <input type="file" accept="image/*" className="hidden" onChange={onImageSelect} />
+                </label>
+                {(imageFile || editing?.main_image_url) && (
+                  <button
+                    type="button"
+                    onClick={removeImage}
+                    className="inline-flex w-fit items-center gap-1.5 text-xs text-red-600 hover:text-red-700"
+                  >
+                    <X className="size-3.5" /> {t("product.image_remove")}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Extra Data */}
+          <div className="grid gap-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-[#1D2D44]">{t("product.extra_data")}</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addExtraRow}
+                className="border-[#1D2D44]/20 text-[#1D2D44]"
+              >
+                <Plus className="size-3.5" /> {t("product.extra_add")}
+              </Button>
+            </div>
+            {extraRows.length === 0 ? (
+              <p className="text-xs text-[#1D2D44]/50">{t("product.extra_empty")}</p>
+            ) : (
+              <div className="grid gap-2">
+                {extraRows.map((row, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <Input
+                      value={row.key}
+                      onChange={(e) => updateExtraRow(i, { key: e.target.value })}
+                      placeholder={t("product.extra_key")}
+                      className="min-w-0 flex-1 text-[#1D2D44] placeholder:text-[#1D2D44]/50 focus:text-[#1D2D44]"
+                    />
+                    <Input
+                      value={row.value}
+                      onChange={(e) => updateExtraRow(i, { value: e.target.value })}
+                      placeholder={t("product.extra_value")}
+                      className="min-w-0 flex-[1.4] text-[#1D2D44] placeholder:text-[#1D2D44]/50 focus:text-[#1D2D44]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeExtraRow(i)}
+                      className="shrink-0 text-red-600 hover:text-red-700"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Dimension Fields */}

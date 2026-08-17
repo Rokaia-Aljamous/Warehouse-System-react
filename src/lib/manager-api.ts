@@ -382,12 +382,41 @@ export interface ManagerShipment {
 }
 
 export const fetchManagerShipments = async (slug: string): Promise<{ shipments: ManagerShipment[] }> => {
-  const response = await api.get<{ shipments: ManagerShipment[] }>(`/${slug}/shipments`);
+  const response = await api.get<{ shipments: ManagerShipment[] }>(`/${slug}/manager/shipments`);
   return response.data;
 };
 
 export const receiveManagerShipment = async (slug: string, id: number): Promise<{ message: string; shipment: ManagerShipment }> => {
   const response = await api.post<{ message: string; shipment: ManagerShipment }>(`/${slug}/shipments/${id}/receive`);
+  return response.data;
+};
+
+/* ===== Manager: plan shipment departments (assign-sections) ===== */
+
+export interface AssignShipmentSectionItem {
+  product_id: number;
+  section_id: number;
+  quantity: number;
+}
+
+export interface ShipmentSectionAssignment {
+  shipment_id: number;
+  section_id: number;
+  product_id: number;
+  planned_quantity: number;
+  received_quantity: number;
+}
+
+export interface AssignShipmentSectionsResponse {
+  message: string;
+  assignments: ShipmentSectionAssignment[];
+}
+
+export const assignShipmentSections = async (slug: string, shipmentId: number, items: AssignShipmentSectionItem[]): Promise<AssignShipmentSectionsResponse> => {
+  const response = await api.post<AssignShipmentSectionsResponse>(
+    `/${slug}/manager/shipments/${shipmentId}/assign-sections`,
+    { items },
+  );
   return response.data;
 };
 

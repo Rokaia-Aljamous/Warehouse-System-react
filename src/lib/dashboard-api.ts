@@ -160,18 +160,55 @@ export interface ProductInput {
   parcel_height: number;
 }
 
+export interface ProductSubmitInput extends ProductInput {
+  id?: number;
+  main_image?: File | null;
+  extra_data?: Record<string, unknown> | null;
+}
+
+const toProductFormData = (data: Partial<ProductSubmitInput>): FormData => {
+  const fd = new FormData();
+  fd.append("name", data.name ?? "");
+  fd.append("brand", data.brand ?? "");
+  fd.append("type", data.type ?? "");
+  fd.append("piece_barcode", data.piece_barcode ?? "");
+  fd.append("parcel_barcode", data.parcel_barcode ?? "");
+  fd.append("units_per_packing", String(data.units_per_packing ?? ""));
+  fd.append("current_purchase_price", String(data.current_purchase_price ?? ""));
+  fd.append("selling_price", String(data.selling_price ?? ""));
+  fd.append("parcel_length", String(data.parcel_length ?? ""));
+  fd.append("parcel_width", String(data.parcel_width ?? ""));
+  fd.append("parcel_height", String(data.parcel_height ?? ""));
+
+  if (data.main_image instanceof File) {
+    fd.append("main_image", data.main_image);
+  } else if (data.main_image === null) {
+    fd.append("main_image", "");
+  }
+
+  const extra =
+    data.extra_data && Object.keys(data.extra_data).length > 0 ? data.extra_data : null;
+  fd.append("extra_data", extra ? JSON.stringify(extra) : "");
+
+  return fd;
+};
+
 export const fetchProducts = async (slug: string): Promise<ProductListResponse> => {
   const response = await api.get<ProductListResponse>(`/${slug}/owner/products`);
   return response.data;
 };
 
-export const createProduct = async (slug: string, data: ProductInput): Promise<ProductStoreResponse> => {
-  const response = await api.post<ProductStoreResponse>(`/${slug}/owner/products`, data);
+export const createProduct = async (slug: string, data: ProductSubmitInput): Promise<ProductStoreResponse> => {
+  const response = await api.post<ProductStoreResponse>(`/${slug}/owner/products`, toProductFormData(data), {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
   return response.data;
 };
 
-export const updateProduct = async (slug: string, id: number, data: Partial<ProductInput>): Promise<ProductStoreResponse> => {
-  const response = await api.patch<ProductStoreResponse>(`/${slug}/owner/products/${id}`, data);
+export const updateProduct = async (slug: string, id: number, data: Partial<ProductSubmitInput>): Promise<ProductStoreResponse> => {
+  const response = await api.patch<ProductStoreResponse>(`/${slug}/owner/products/${id}`, toProductFormData(data), {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
   return response.data;
 };
 
@@ -284,6 +321,11 @@ export const deleteShipment = async (slug: string, id: number): Promise<void> =>
 
 export const receiveShipment = async (slug: string, id: number): Promise<ShipmentStoreResponse> => {
   const response = await api.post<ShipmentStoreResponse>(`/${slug}/owner/shipments/${id}/receive`);
+  return response.data;
+};
+
+export const fetchStorekeeperShipments = async (slug: string): Promise<ShipmentListResponse> => {
+  const response = await api.get<ShipmentListResponse>(`/${slug}/storekeeper/shipments`);
   return response.data;
 };
 

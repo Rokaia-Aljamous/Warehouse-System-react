@@ -56,6 +56,7 @@ import { useTransferRequests } from "@/hooks/useTransferRequests";
 import { AvailableRequestsFeed } from "@/components/transfer/AvailableRequestsFeed";
 import { MyWarehouseRequests } from "@/components/transfer/MyWarehouseRequests";
 import { ManagerBiometricSection } from "@/components/ManagerBiometricSection";
+import { ShipmentsSection } from "@/components/ShipmentsSection";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 
@@ -70,7 +71,7 @@ export const Route = createFileRoute("/manager")({
 });
 
 type SectionId =
-  | "overview" | "layout" | "workers" | "biometric" | "inventory" | "orders" | "transfers"
+  | "overview" | "layout" | "workers" | "biometric" | "inventory" | "shipments" | "orders" | "transfers"
   | "statistics" | "reports" | "wallet" | "settings";
 
 const NAV: { id: SectionId; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
@@ -79,6 +80,7 @@ const NAV: { id: SectionId; label: string; icon: React.ComponentType<{ className
   { id: "workers", label: "sidebar.workers", icon: Users },
   { id: "biometric", label: "biometric.title", icon: Fingerprint },
   { id: "inventory", label: "sidebar.inventory", icon: Boxes },
+  { id: "shipments", label: "sidebar.shipments", icon: Truck },
   { id: "orders", label: "sidebar.orders", icon: ClipboardList },
   { id: "transfers", label: "sidebar.transfers", icon: ArrowLeftRight },
   { id: "statistics", label: "sidebar.statistics", icon: BarChart3 },
@@ -252,6 +254,7 @@ function ManagerApp() {
   const [sections, setSections] = useState<Section[]>([]);
   const [layoutProducts, setLayoutProducts] = useState<ManagerProduct[]>([]);
   const [warehouse, setWarehouse] = useState<{ id: number; name: string; type: string; location: string } | null>(null);
+  const [shipments, setShipments] = useState<ManagerShipment[]>([]);
 
   type Session = { whmId: string; name: string; warehouseId?: string; ownerId?: number };
   const [user, setUser] = useState<Session | null>(null);
@@ -333,6 +336,7 @@ function ManagerApp() {
       if (cancel) return;
       setSections(secRes.sections);
       setLayoutProducts(prodRes.products);
+      setShipments(shipRes.shipments);
       const src = whRes.warehouse || shipRes.shipments[0]?.warehouse || movRes.inventory_movements[0]?.warehouse || null;
       if (src) {
         setWarehouse({
@@ -561,6 +565,9 @@ function ManagerApp() {
               )}
               {section === "inventory" && (
                 <InventorySection products={products} setProducts={setProducts} warehouseName={warehouseName} />
+              )}
+              {section === "shipments" && slug && (
+                <ShipmentsSection slug={slug} shipments={shipments} setShipments={setShipments} />
               )}
               {section === "orders" && (
                 <OrdersSection orders={orders} onRefresh={loadOrders} warehouseName={warehouseName} />

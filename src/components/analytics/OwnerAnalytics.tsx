@@ -105,8 +105,8 @@ export function OwnerAnalytics({ slug }: { slug: string }) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold text-[#1a2942]">{t("analytics.owner.title")}</h2>
-          <p className="text-xs text-[#1a2942]/60">{t("analytics.owner.subtitle")}</p>
+          <h2 className="text-lg font-bold text-[#E2DDD3]">{t("analytics.owner.title")}</h2>
+          <p className="text-xs text-[#E2DDD3]">{t("analytics.owner.subtitle")}</p>
         </div>
         {warehouses.length > 0 && (
           <Select

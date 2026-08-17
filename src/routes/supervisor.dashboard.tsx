@@ -36,6 +36,7 @@ import { NotificationsBell } from "@/components/NotificationsBell";
 import { StorekeeperAnalytics } from "@/components/analytics/StorekeeperAnalytics";
 import { fetchMe, logoutManager, fetchKeeperOrders, fetchKeeperTasks, assignKeeperTask, acceptKeeperOrder, rejectKeeperOrder, updateKeeperOrderStatus, updateDashboardProfile, type DashboardUser, type ManagerOrder, type KeeperTask, type TransferRequest } from "@/lib/manager-api";
 import { api, getCsrfCookie } from "@/lib/api";
+import { fetchStorekeeperShipments, type Shipment } from "@/lib/dashboard-api";
 import { useSupervisorTransfers } from "@/hooks/useSupervisorTransfers";
 
 export const Route = createFileRoute("/supervisor/dashboard")({
@@ -159,6 +160,8 @@ function SupervisorApp() {
   const [ordersLoading, setOrdersLoading] = useState(true);
   const [receivingTasks, setReceivingTasks] = useState<KeeperTask[]>([]);
   const [receivingLoading, setReceivingLoading] = useState(true);
+  const [shipments, setShipments] = useState<Shipment[]>([]);
+  const [shipmentsLoading, setShipmentsLoading] = useState(true);
   const [prepTasks, setPrepTasks] = useState<KeeperTask[]>([]);
   const [prepTasksLoading, setPrepTasksLoading] = useState(true);
   const [returns, setReturns] = useState<Return[]>(seedReturns);
@@ -207,6 +210,27 @@ function SupervisorApp() {
       })
       .catch(() => { if (!cancel) setReceivingTasks([]); })
       .finally(() => { if (!cancel) setReceivingLoading(false); });
+    return () => { cancel = true; };
+  }, [slug]);
+
+  const refreshReceivingTasks = useCallback(() => {
+    if (!slug) return Promise.resolve();
+    return fetchKeeperTasks(slug, { task_type: "shipment_receiving" })
+      .then(({ tasks: res }) => setReceivingTasks([...res].sort((a, b) => b.id - a.id)))
+      .catch(() => setReceivingTasks([]));
+  }, [slug]);
+
+  useEffect(() => {
+    if (!slug) return;
+    let cancel = false;
+    setShipmentsLoading(true);
+    fetchStorekeeperShipments(slug)
+      .then(({ shipments: res }) => {
+        if (cancel) return;
+        setShipments(res ?? []);
+      })
+      .catch(() => { if (!cancel) setShipments([]); })
+      .finally(() => { if (!cancel) setShipmentsLoading(false); });
     return () => { cancel = true; };
   }, [slug]);
 
@@ -387,7 +411,7 @@ function SupervisorApp() {
               {section === "overview"    && <Overview stats={stats} orders={orders} />}
               {section === "incoming"    && <IncomingOrders orders={orders} setOrders={setOrders} slug={slug} loading={ordersLoading} onRefresh={() => { if (slug) fetchKeeperOrders(slug).then(({ orders: res }) => setOrders(res.map(orderFromBackend))).catch(() => setOrders([])); }} />}
               {section === "preparation" && <Preparation orders={orders} setOrders={setOrders} workers={workers} slug={slug} prepTasks={prepTasks} prepTasksLoading={prepTasksLoading} onRefreshPrepTasks={refreshPrepTasks} onRefreshWorkerAvailability={refreshWorkerAvailability} />}
-              {section === "receiving"   && <Receiving tasks={receivingTasks} loading={receivingLoading} />}
+              {section === "receiving"   && <Receiving shipments={shipments} tasks={receivingTasks} loading={receivingLoading || shipmentsLoading} workers={workers} slug={slug} onRefreshTasks={refreshReceivingTasks} onRefreshWorkerAvailability={refreshWorkerAvailability} />}
               {section === "drivers"     && <DriversSection drivers={drivers} orders={orders} setOrders={setOrders} slug={slug} onRefreshWorkerAvailability={refreshWorkerAvailability} />}
               {section === "returns"     && <ReturnsSection returns={returns} setReturns={setReturns} workers={workers} />}
               {section === "transfers"   && <TransfersSection {...supervisorTransfers} busyWorkerSystemUserIds={busyWorkerSystemUserIds} onRefreshWorkerAvailability={refreshWorkerAvailability} />}
@@ -434,7 +458,7 @@ function StatCard({ label, value, icon: Icon, accent }: { label: string; value: 
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status, label }: { status: string; label?: string }) {
   const { t } = useTranslation();
   const map: Record<string, string> = {
     pending:          "bg-amber-500/20 text-amber-700",
@@ -453,10 +477,10 @@ function StatusBadge({ status }: { status: string }) {
     on_delivery:      "bg-violet-500/20 text-violet-700",
     off_duty:         "bg-zinc-500/20 text-zinc-700",
   };
-  const label = status === "available" || status === "busy"
+  const resolved = label ?? (status === "available" || status === "busy"
     ? t(`status.${status}`)
-    : status.replaceAll("_", " ");
-  return <Badge className={cn("rounded-full font-medium capitalize", map[status] ?? "bg-muted text-foreground")}>{label}</Badge>;
+    : status.replaceAll("_", " "));
+  return <Badge className={cn("rounded-full font-medium capitalize", map[status] ?? "bg-muted text-foreground")}>{resolved}</Badge>;
 }
 
 // ---------------- Overview ----------------
@@ -770,52 +794,126 @@ function Preparation({
 
 // ---------------- Shipment Receiving ----------------
 function Receiving({
-  tasks, loading,
+  shipments, tasks, workers, slug, loading, onRefreshTasks, onRefreshWorkerAvailability,
 }: {
+  shipments: Shipment[];
   tasks: KeeperTask[];
+  workers: SWorker[];
+  slug: string | null;
   loading?: boolean;
+  onRefreshTasks: () => void;
+  onRefreshWorkerAvailability: () => Promise<void> | void;
 }) {
   const { t } = useTranslation();
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const formatDate = (iso: string | null | undefined) =>
-    iso ? new Date(iso).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" }) : "—";
+    iso ? new Date(iso).toLocaleDateString(undefined, { dateStyle: "short" }) : "—";
+
+  const taskByShipmentId = useMemo(() => {
+    const map = new Map<number, KeeperTask>();
+    for (const task of tasks) {
+      if (task.related_id == null) continue;
+      const current = map.get(task.related_id);
+      if (!current || (current.status === "completed" && task.status === "in_preparation")) {
+        map.set(task.related_id, task);
+      }
+    }
+    return map;
+  }, [tasks]);
+
+  const availableWorkers = useMemo(() => workers.filter(w => w.status === "available"), [workers]);
+
+  const assignWorker = (shipmentId: number, workerOrDriverId: string) => {
+    if (!slug) return;
+    setBusyId(`assign-${shipmentId}`);
+    assignKeeperTask(slug, {
+      worker_or_driver_id: Number(workerOrDriverId),
+      task_type: "shipment_receiving",
+      related_type: "App\\Models\\Shipment",
+      related_id: Number(shipmentId),
+    })
+      .then(() => {
+        toast.success(t("task.assigned"));
+        onRefreshTasks();
+        onRefreshWorkerAvailability();
+      })
+      .catch((err: unknown) => {
+        const message =
+          (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+          t("task.assign_failed");
+        toast.error(message);
+      })
+      .finally(() => setBusyId(null));
+  };
 
   return (
     <GlassCard>
       <div className="mb-4">
         <h2 className="text-base font-semibold">{t("supervisor.receiving.title")}</h2>
-        <p className="mt-1 text-xs text-muted-foreground">{t("supervisor.receiving.backend_note")}</p>
       </div>
       {loading ? (
         <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
           <Loader2 className="size-4 animate-spin" /> {t("common.loading")}
         </div>
-      ) : tasks.length === 0 ? (
-        <p className="py-6 text-center text-sm text-muted-foreground">{t("task.no_tasks")}</p>
+      ) : shipments.length === 0 ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">{t("shipment.no_shipments")}</p>
       ) : (
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead className="text-start">{t("supervisor.col_shipment")}</TableHead>
-              <TableHead className="text-start">{t("task.worker")}</TableHead>
+              <TableHead className="text-start">{t("shipment.factory")}</TableHead>
               <TableHead className="text-start">{t("order.status")}</TableHead>
-              <TableHead className="text-start">{t("task.created")}</TableHead>
+              <TableHead className="text-start">{t("shipment.arrival_date")}</TableHead>
+              <TableHead className="text-start">{t("task.worker")}</TableHead>
+              <TableHead className="text-end">{t("supervisor.col_action")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {tasks.map((task) => {
-              const related = task.related;
+            {shipments.map((shipment) => {
+              const task = taskByShipmentId.get(shipment.id);
+              const assigned = task && task.status === "in_preparation";
+              const received = shipment.status === "received";
               return (
-                <TableRow key={task.id}>
-                  <TableCell className="font-medium">
-                    {related?.label ?? `Shipment #${task.related_id ?? "—"}`}
-                    {related?.status ? (
-                      <span className="ms-2"><StatusBadge status={related.status} /></span>
-                    ) : null}
+                <TableRow key={shipment.id}>
+                  <TableCell className="font-medium">#{shipment.id}</TableCell>
+                  <TableCell>{shipment.factory_name || "—"}</TableCell>
+                  <TableCell><StatusBadge status={shipment.status} label={t(`shipment.status.${shipment.status}`)} /></TableCell>
+                  <TableCell className="text-muted-foreground">{formatDate(shipment.arrival_date)}</TableCell>
+                  <TableCell>
+                    {task ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">{task.worker?.full_name ?? "—"}</span>
+                        <StatusBadge status={task.status} />
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
                   </TableCell>
-                  <TableCell>{task.worker?.full_name ?? "—"}</TableCell>
-                  <TableCell><StatusBadge status={task.status} /></TableCell>
-                  <TableCell className="text-muted-foreground">{formatDate(task.created_at)}</TableCell>
+                  <TableCell className="text-end">
+                    {received || assigned ? (
+                      <Badge variant="outline" className="rounded-full">
+                        {received ? t("shipment.status.received") : t("supervisor.preparation.assigned_worker")}
+                      </Badge>
+                    ) : (
+                      <Select
+                        value=""
+                        onValueChange={(v) => assignWorker(shipment.id, v)}
+                        disabled={busyId === `assign-${shipment.id}` || availableWorkers.length === 0}
+                      >
+                        <SelectTrigger><SelectValue placeholder={t("supervisor.preparation.assign_worker_placeholder")} /></SelectTrigger>
+                        <SelectContent>
+                          {workers.map(w => (
+                            <SelectItem key={w.id} value={w.id} disabled={w.status === "busy"}>
+                              {w.name} ({w.id})
+                              {w.status === "busy" ? ` · ${t("status.busy")}` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </TableCell>
                 </TableRow>
               );
             })}
