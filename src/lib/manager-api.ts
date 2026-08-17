@@ -63,9 +63,9 @@ export const forceChangePassword = async (slug: string, password: string, passwo
   return response.data;
 };
 
-export const updateDashboardProfile = async (
+export const updateManagerProfile = async (
   slug: string,
-  data: { full_name?: string; phone_number?: string },
+  data: Partial<{ full_name: string; birthday: string | null; phone_number: string }>,
 ): Promise<{ message: string }> => {
   const response = await api.patch<{ message: string }>(`/${slug}/profile`, data);
   return response.data;
@@ -323,6 +323,8 @@ export interface ManagerProduct {
   warehouses_count?: number;
   created_at?: string | null;
   updated_at?: string | null;
+  quantity?: number;
+  minimum_stock?: number;
 }
 
 export interface ManagerInventoryItem {
@@ -341,6 +343,8 @@ export const fetchManagerProducts = async (
     products: (response.data.inventory ?? []).map((item) => ({
       id: item.product_id,
       name: item.name,
+      quantity: item.pivot?.quantity ?? 0,
+      minimum_stock: item.pivot?.minimum_stock ?? 0,
     })),
   };
 };
@@ -813,5 +817,72 @@ export interface ManagerWarehouseDetail {
 
 export const fetchManagerWarehouse = async (slug: string): Promise<{ warehouse: ManagerWarehouseDetail }> => {
   const response = await api.get<{ warehouse: ManagerWarehouseDetail }>(`/${slug}/manager/warehouse`);
+  return response.data;
+};
+
+/* ===== Driver GPS Tracking ===== */
+
+export interface DriverLivePosition {
+  driver_id: number;
+  latitude: number;
+  longitude: number;
+  speed: number;
+  updated_at: string | null;
+}
+
+export interface DriverEta {
+  total_seconds: number;
+  total_minutes: number;
+  hours: number;
+  minutes: number;
+}
+
+export interface DriverDestination {
+  current: DriverLivePosition;
+  distance_km: number;
+  eta: DriverEta | null;
+}
+
+export interface DriverTrackingResponse {
+  location: DriverLivePosition;
+  destination: DriverDestination | null;
+}
+
+export interface DriverRouteWaypoint {
+  latitude: number;
+  longitude: number;
+  recorded_at: string;
+}
+
+export interface DriverRouteResponse {
+  driver_id: number;
+  waypoints: DriverRouteWaypoint[];
+}
+
+export const fetchDriverTracking = async (
+  slug: string,
+  driverId: number,
+  destination?: { latitude: number; longitude: number; shipment_id?: number },
+): Promise<DriverTrackingResponse> => {
+  const response = await api.get<DriverTrackingResponse>(`/${slug}/drivers/${driverId}/tracking`, {
+    params: destination
+      ? {
+          latitude: destination.latitude,
+          longitude: destination.longitude,
+          ...(destination.shipment_id ? { shipment_id: destination.shipment_id } : {}),
+        }
+      : undefined,
+  });
+  return response.data;
+};
+
+export const fetchDriverRoute = async (
+  slug: string,
+  driverId: number,
+  limit = 100,
+): Promise<DriverRouteResponse> => {
+  const response = await api.get<DriverRouteResponse>(`/${slug}/drivers/${driverId}/route`, {
+    params: { limit },
+  });
   return response.data;
 };

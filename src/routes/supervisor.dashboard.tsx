@@ -4,9 +4,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
   LayoutDashboard, Inbox, PackageCheck, Truck, Users, RotateCcw, ClipboardList,
-  FileText, Settings as SettingsIcon, LogOut, Menu, BarChart3,
+    FileText, Settings as SettingsIcon, LogOut, Menu, Bell, Plus, Trash2, Pencil, BarChart3,
   Loader2, Download, CheckCircle2, XCircle, Search, ChevronLeft, ChevronRight, RefreshCw,
   ShieldCheck, Activity, ArrowLeftRight,
+  Warehouse as WarehouseIcon, ShieldCheck, Activity, Navigation, MapPin, Gauge,
+  RefreshCw, AlertTriangle,
 } from "lucide-react";
 import { AppLogo } from "@/components/AppLogo";
 import { Button } from "@/components/ui/button";
@@ -34,10 +36,13 @@ import { useTranslation } from "react-i18next";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { NotificationsBell } from "@/components/NotificationsBell";
 import { StorekeeperAnalytics } from "@/components/analytics/StorekeeperAnalytics";
-import { fetchMe, logoutManager, fetchKeeperOrders, fetchKeeperTasks, assignKeeperTask, acceptKeeperOrder, rejectKeeperOrder, updateKeeperOrderStatus, updateDashboardProfile, type DashboardUser, type ManagerOrder, type KeeperTask, type TransferRequest } from "@/lib/manager-api";
+import { fetchMe, logoutManager, fetchKeeperOrders, fetchKeeperTasks, assignKeeperTask, acceptKeeperOrder, rejectKeeperOrder, updateKeeperOrderStatus, updateDashboardProfile, type DashboardUser, type ManagerOrder, type KeeperTask, type TransferRequest, fetchDriverTracking, fetchDriverRoute, fetchKeeperWorkers } from "@/lib/manager-api";
+import type { DriverLivePosition, DriverRouteWaypoint } from "@/lib/manager-api";
 import { api, getCsrfCookie } from "@/lib/api";
 import { fetchStorekeeperShipments, type Shipment } from "@/lib/dashboard-api";
 import { useSupervisorTransfers } from "@/hooks/useSupervisorTransfers";
+import { DriverTrackingMap } from "@/components/DriverTrackingMap";
+import { isValidInternationalPhone } from "@/lib/validation";
 
 export const Route = createFileRoute("/supervisor/dashboard")({
   component: SupervisorApp,
@@ -925,18 +930,61 @@ function Receiving({
 }
 
 // ---------------- Driver Management ----------------
+const TRACKING_REFRESH_MS = 15000;
+
 function DriversSection({
-  drivers, orders, setOrders, slug, onRefreshWorkerAvailability,
+  slug, warehouseId, drivers, orders, setOrders, onRefreshWorkerAvailability,
 }: {
-  drivers: Driver[]; orders: COrder[]; setOrders: React.Dispatch<React.SetStateAction<COrder[]>>;
-  slug: string | null;
+  slug: string; warehouseId: number | null; drivers: Driver[]; orders: COrder[]; setOrders: React.Dispatch<React.SetStateAction<COrder[]>>;
+  
   onRefreshWorkerAvailability: () => Promise<void> | void;
 }) {
   const { t } = useTranslation();
   const [assignFor, setAssignFor] = useState<string | null>(null);
+  // State management from both snippets
   const [busyOrder, setBusyOrder] = useState<string | null>(null);
-  const readyOrders = orders.filter(o => o.status === "shipped");
 
+  // Filter criteria merged (Adjust string values if your backend uses different statuses)
+  const readyOrders = orders.filter(o => o.status === "shipped" || o.status === "ready");
+
+  // Driver Form Management
+  const openNew = () => { 
+    setEditing(null); 
+    setForm({ name: "", phone: "", vehicle: "", status: "available" }); 
+    setOpen(true); 
+  };
+
+  const openEdit = (d: Driver) => { 
+    setEditing(d); 
+    setForm(d); 
+    setOpen(true); 
+  };
+
+  const save = () => {
+    if (!form.name) return toast.error(t("supervisor.toast_name_required"));
+    if (!isValidInternationalPhone(form.phone)) {
+      toast.error(t("validation.phone_international"));
+      return;
+    }
+    if (editing) {
+      setDrivers(prev => prev.map(d => d.id === editing.id ? { ...editing, ...form } : d));
+      toast.success(t("supervisor.drivers.toast_updated"));
+    } else {
+      const id = `D-${20 + drivers.length + 1}`;
+      setDrivers(prev => [...prev, { id, ...form }]);
+      toast.success(t("supervisor.drivers.toast_added"));
+    }
+    setOpen(false);
+  };
+
+  const del = () => {
+    if (!delTarget) return;
+    setDrivers(prev => prev.filter(d => d.id !== delTarget));
+    toast.success(t("supervisor.drivers.toast_removed"));
+    setDelTarget(null);
+  };
+
+  // Async API Dispatches with optimistic/pessimistic state sync
   const assignDriver = async (orderId: string, driverId: string) => {
     if (!slug) return;
     setBusyOrder(orderId);
@@ -948,7 +996,13 @@ function DriversSection({
         related_id: Number(orderId),
       });
       await updateKeeperOrderStatus(slug, Number(orderId), "delivered");
+      
+      // Update order status locally after successful API completion
       setOrders(prev => prev.map(o => String(o.id) === String(orderId) ? { ...o, driverId, status: "delivered" } : o));
+      
+      // Update driver status locally to reflect their busy state
+      setDrivers(prev => prev.map(d => String(d.id) === String(driverId) ? { ...d, status: "on_delivery" } : d));
+      
       toast.success(t("supervisor.drivers.toast_dispatched", { id: driverId }));
       onRefreshWorkerAvailability();
     } catch (err) {
@@ -958,6 +1012,7 @@ function DriversSection({
       setAssignFor(null);
     }
   };
+
 
   return (
     <div className="space-y-6">
@@ -1287,7 +1342,183 @@ function TransfersSection(props: ReturnType<typeof useSupervisorTransfers> & {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <DriverTrackingPanel slug={slug} warehouseId={warehouseId} drivers={drivers} />
     </div>
+  );
+}
+
+// ---------------- Driver Live Tracking ----------------
+type TrackingDriver = { id: number; name: string; label: string };
+
+function DriverTrackingPanel({ slug, warehouseId, drivers }: { slug: string; warehouseId: number | null; drivers: Driver[] }) {
+  const { t } = useTranslation();
+  const [trackingDrivers, setTrackingDrivers] = useState<TrackingDriver[]>([]);
+  const [driverId, setDriverId] = useState<number | null>(null);
+  const [position, setPosition] = useState<DriverLivePosition | null>(null);
+  const [route, setRoute] = useState<DriverRouteWaypoint[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
+  const numericId = (id: string) => Number(id.replace(/\D/g, ""));
+
+  useEffect(() => {
+    let cancelled = false;
+    const fallback = () =>
+      drivers.map((d) => ({ id: numericId(d.id), name: d.name, label: d.name }));
+    if (!warehouseId) {
+      setTrackingDrivers(fallback());
+      setDriverId((prev) => prev ?? fallback()[0]?.id ?? null);
+      return;
+    }
+    fetchKeeperWorkers(slug, warehouseId)
+      .then((res) => {
+        if (cancelled) return;
+        const real = (res.employees ?? [])
+          .filter((e) => e.role === "driver")
+          .map((e) => ({
+            id: e.id,
+            name: e.system_user?.full_name ?? `Driver ${e.id}`,
+            label: e.system_user?.full_name ?? `Driver ${e.id}`,
+          }));
+        setTrackingDrivers(real.length > 0 ? real : fallback());
+        setDriverId((prev) => prev ?? (real[0]?.id ?? fallback()[0]?.id ?? null));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setTrackingDrivers(fallback());
+        setDriverId((prev) => prev ?? fallback()[0]?.id ?? null);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, warehouseId]);
+
+  const selectedDriver = trackingDrivers.find((d) => d.id === driverId) ?? null;
+
+  const refresh = useCallback(async () => {
+    if (!driverId) return;
+    setRefreshing(true);
+    setError(null);
+    try {
+      const [tracking, routeRes] = await Promise.all([
+        fetchDriverTracking(slug, driverId),
+        fetchDriverRoute(slug, driverId, 100),
+      ]);
+      setPosition(tracking.location);
+      setRoute(routeRes.waypoints ?? []);
+      setLastUpdated(new Date());
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 404) {
+        setError(t("tracking.no_live_data"));
+      } else {
+        setError(t("tracking.fetch_failed"));
+      }
+    } finally {
+      setRefreshing(false);
+      setLoading(false);
+    }
+  }, [slug, driverId, t]);
+
+  useEffect(() => {
+    if (!driverId) return;
+    setLoading(true);
+    setPosition(null);
+    setRoute([]);
+    refresh();
+    const timer = setInterval(refresh, TRACKING_REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [driverId, refresh]);
+
+  return (
+    <GlassCard className="overflow-hidden p-0">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-cream/10 px-5 py-4">
+        <div className="flex items-center gap-2">
+          <MapPin className="size-4 text-[#f2a618]" />
+          <h2 className="text-base font-semibold">{t("tracking.title")}</h2>
+        </div>
+        <Select value={driverId !== null ? String(driverId) : ""} onValueChange={(v) => setDriverId(Number(v))}>
+          <SelectTrigger className="w-56 bg-white/70 text-[#1D2D44]">
+            <SelectValue placeholder={t("tracking.select_driver")} />
+          </SelectTrigger>
+          <SelectContent>
+            {trackingDrivers.length === 0 && (
+              <SelectItem value="__none__" disabled>{t("tracking.no_drivers")}</SelectItem>
+            )}
+            {trackingDrivers.map((d) => (
+              <SelectItem key={d.id} value={String(d.id)}>
+                {d.label} (ID {d.id})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {driverId === null ? (
+        <p className="p-8 text-center text-sm text-muted-foreground">{t("tracking.select_prompt")}</p>
+      ) : (
+        <div className="p-5">
+          {error && (
+            <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50/60 p-4 text-sm text-amber-800">
+              <p className="flex items-center gap-2"><AlertTriangle className="size-4" /> {error}</p>
+            </div>
+          )}
+
+          <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-xl bg-white/40 p-4">
+              <p className="text-xs font-medium uppercase tracking-wider text-[#1a2942]/70 flex items-center gap-1"><Navigation className="size-3.5 text-blue-600" /> {t("tracking.driver")}</p>
+              <p className="mt-2 truncate text-lg font-bold text-[#1a2942]">{selectedDriver?.name ?? "—"}</p>
+            </div>
+            <div className="rounded-xl bg-white/40 p-4">
+              <p className="text-xs font-medium uppercase tracking-wider text-[#1a2942]/70 flex items-center gap-1"><MapPin className="size-3.5 text-blue-600" /> {t("tracking.coordinates")}</p>
+              <p className="mt-2 font-mono text-xs text-[#1a2942]">
+                {position ? `${position.latitude.toFixed(6)}, ${position.longitude.toFixed(6)}` : "—"}
+              </p>
+            </div>
+            <div className="rounded-xl bg-white/40 p-4">
+              <p className="text-xs font-medium uppercase tracking-wider text-[#1a2942]/70 flex items-center gap-1"><Gauge className="size-3.5 text-emerald-600" /> {t("tracking.speed")}</p>
+              <p className="mt-2 text-lg font-bold text-[#1a2942]">
+                {position ? `${position.speed.toFixed(1)} km/h` : "—"}
+              </p>
+            </div>
+            <div className="rounded-xl bg-white/40 p-4">
+              <p className="text-xs font-medium uppercase tracking-wider text-[#1a2942]/70 flex items-center gap-1"><RefreshCw className="size-3.5 text-amber-600" /> {t("tracking.updated")}</p>
+              <p className="mt-2 text-sm font-semibold text-[#1a2942]">
+                {lastUpdated ? lastUpdated.toLocaleTimeString() : "—"}
+              </p>
+              <p className="mt-1 text-[11px] text-[#1a2942]/60">{t("tracking.refresh_note")}</p>
+            </div>
+          </div>
+
+          <div className="relative h-[380px] overflow-hidden rounded-xl">
+            {loading && !position ? (
+              <div className="absolute inset-0 z-10 grid place-items-center bg-white/60 backdrop-blur-sm">
+                <Loader2 className="size-6 animate-spin text-[#1a2942]" />
+              </div>
+            ) : (
+              <DriverTrackingMap
+                position={position ? { latitude: position.latitude, longitude: position.longitude } : null}
+                route={route}
+                destination={null}
+                driverName={selectedDriver?.name}
+              />
+            )}
+          </div>
+
+          {route.length > 0 && (
+            <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-[#1a2942]/70">
+              <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-blue-600" /> {t("tracking.legend_driver")}</span>
+              <span className="flex items-center gap-1.5"><span className="h-0.5 w-4 bg-blue-600/80" /> {t("tracking.legend_route")}</span>
+              <span className="ms-auto">{t("tracking.route_points", { count: route.length })}</span>
+            </div>
+          )}
+        </div>
+      )}
+    </GlassCard>
   );
 }
 

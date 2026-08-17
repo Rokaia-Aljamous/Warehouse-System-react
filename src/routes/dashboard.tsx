@@ -132,6 +132,7 @@ import {
 } from "@/lib/api";
 import { fetchMe, fetchInventoryMovements, getMovementTypeKey, type InventoryMovement } from "@/lib/manager-api";
 import { assignBiometricDevice } from "@/lib/biometric-api";
+import { isValidInternationalPhone } from "@/lib/validation";
 import { OwnerAnalytics } from "@/components/analytics/OwnerAnalytics";
 import { formatNumber, formatMoney } from "@/lib/analytics-api";
 import {
@@ -1553,7 +1554,7 @@ function ManagerDialog({
       toast.error(t("manager.toast_username_short"));
       return;
     }
-    if (!/^09[0-9]{8}$/.test(form.phone_number)) {
+    if (!isValidInternationalPhone(form.phone_number)) {
       toast.error(t("manager.toast_phone_invalid"));
       return;
     }

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { getCsrfCookie, setupTenantOwner, getStoredUser, setStoredUser } from "@/lib/api";
+import { validatePasswordStrength, isValidInternationalPhone } from "@/lib/validation";
 import { DashboardPage } from "./dashboard";
 
 export const Route = createFileRoute("/tenant/setup")({
@@ -17,10 +18,19 @@ export const Route = createFileRoute("/tenant/setup")({
 
 const makeSchema = (t: (k: string) => string) => z.object({
   full_name: z.string().trim().min(2, t("zod.name_required")).max(255),
-  phone_number: z.string().trim().min(6, t("zod.phone_required")).max(255),
+  phone_number: z
+    .string()
+    .trim()
+    .min(6, t("zod.phone_required"))
+    .max(255)
+    .refine(isValidInternationalPhone, t("zod.phone_international")),
   user_name: z.string().trim().min(3, t("zod.min_chars")).max(255).regex(/^[a-zA-Z0-9_-]+$/, t("zod.username_charset")),
   birthday: z.string().optional(),
-  password: z.string().min(8, t("zod.min_chars")).max(72),
+  password: z
+    .string()
+    .min(8, t("zod.min_chars"))
+    .max(72)
+    .refine(validatePasswordStrength, t("zod.password_policy")),
   confirm: z.string(),
 }).superRefine((d, ctx) => {
   if (d.password !== d.confirm)
@@ -158,7 +168,7 @@ function TenantSetup() {
 
         <form onSubmit={onSubmit} className="rounded-3xl bg-[#f0ecdb] p-6 sm:p-8 shadow-2xl space-y-4">
           {renderField("full_name", t("tenant.setup.name"), { placeholder: t("placeholder.jane_doe"), icon: User })}
-          {renderField("phone_number", t("tenant.setup.phone"), { placeholder: "09XXXXXXXX", icon: Phone })}
+          {renderField("phone_number", t("tenant.setup.phone"), { placeholder: t("placeholder.phone_international"), icon: Phone })}
           {renderField("user_name", t("tenant.setup.username"), { placeholder: "jane_admin", icon: AtSign })}
           {renderField("birthday", t("tenant.setup.birthdate"), { placeholder: "YYYY-MM-DD", icon: Calendar })}
           {renderField("password", t("tenant.setup.password"), {

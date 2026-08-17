@@ -7,6 +7,7 @@ import {
   ArrowLeftRight, CheckCircle2, Truck, RefreshCw, Eye, Pencil, X, Search,
   Warehouse as WarehouseIcon, Wallet as WalletIcon, Settings as SettingsIcon,
   AlertTriangle, TrendingUp, Package, ListChecks, Download, Send,
+  MapPin, Navigation, Gauge,
 } from "lucide-react";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip,
@@ -41,6 +42,7 @@ import {
   fetchManagerWarehouse,
   fetchManagerEmployees, createManagerEmployee, updateManagerEmployee, deleteManagerEmployee,
   fetchManagerTasks, assignTask, updateTaskStatus,
+  fetchDriverTracking, fetchDriverRoute,
   type Section, type SectionInput,
   type ManagerProduct,
   type ManagerShipment,
@@ -48,6 +50,7 @@ import {
   getMovementTypeKey,
   type InventoryMovement,
   type ManagerTask, type AssignTaskInput,
+  type DriverLivePosition, type DriverRouteWaypoint,
 } from "@/lib/manager-api";
 import { api, getStoredUser, setStoredUser, getCsrfCookie } from "@/lib/api";
 import i18n from "@/lib/i18n";
@@ -55,6 +58,7 @@ import { LanguageToggle } from "@/components/LanguageToggle";
 import { WarehouseLayout } from "@/components/WarehouseLayout";
 import { ShipmentsSection } from "@/components/ShipmentsSection";
 import { CredentialsDialog } from "@/components/CredentialsDialog";
+import { DriverTrackingMap } from "@/components/DriverTrackingMap";
 import { useTransferRequests } from "@/hooks/useTransferRequests";
 import { AvailableRequestsFeed } from "@/components/transfer/AvailableRequestsFeed";
 import { MyWarehouseRequests } from "@/components/transfer/MyWarehouseRequests";
@@ -74,13 +78,14 @@ export const Route = createFileRoute("/manager/$slug")({
 });
 
 type SectionId =
-  | "overview" | "sections" | "employees" | "shipments" | "movements" | "tasks" | "transfers" | "reports" | "analytics" | "financial" | "settings"| "layout";
+  | "overview" | "sections" | "employees" | "tracking" | "shipments" | "movements" | "tasks" | "transfers" | "reports" | "analytics" | "financial" | "settings"| "layout";
 
 const NAV: { id: SectionId; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: "overview", label: "manager.overview", icon: LayoutDashboard },
   { id: "layout", label: "sidebar.layout", icon: WarehouseIcon },
   { id: "sections", label: "sidebar.sections", icon: Boxes },
   { id: "employees", label: "sidebar.employees", icon: Users },
+  { id: "tracking", label: "manager.tracking", icon: MapPin },
   { id: "shipments", label: "sidebar.shipments", icon: Truck },
   { id: "movements", label: "manager.movements", icon: ArrowLeftRight },
   { id: "tasks", label: "sidebar.tasks", icon: ListChecks },
@@ -244,6 +249,9 @@ function ManagerDashboard() {
           employees={employees}
           setEmployees={setEmployees}
         />
+      )}
+      {section === "tracking" && (
+        <DriverTrackingSection slug={slug} employees={employees} />
       )}
       {section === "shipments" && (
         <ShipmentsSection
@@ -885,6 +893,169 @@ function TasksSection({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+/* ===== Driver GPS Tracking ===== */
+const TRACKING_REFRESH_MS = 15000;
+
+function DriverTrackingSection({
+  slug, employees,
+}: {
+  slug: string;
+  employees: ManagerEmployee[];
+}) {
+  const { t } = useTranslation();
+  const drivers = employees.filter((e) => e.role === "driver");
+  const [driverId, setDriverId] = useState<number | null>(null);
+  const [position, setPosition] = useState<DriverLivePosition | null>(null);
+  const [route, setRoute] = useState<DriverRouteWaypoint[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
+  const refresh = useCallback(async () => {
+    if (!driverId) return;
+    setRefreshing(true);
+    setError(null);
+    try {
+      const [tracking, routeRes] = await Promise.all([
+        fetchDriverTracking(slug, driverId),
+        fetchDriverRoute(slug, driverId, 100),
+      ]);
+      setPosition(tracking.location);
+      setRoute(routeRes.waypoints ?? []);
+      setLastUpdated(new Date());
+    } catch (err: any) {
+      if (err?.response?.status === 404) {
+        setError(t("tracking.no_live_data"));
+      } else {
+        setError(t("tracking.fetch_failed"));
+      }
+    } finally {
+      setRefreshing(false);
+      setLoading(false);
+    }
+  }, [slug, driverId, t]);
+
+  useEffect(() => {
+    if (!driverId) return;
+    setLoading(true);
+    setPosition(null);
+    setRoute([]);
+    refresh();
+    const timer = setInterval(refresh, TRACKING_REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [driverId, refresh]);
+
+  const selectedDriver = drivers.find((d) => d.id === driverId) ?? null;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 className="text-lg font-bold text-[#1a2942]">{t("tracking.title")}</h2>
+          <p className="text-xs text-[#1a2942]/60">{t("tracking.desc")}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Select value={driverId !== null ? String(driverId) : ""} onValueChange={(v) => setDriverId(Number(v))}>
+            <SelectTrigger className="w-56 bg-white/70 text-[#1D2D44]">
+              <SelectValue placeholder={t("tracking.select_driver")} />
+            </SelectTrigger>
+            <SelectContent>
+              {drivers.map((d) => (
+                <SelectItem key={d.id} value={String(d.id)}>{d.system_user.full_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-[#1a2942]"
+            onClick={refresh}
+            disabled={!driverId || refreshing}
+          >
+            <RefreshCw className={cn("size-3.5 me-1", refreshing && "animate-spin")} />
+            {t("common.refresh")}
+          </Button>
+        </div>
+      </div>
+
+      {drivers.length === 0 && (
+        <GlassCard>
+          <p className="py-8 text-center text-sm text-[#1a2942]/50">{t("tracking.no_drivers")}</p>
+        </GlassCard>
+      )}
+
+      {drivers.length > 0 && !driverId && (
+        <GlassCard>
+          <p className="py-8 text-center text-sm text-[#1a2942]/50">{t("tracking.select_prompt")}</p>
+        </GlassCard>
+      )}
+
+      {driverId && (
+        <>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <GlassCard className="p-4">
+              <p className="text-xs font-medium uppercase tracking-wider text-[#1a2942]/70 flex items-center gap-1"><Navigation className="size-3.5 text-blue-600" /> {t("tracking.driver")}</p>
+              <p className="mt-2 text-lg font-bold text-[#1a2942] truncate">{selectedDriver?.system_user.full_name ?? "—"}</p>
+            </GlassCard>
+            <GlassCard className="p-4">
+              <p className="text-xs font-medium uppercase tracking-wider text-[#1a2942]/70 flex items-center gap-1"><MapPin className="size-3.5 text-blue-600" /> {t("tracking.coordinates")}</p>
+              <p className="mt-2 font-mono text-xs text-[#1a2942]">
+                {position ? `${position.latitude.toFixed(6)}, ${position.longitude.toFixed(6)}` : "—"}
+              </p>
+            </GlassCard>
+            <GlassCard className="p-4">
+              <p className="text-xs font-medium uppercase tracking-wider text-[#1a2942]/70 flex items-center gap-1"><Gauge className="size-3.5 text-emerald-600" /> {t("tracking.speed")}</p>
+              <p className="mt-2 text-lg font-bold text-[#1a2942]">
+                {position ? `${position.speed.toFixed(1)} km/h` : "—"}
+              </p>
+            </GlassCard>
+            <GlassCard className="p-4">
+              <p className="text-xs font-medium uppercase tracking-wider text-[#1a2942]/70 flex items-center gap-1"><RefreshCw className="size-3.5 text-amber-600" /> {t("tracking.updated")}</p>
+              <p className="mt-2 text-sm font-semibold text-[#1a2942]">
+                {lastUpdated ? lastUpdated.toLocaleTimeString() : "—"}
+              </p>
+              <p className="mt-1 text-[11px] text-[#1a2942]/60">{t("tracking.refresh_note")}</p>
+            </GlassCard>
+          </div>
+
+          {error && (
+            <GlassCard className="border border-amber-300 bg-amber-50/60">
+              <p className="flex items-center gap-2 text-sm text-amber-800">
+                <AlertTriangle className="size-4" /> {error}
+              </p>
+            </GlassCard>
+          )}
+
+          <GlassCard className="overflow-hidden p-0">
+            <div className="relative h-[420px]">
+              {loading && !position ? (
+                <div className="absolute inset-0 z-10 grid place-items-center bg-white/60 backdrop-blur-sm">
+                  <Loader2 className="size-6 animate-spin text-[#1a2942]" />
+                </div>
+              ) : (
+                <DriverTrackingMap
+                  position={position ? { latitude: position.latitude, longitude: position.longitude } : null}
+                  route={route}
+                  destination={null}
+                  driverName={selectedDriver?.system_user.full_name}
+                />
+              )}
+            </div>
+            {route.length > 0 && (
+              <div className="flex flex-wrap items-center gap-4 border-t border-white/40 px-4 py-3 text-xs text-[#1a2942]/70">
+                <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-blue-600" /> {t("tracking.legend_driver")}</span>
+                <span className="flex items-center gap-1.5"><span className="h-0.5 w-4 bg-blue-600/80" /> {t("tracking.legend_route")}</span>
+                <span className="ms-auto">{t("tracking.route_points", { count: route.length })}</span>
+              </div>
+            )}
+          </GlassCard>
+        </>
+      )}
     </div>
   );
 }
