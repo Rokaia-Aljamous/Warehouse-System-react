@@ -51,6 +51,7 @@ import {
 } from "@/lib/manager-api";
 import { api, getStoredUser, setStoredUser, getCsrfCookie } from "@/lib/api";
 import i18n from "@/lib/i18n";
+import { normalizePhoneNumber } from "@/lib/phone";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { WarehouseLayout } from "@/components/WarehouseLayout";
 import { ShipmentsSection } from "@/components/ShipmentsSection";
@@ -596,16 +597,17 @@ function EmployeesSection({
 
   const handleSave = async () => {
     if (!form.full_name.trim() || !form.phone_number.trim() || !form.user_name.trim()) { toast.error(t("employee.required_fields")); return; }
-    if (!/^09\d{8}$/.test(form.phone_number.trim())) { toast.error(t("manager.toast_phone_invalid")); return; }
+    const phone = normalizePhoneNumber(form.phone_number);
+    if (!phone.valid) { toast.error(t("manager.toast_phone_invalid")); return; }
     if (!warehouseId) return;
     setSubmitting(true);
     try {
       if (editEmp) {
-        const res = await updateManagerEmployee(slug, warehouseId, editEmp.id, { full_name: form.full_name, phone_number: form.phone_number, user_name: form.user_name, role: form.role, salary: form.salary });
+        const res = await updateManagerEmployee(slug, warehouseId, editEmp.id, { full_name: form.full_name, phone_number: phone.normalized, user_name: form.user_name, role: form.role, salary: form.salary });
         setEmployees((prev) => prev.map((e) => e.id === editEmp.id ? res.employee : e));
         toast.success(t("employee.updated"));
       } else {
-        const res = await createManagerEmployee(slug, warehouseId, form);
+        const res = await createManagerEmployee(slug, warehouseId, { ...form, phone_number: phone.normalized });
         setEmployees((prev) => [...prev, res.employee]);
         setCreatedCreds({ user_name: res.employee.system_user.user_name, password: res.password ?? "" });
         toast.success(t("employee.created"));
@@ -938,7 +940,7 @@ function ReportsSection({ slug }: { slug: string }) {
   const baseUrl = (import.meta.env.VITE_API_BASE?.replace(/\/+$/, "") || "");
 
   const openPdf = (report: string) => {
-    window.open(`${baseUrl}/${slug}/manager/reports/${report}/pdf`, "_blank");
+    window.open(`${baseUrl}/${slug}/reports/${report}/pdf`, "_blank");
   };
 
   const downloadExcel = async (report: string) => {
@@ -946,7 +948,7 @@ function ReportsSection({ slug }: { slug: string }) {
     setBusy(id);
     try {
       await getCsrfCookie();
-      const url = `${baseUrl}/${slug}/manager/reports/${report}/excel`;
+      const url = `${baseUrl}/${slug}/reports/${report}/excel`;
       const res = await api.get(url, { responseType: "blob" });
       const blobUrl = URL.createObjectURL(res.data);
       const a = document.createElement("a");

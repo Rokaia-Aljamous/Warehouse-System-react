@@ -59,6 +59,7 @@ import { ManagerBiometricSection } from "@/components/ManagerBiometricSection";
 import { ShipmentsSection } from "@/components/ShipmentsSection";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
+import { normalizePhoneNumber } from "@/lib/phone";
 
 export const Route = createFileRoute("/manager")({
   component: ManagerApp,
@@ -1011,7 +1012,8 @@ function AddWorkerDialog({
       toast.error(t("common.fields_required"));
       return;
     }
-    if (!/^09\d{8}$/.test(form.phone_number.trim())) {
+    const phone = normalizePhoneNumber(form.phone_number);
+    if (!phone.valid) {
       toast.error(t("manager.toast_phone_invalid"));
       return;
     }
@@ -1021,7 +1023,7 @@ function AddWorkerDialog({
         const res = await createManagerWorker(slug, warehouseId, {
           full_name: form.full_name.trim(),
           birthday: form.birthday || null,
-          phone_number: form.phone_number.trim(),
+          phone_number: phone.normalized,
           user_name: form.user_name.trim(),
           role: form.role,
           status: form.status,
@@ -1600,7 +1602,7 @@ function ReportsSection({ slug }: { slug: string | null }) {
     if (from) params.set("date_from", from);
     if (to) params.set("date_to", to);
     const qs = params.toString();
-    return `/${slug}/manager/reports/${report}/${ext}${qs ? `?${qs}` : ""}`;
+    return `/${slug}/reports/${report}/${ext}${qs ? `?${qs}` : ""}`;
   };
 
   const openPdf = (report: string) => {

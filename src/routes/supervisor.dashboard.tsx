@@ -1422,7 +1422,7 @@ function Reports({
   const [busy, setBusy] = useState<string | null>(null);
 
   const reportUrl = (report: string, ext: "pdf" | "excel") =>
-    `/${slug}/keeper/reports/${report}/${ext}`;
+    `/${slug}/reports/${report}/${ext}`;
 
   const openPdf = (report: string) => {
     if (!slug) return;

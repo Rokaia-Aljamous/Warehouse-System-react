@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
+import { normalizePhoneNumber } from "@/lib/phone";
 import {
   LayoutDashboard,
   Users,
@@ -1583,7 +1584,8 @@ function ManagerDialog({
       toast.error(t("manager.toast_username_short"));
       return;
     }
-    if (!/^09[0-9]{8}$/.test(form.phone_number)) {
+    const phone = normalizePhoneNumber(form.phone_number);
+    if (!phone.valid) {
       toast.error(t("manager.toast_phone_invalid"));
       return;
     }
@@ -1596,7 +1598,7 @@ function ManagerDialog({
       name: form.name,
       birthday: form.birthday,
       user_name: form.user_name,
-      phone_number: form.phone_number,
+      phone_number: phone.normalized,
       salary: form.salary,
       warehouseId: form.warehouseId,
       status: form.status,
@@ -1646,7 +1648,7 @@ function ManagerDialog({
                 onChange={(e) => setForm({ ...form, phone_number: e.target.value })}
                 placeholder={t("manager.phone_placeholder")}
                 required
-                inputMode="numeric"
+                inputMode="tel"
                 className="text-[#1D2D44] placeholder:text-[#1D2D44]/50 focus:text-[#1D2D44]"
               />
             </div>
@@ -2438,7 +2440,7 @@ function OwnerReportsSection({ slug }: { slug: string | null }) {
       if (tasksType && tasksType !== "all") params.set("task_type", tasksType);
     }
     const qs = params.toString();
-    return `/${slug}/owner/reports/${report}/${ext}${qs ? `?${qs}` : ""}`;
+    return `/${slug}/reports/${report}/${ext}${qs ? `?${qs}` : ""}`;
   };
 
   const openPdf = (report: "orders" | "returns" | "tasks") => {
