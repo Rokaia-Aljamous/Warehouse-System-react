@@ -221,6 +221,7 @@ interface ManagerItem {
   whmId: string;
   name: string;
   age: number;
+  birthday?: string;
   password: string;
   warehouseId: string;
   status: ManagerStatus;
@@ -1064,6 +1065,7 @@ function ManagersSection({
             whmId: emp.system_user.user_name,
             name: emp.system_user.full_name,
             age: 0,
+            birthday: emp.system_user.birthday ?? "",
             password: "password",
             warehouseId: w.id.toString(),
             status: emp.status === "available" ? "active" : "inactive",
@@ -1110,7 +1112,7 @@ function ManagersSection({
 
   const [created, setCreated] = useState<{ user_name: string; password: string } | null>(null);
 
-const handleSave = async (data: { id?: string; name: string; user_name: string; phone_number: string; salary: number; warehouseId: string; status: ManagerStatus }) => {
+const handleSave = async (data: { id?: string; name: string; birthday: string; user_name: string; phone_number: string; salary: number; warehouseId: string; status: ManagerStatus }) => {
     if (!slug) {
       setLoading(true);
       toast.error(t("common.operation_failed"));
@@ -1134,6 +1136,7 @@ const handleSave = async (data: { id?: string; name: string; user_name: string; 
       } else {
         const res = await createEmployee(slug, warehouseId, {
           full_name: data.name,
+          birthday: data.birthday,
           user_name: data.user_name,
           phone_number: data.phone_number,
           salary: data.salary,
@@ -1512,12 +1515,12 @@ function ManagerDialog({
 }: {
   open: boolean; onOpenChange: (o: boolean) => void;
   editing: ManagerItem | null; types: WarehouseTypeOption[];
-  onSave: (m: { id?: string; name: string; user_name: string; phone_number: string; salary: number; warehouseId: string; status: ManagerStatus }) => void;
+  onSave: (m: { id?: string; name: string; birthday: string; user_name: string; phone_number: string; salary: number; warehouseId: string; status: ManagerStatus }) => void;
   loading: boolean;
 }) {
   const { t } = useTranslation();
   const [form, setForm] = useState({
-    name: "", user_name: "", phone_number: "", salary: 0,
+    name: "", user_name: "", phone_number: "", birthday: "", salary: 0,
     warehouseId: types[0]?.id ?? "", status: "active" as ManagerStatus,
   });
 
@@ -1527,6 +1530,7 @@ function ManagerDialog({
         name: editing.name,
         user_name: editing.whmId,
         phone_number: editing.phone ?? "",
+        birthday: editing.birthday ?? "",
         salary: editing.salary ?? 0,
         warehouseId: editing.warehouseId,
         status: editing.status,
@@ -1536,6 +1540,7 @@ function ManagerDialog({
         name: "",
         user_name: "",
         phone_number: "",
+        birthday: "",
         salary: 0,
         warehouseId: types[0]?.id ?? "",
         status: "active",
@@ -1543,10 +1548,35 @@ function ManagerDialog({
     }
   }, [editing, types]);
 
+  const maxBirthday = format(
+    new Date(new Date().getFullYear() - 18, new Date().getMonth(), new Date().getDate()),
+    "yyyy-MM-dd",
+  );
+
+  const isAtLeast18 = (date: string): boolean => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+    const birth = new Date(`${date}T00:00:00`);
+    if (Number.isNaN(birth.getTime())) return false;
+    const now = new Date();
+    if (birth >= now) return false;
+    let age = now.getFullYear() - birth.getFullYear();
+    const monthDiff = now.getMonth() - birth.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < birth.getDate())) age -= 1;
+    return age >= 18;
+  };
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.user_name || !form.phone_number || !form.warehouseId) {
       toast.error(t("manager.toast_required_fields"));
+      return;
+    }
+    if (!editing && !form.birthday) {
+      toast.error(t("manager.toast_birthday_required"));
+      return;
+    }
+    if (!editing && !isAtLeast18(form.birthday)) {
+      toast.error(t("manager.toast_birthday_min_age"));
       return;
     }
     if (!editing && form.user_name.length < 3) {
@@ -1564,6 +1594,7 @@ function ManagerDialog({
     onSave({
       ...(editing ? { id: editing.id } : {}),
       name: form.name,
+      birthday: form.birthday,
       user_name: form.user_name,
       phone_number: form.phone_number,
       salary: form.salary,
@@ -1632,6 +1663,18 @@ function ManagerDialog({
                 className="text-[#1D2D44] placeholder:text-[#1D2D44]/50 focus:text-[#1D2D44]"
               />
             </div>
+          </div>
+          <div className="grid gap-2">
+            <Label className="text-[#1D2D44]">
+              {t("manager.birthday")}{!editing ? " *" : ""}
+            </Label>
+            <Input
+              type="date"
+              value={form.birthday}
+              max={maxBirthday}
+              onChange={(e) => setForm({ ...form, birthday: e.target.value })}
+              className="text-[#1D2D44] placeholder:text-[#1D2D44]/50 focus:text-[#1D2D44]"
+            />
           </div>
           <div className="grid gap-2">
             <Label className="text-[#1D2D44]">{t("manager.assign_warehouse")}</Label>

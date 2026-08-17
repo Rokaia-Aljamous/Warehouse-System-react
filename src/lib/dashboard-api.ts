@@ -365,6 +365,7 @@ export interface EmployeeStoreResponse {
 
 export interface EmployeeInput {
   full_name: string;
+  birthday: string;
   phone_number: string;
   user_name: string;
   password?: string;
@@ -379,19 +380,19 @@ export const fetchEmployees = async (slug: string, warehouseId: number): Promise
 };
 
 export const createEmployee = async (slug: string, warehouseId: number, data: EmployeeInput): Promise<EmployeeStoreResponse> => {
-  const response = await api.post<EmployeeStoreResponse>(`/${slug}/owner/warehouses/${warehouseId}/employees`, data);
+  const response = await api.post<EmployeeStoreResponse>(`/${slug}/warehouses/${warehouseId}/employees`, data);
   return response.data;
 };
 
 export const updateEmployee = async (slug: string, warehouseId: number, employeeId: number, data: Partial<EmployeeInput>): Promise<EmployeeStoreResponse> => {
-  const response = await api.patch<EmployeeStoreResponse>(`/${slug}/owner/warehouses/${warehouseId}/employees/${employeeId}`, data);
+  const response = await api.patch<EmployeeStoreResponse>(`/${slug}/warehouses/${warehouseId}/employees/${employeeId}`, data);
   return response.data;
 };
 
 export const deleteEmployee = async (slug: string, warehouseId: number, employeeId: number): Promise<void> => {
-  await api.delete(`/${slug}/owner/warehouses/${warehouseId}/employees/${employeeId}`);
+  await api.delete(`/${slug}/warehouses/${warehouseId}/employees/${employeeId}`);
 };
 
 export const logoutEmployee = async (slug: string, warehouseId: number, employeeId: number): Promise<void> => {
-  await api.post(`/${slug}/owner/warehouses/${warehouseId}/employees/${employeeId}/logout`);
+  await api.post(`/${slug}/warehouses/${warehouseId}/employees/${employeeId}/logout`);
 };
