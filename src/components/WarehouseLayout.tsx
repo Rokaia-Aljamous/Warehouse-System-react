@@ -7,6 +7,9 @@ import {
   Trash2,
   Plus,
   ArrowLeftRight,
+  PackagePlus,
+  PackageMinus,
+  Unlink,
   QrCode,
   Copy,
   Check,
@@ -17,6 +20,7 @@ import {
   Layers,
   ArrowRight,
 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -84,31 +88,31 @@ function sectionVisualState(section: Section): SectionVisualState {
 
 const STATE_STYLES: Record<
   SectionVisualState,
-  { badge: string; ring: string; dot: string; headerBg: string }
+  { badge: string; ring: string; dot: string; accent: string }
 > = {
   empty: {
     badge: "bg-slate-200 text-slate-600",
-    ring: "border-slate-200",
+    ring: "border-slate-300",
     dot: "bg-slate-400",
-    headerBg: "from-slate-50 to-slate-100",
+    accent: "bg-slate-400",
   },
   available: {
     badge: "bg-sky-100 text-sky-700",
     ring: "border-sky-300",
     dot: "bg-sky-400",
-    headerBg: "from-sky-50 to-sky-100",
+    accent: "bg-sky-400",
   },
   filling: {
     badge: "bg-amber-100 text-amber-700",
     ring: "border-amber-300",
     dot: "bg-amber-400",
-    headerBg: "from-amber-50 to-amber-100",
+    accent: "bg-amber-400",
   },
   full: {
     badge: "bg-emerald-100 text-emerald-700",
     ring: "border-emerald-300",
     dot: "bg-emerald-500",
-    headerBg: "from-emerald-50 to-emerald-100",
+    accent: "bg-emerald-500",
   },
 };
 
@@ -497,13 +501,15 @@ export function WarehouseLayout({
               <div
                 key={sec.id}
                 className={cn(
-                  "group flex flex-col overflow-hidden rounded-2xl border bg-gradient-to-br to-white shadow-xl transition hover:-translate-y-0.5 hover:shadow-2xl",
-                  style.headerBg,
+                  "flex flex-col overflow-hidden rounded-2xl border bg-[#f0ecdb] shadow-xl transition hover:-translate-y-0.5 hover:shadow-2xl",
                   style.ring,
                 )}
               >
+                {/* State accent bar */}
+                <div className={cn("h-1 w-full shrink-0", style.accent)} />
+
                 {/* Bay header */}
-                <div className="flex items-center justify-between gap-2 border-b border-white/50 px-4 py-2.5">
+                <div className="flex items-center justify-between gap-2 border-b border-[#1a2942]/10 px-4 py-2.5">
                   <div className="flex items-center gap-2 min-w-0">
                     <span className={cn("size-2 shrink-0 rounded-full", style.dot)} />
                     <h3 className="truncate text-sm font-bold text-[#1a2942]">{sec.name}</h3>
@@ -516,7 +522,7 @@ export function WarehouseLayout({
                       <TooltipTrigger asChild>
                         <button
                           onClick={() => setQrSection(sec)}
-                          className="p-1.5 rounded-lg hover:bg-white/60 text-[#1a2942]/70"
+                          className="p-1.5 rounded-lg hover:bg-[#1a2942]/5 text-[#1a2942]/70"
                         >
                           <QrCode className="size-3.5" />
                         </button>
@@ -537,7 +543,7 @@ export function WarehouseLayout({
                             });
                             setDialogOpen(true);
                           }}
-                          className="p-1.5 rounded-lg hover:bg-white/60 text-[#1a2942]/70"
+                          className="p-1.5 rounded-lg hover:bg-[#1a2942]/5 text-[#1a2942]/70"
                         >
                           <Pencil className="size-3.5" />
                         </button>
@@ -548,7 +554,7 @@ export function WarehouseLayout({
                       <TooltipTrigger asChild>
                         <button
                           onClick={() => setDeleteId(sec.id)}
-                          className="p-1.5 rounded-lg hover:bg-white/60 text-red-500"
+                          className="p-1.5 rounded-lg hover:bg-[#1a2942]/5 text-red-500"
                         >
                           <Trash2 className="size-3.5" />
                         </button>
@@ -563,7 +569,7 @@ export function WarehouseLayout({
                   <div className="flex flex-col items-center gap-2">
                     {display && grid ? (
                       <div
-                        className="grid w-full max-w-[260px] gap-1 rounded-lg border border-white/60 bg-white/50 p-2"
+                        className="grid w-full max-w-[260px] gap-1 rounded-lg border border-[#1a2942]/10 bg-white/70 p-2"
                         style={{
                           gridTemplateColumns: `repeat(${display.cols}, minmax(6px, 1fr))`,
                           gridTemplateRows: `repeat(${display.rows}, minmax(6px, 1fr))`,
@@ -579,7 +585,7 @@ export function WarehouseLayout({
                         ))}
                       </div>
                     ) : (
-                      <div className="flex h-28 w-full max-w-[260px] items-center justify-center rounded-lg border border-dashed border-white/70 bg-white/30 text-xs text-[#1a2942]/50">
+                      <div className="flex h-28 w-full max-w-[260px] items-center justify-center rounded-lg border border-dashed border-[#1a2942]/15 bg-white/40 text-xs text-[#1a2942]/50">
                         {t("layout.no_product")}
                       </div>
                     )}
@@ -599,7 +605,7 @@ export function WarehouseLayout({
                 </div>
 
                 {/* Info */}
-                <div className="border-t border-white/50 px-4 py-3 space-y-2">
+                <div className="border-t border-[#1a2942]/10 px-4 py-3 space-y-2">
                   <div className="flex items-center justify-between gap-2 text-xs">
                     {sec.product ? (
                       <span className="flex items-center gap-1.5 font-medium text-[#1a2942] min-w-0">
@@ -643,67 +649,76 @@ export function WarehouseLayout({
                 </div>
 
                 {/* Actions */}
-                <div className="mt-auto flex flex-wrap gap-1.5 border-t border-white/50 px-4 py-2.5">
+                <div className="mt-auto grid grid-cols-2 gap-2 border-t border-[#1a2942]/10 px-4 py-3 sm:grid-cols-4">
                   {sec.product ? (
                     <>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-[11px] px-2"
-                        onClick={() => {
-                          setFillSection(sec);
-                          setFillQty(1);
-                          setFillNote("");
-                          setFillOpen(true);
-                        }}
-                      >
-                        {t("section.fill")}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-[11px] px-2"
-                        onClick={() => {
-                          setRemoveSection(sec);
-                          setRemoveQty(1);
-                          setRemoveNote("");
-                          setRemoveOpen(true);
-                        }}
-                        disabled={sec.quantity_parcels <= 0}
-                      >
-                        {t("section.remove")}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-[11px] px-2"
-                        onClick={() => openTransfer(sec)}
-                        disabled={sec.quantity_parcels <= 0}
-                      >
-                        <ArrowLeftRight className="size-3" /> {t("layout.transfer")}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 text-[11px] px-2 text-[#1a2942]/60 hover:text-[#1a2942]"
-                        onClick={() => handleUnassign(sec.id)}
-                      >
-                        {t("section.unassign")}
-                      </Button>
-                    </>
+  <Button
+    size="sm"
+    variant="outline"
+    className="h-9 gap-1.5 border-[#f2a618] bg-[#f2a618] px-3 text-xs font-semibold text-white hover:bg-[#f2a618] hover:text-white"
+    onClick={() => {
+      setFillSection(sec);
+      setFillQty(1);
+      setFillNote("");
+      setFillOpen(true);
+    }}
+  >
+    <PackagePlus className="size-4" />
+    {t("section.fill")}
+  </Button>
+
+  <Button
+    size="sm"
+    variant="outline"
+    className="h-9 gap-1.5 border-[#f2a618] bg-[#f2a618] px-3 text-xs font-semibold text-white hover:bg-[#f2a618] hover:text-white disabled:border-[#f2a618]/40 disabled:bg-[#f2a618]/40 disabled:text-white/60"
+    onClick={() => {
+      setRemoveSection(sec);
+      setRemoveQty(1);
+      setRemoveNote("");
+      setRemoveOpen(true);
+    }}
+    disabled={sec.quantity_parcels <= 0}
+  >
+    <PackageMinus className="size-4" />
+    {t("section.remove")}
+  </Button>
+
+  <Button
+    size="sm"
+    variant="outline"
+    className="h-9 gap-1.5 border-[#f2a618] bg-[#f2a618] px-3 text-xs font-semibold text-white hover:bg-[#f2a618] hover:text-white disabled:border-[#f2a618]/40 disabled:bg-[#f2a618]/40 disabled:text-white/60"
+    onClick={() => openTransfer(sec)}
+    disabled={sec.quantity_parcels <= 0}
+  >
+    <ArrowLeftRight className="size-4" />
+    {t("layout.transfer")}
+  </Button>
+
+  <Button
+    size="sm"
+    variant="outline"
+    className="h-9 gap-1.5 border-[#f2a618] bg-[#f2a618] px-3 text-xs font-semibold text-white hover:bg-[#f2a618] hover:text-white"
+    onClick={() => handleUnassign(sec.id)}
+  >
+    <Unlink className="size-4" />
+    {t("section.unassign")}
+  </Button>
+</>
                   ) : (
-                    <Select onValueChange={(v) => handleAssign(sec.id, Number(v))}>
-                      <SelectTrigger className="h-7 flex-1 text-[11px]">
-                        <SelectValue placeholder={t("placeholder.assign_product")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {products.map((p) => (
-                          <SelectItem key={p.id} value={String(p.id)}>
-                            {p.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="col-span-2 sm:col-span-4">
+                      <Select onValueChange={(v) => handleAssign(sec.id, Number(v))}>
+                        <SelectTrigger className="h-8 w-full text-[11px] bg-white/70">
+                          <SelectValue placeholder={t("placeholder.assign_product")} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {products.map((p) => (
+                            <SelectItem key={p.id} value={String(p.id)}>
+                              {p.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   )}
                 </div>
               </div>
@@ -810,12 +825,13 @@ export function WarehouseLayout({
           </div>
           <DialogFooter className="gap-2 sm:gap-2">
             <Button
-              variant="outline"
-              onClick={() => setDialogOpen(false)}
-              className={OUTLINE_BTN_CLS}
-            >
-              {t("common.cancel")}
-            </Button>
+  type="button"
+  variant="outline"
+  onClick={() => setDialogOpen(false)}
+  className={`${OUTLINE_BTN_CLS} bg-[#f2a618] text-[#1D2D44] border border-[#1D2D44]/20 hover:bg-[#f2a618]/90 hover:text-[#1D2D44] opacity-100 cursor-pointer pointer-events-auto`}
+>
+  {t("common.cancel")}
+</Button>
             <Button onClick={handleSave} disabled={submitting} className={PRIMARY_BTN_CLS}>
               {submitting ? t("common.saving") : t("common.save")}
             </Button>
@@ -832,13 +848,18 @@ export function WarehouseLayout({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("section.delete_confirm_title")}</AlertDialogTitle>
+            <AlertDialogTitle className="text-[#1D2D44]">
+  {t("section.delete_confirm_title")}
+</AlertDialogTitle>
             <AlertDialogDescription>{t("common.cannot_undo")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setDeleteId(null)}>
-              {t("common.cancel")}
-            </AlertDialogCancel>
+           <AlertDialogCancel 
+  onClick={() => setDeleteId(null)}
+  className="bg-[#f2a618] text-[#1D2D44] border border-[#1D2D44]/20 hover:bg-[#f2a618]/90 hover:text-[#1D2D44] opacity-100 cursor-pointer pointer-events-auto"
+>
+  {t("common.cancel")}
+</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
               {t("common.delete")}
             </AlertDialogAction>
@@ -886,12 +907,12 @@ export function WarehouseLayout({
           </div>
           <DialogFooter className="gap-2 sm:gap-2">
             <Button
-              variant="outline"
-              onClick={() => setFillOpen(false)}
-              className={OUTLINE_BTN_CLS}
-            >
-              {t("common.cancel")}
-            </Button>
+  variant="outline"
+  onClick={() => setFillOpen(false)}
+  className="bg-[#f2a618] text-[#1D2D44] border border-[#1D2D44]/20 hover:bg-[#f2a618]/90 hover:text-[#1D2D44] opacity-100 cursor-pointer pointer-events-auto"
+>
+  {t("common.cancel")}
+</Button>
             <Button onClick={handleFill} disabled={submitting} className={PRIMARY_BTN_CLS}>
               {submitting ? t("section.adding") : t("section.add_stock")}
             </Button>
@@ -1070,19 +1091,27 @@ export function WarehouseLayout({
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center">
-            <QrCode className="mx-auto size-24 text-[#1a2942]" />
+            {qrSection && (
+              <QRCodeSVG
+                value={qrSection.section_qr_code}
+                size={192}
+                level="M"
+                marginSize={4}
+              />
+            )}
             <p className="mt-4 break-all font-mono text-xs text-[#1a2942]/70">
               {qrSection?.section_qr_code}
             </p>
           </div>
           <DialogFooter className="gap-2 sm:gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setQrSection(null)}
-              className={OUTLINE_BTN_CLS}
-            >
-              {t("common.close")}
-            </Button>
+           <Button
+  type="button"
+  variant="outline"
+  onClick={() => setQrSection(null)}
+  className={`${OUTLINE_BTN_CLS} bg-[#f2a618] text-[#1D2D44] border border-[#1D2D44]/20 hover:bg-[#f2a618]/90 hover:text-[#1D2D44] opacity-100 cursor-pointer pointer-events-auto`}
+>
+  {t("common.close")}
+</Button>
             <Button onClick={handleCopyQr} className={PRIMARY_BTN_CLS}>
               {qrCopied ? <Check className="size-4 me-1" /> : <Copy className="size-4 me-1" />}
               {qrCopied ? t("layout.copied") : t("layout.copy")}

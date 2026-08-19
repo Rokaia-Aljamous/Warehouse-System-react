@@ -113,9 +113,16 @@ export function CreateTransferRequestModal({
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-sm font-semibold text-[#1a2942]">{t("transfer_request.items")}</p>
-            <Button size="sm" variant="outline" onClick={addLine} disabled={products.length === 0}>
-              <Plus className="size-4 me-1" /> {t("transfer_request.add_item")}
-            </Button>
+            <Button 
+  type="button"
+  size="sm" 
+  variant="outline" 
+  onClick={addLine} 
+  disabled={products.length === 0}
+  className="bg-[#f2a618] text-[#1D2D44] border border-[#1D2D44]/20 hover:bg-[#f2a618]/90 hover:text-[#1D2D44] opacity-100 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+>
+  <Plus className="size-4 me-1" /> {t("transfer_request.add_item")}
+</Button>
           </div>
 
           {products.length === 0 && (
@@ -202,9 +209,14 @@ export function CreateTransferRequestModal({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => handleOpenChange(false)}>
-            {t("common.cancel")}
-          </Button>
+         <Button 
+  type="button" 
+  variant="outline" 
+  onClick={() => handleOpenChange(false)}
+  className="bg-[#f2a618] text-[#1D2D44] border border-[#1D2D44]/20 hover:bg-[#f2a618]/90 hover:text-[#1D2D44] opacity-100"
+>
+  {t("common.cancel")}
+</Button>
           <Button
             onClick={handleSubmit}
             disabled={submitting}

@@ -48,9 +48,8 @@ const proxyRoutes: Record<string, ProxyOptions> = {
 
   // Dashboard routes (/{slug}/login, /{slug}/warehouses, /{slug}/owner/warehouses, etc.)
   // Also forwards role analytics: /{slug}/manager|storekeeper|owner/analytics/...
-  "^/([^/]+)/(?:owner/)?(login|logout|me|warehouses|products|shipments|drivers|force-password-change|forgot-password|reset-password|manager|storekeeper|keeper|analytics|inventory-movements)(/.*)?$": laravelProxy(),
+  "^/([^/]+)/(?:owner/)?(login|logout|me|warehouses|products|shipments|notifications|force-password-change|forgot-password|reset-password|manager|storekeeper|analytics|keeper|inventory-movements|reports)(/.*)?(\\?.*)?$": laravelProxy(),
 };
-
 // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
 // @cloudflare/vite-plugin builds from this — wrangler.jsonc main alone is insufficient.
 export default defineConfig({

@@ -25,6 +25,7 @@ const STATUS_STYLES: Record<TransferRequestStatus, string> = {
   pending: "bg-amber-100 text-amber-700",
   accepted: "bg-blue-100 text-blue-700",
   fulfilled: "bg-green-100 text-green-700",
+  rejected: "bg-red-100 text-red-700",
   cancelled: "bg-red-100 text-red-700",
 };
 
@@ -80,7 +81,7 @@ export function MyWarehouseRequests({
                   </h4>
                 </div>
                 <Badge className={cn("text-xs font-medium", STATUS_STYLES[req.status] ?? "")}>
-                  {req.status_label}
+                  {t(`transfer_request.status.${req.status}`)}
                 </Badge>
               </div>
 

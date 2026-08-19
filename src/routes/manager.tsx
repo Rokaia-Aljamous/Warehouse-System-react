@@ -4,10 +4,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import {
   LayoutDashboard, Users, Boxes, ClipboardList, BarChart3, FileText,
-  Settings as SettingsIcon, ArrowLeftRight, LogOut, Menu, Search, Bell,
-  Plus, Trash2, AlertTriangle, ArrowUpRight, ArrowDownRight,
-  Truck, Loader2, ChevronLeft, ChevronRight,
-  Warehouse as WarehouseIcon, Wallet as WalletIcon, RefreshCw,
+  Settings as SettingsIcon, ArrowLeftRight, LogOut, Menu, Search,
+  Plus, Trash2, QrCode, AlertTriangle,
+  Truck, Download, Loader2, ChevronLeft, ChevronRight,
+  Warehouse as WarehouseIcon, Wallet as WalletIcon, Sparkles, CreditCard,
+  RefreshCw, Fingerprint,
 } from "lucide-react";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -18,6 +19,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { AppLogo } from "@/components/AppLogo";
+import { NotificationsBell } from "@/components/NotificationsBell";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -35,27 +38,23 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-import { api, getCsrfCookie } from "@/lib/api";
 import { ProfilePictureUpload } from "@/components/ProfilePictureUpload";
 import { getProfilePic, subscribeProfilePic } from "@/lib/profile-storage";
 import { LanguageToggle } from "@/components/LanguageToggle";
-import {
-  fetchMe, fetchManagerEmployees, fetchManagerOrders, createManagerWorker,
-  deleteManagerEmployee, updateManagerEmployee, updateManagerProfile,
-  fetchSections, fetchManagerProducts, fetchManagerWarehouse, fetchInventoryMovements,
-  type ManagerEmployee, type ManagerOrder, type Section, type ManagerProduct,
-  type InventoryMovement,
-} from "@/lib/manager-api";
+import { fetchMe, fetchManagerEmployees, fetchManagerOrders, createManagerWorker, deleteManagerEmployee, updateManagerEmployee, fetchSections, fetchManagerProducts, fetchManagerWarehouse, fetchManagerShipments, fetchInventoryMovements, type ManagerEmployee, type ManagerOrder, type Section, type ManagerProduct, type ManagerShipment, type InventoryMovement } from "@/lib/manager-api";
+import { api, getCsrfCookie } from "@/lib/api";
 import { WarehouseLayout } from "@/components/WarehouseLayout";
 import { CredentialsDialog } from "@/components/CredentialsDialog";
 import { useTransferRequests } from "@/hooks/useTransferRequests";
 import { AvailableRequestsFeed } from "@/components/transfer/AvailableRequestsFeed";
 import { MyWarehouseRequests } from "@/components/transfer/MyWarehouseRequests";
-import { ManagerAnalytics } from "@/components/analytics/ManagerAnalytics";
-import { isValidInternationalPhone, isAtLeast18 } from "@/lib/validation";
+import { ManagerBiometricSection } from "@/components/ManagerBiometricSection";
+import { ShipmentsSection } from "@/components/ShipmentsSection";
 import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
+import { normalizePhoneNumber } from "@/lib/phone";
 
 export const Route = createFileRoute("/manager")({
   component: ManagerApp,
@@ -68,14 +67,16 @@ export const Route = createFileRoute("/manager")({
 });
 
 type SectionId =
-  | "overview" | "layout" | "workers" | "inventory" | "orders" | "transfers"
+  | "overview" | "layout" | "workers" | "biometric" | "inventory" | "shipments" | "orders" | "transfers"
   | "statistics" | "reports" | "wallet" | "settings";
 
 const NAV: { id: SectionId; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { id: "overview", label: "sidebar.dashboard", icon: LayoutDashboard },
   { id: "layout", label: "sidebar.layout", icon: WarehouseIcon },
   { id: "workers", label: "sidebar.workers", icon: Users },
+  { id: "biometric", label: "biometric.title", icon: Fingerprint },
   { id: "inventory", label: "sidebar.inventory", icon: Boxes },
+  { id: "shipments", label: "sidebar.shipments", icon: Truck },
   { id: "orders", label: "sidebar.orders", icon: ClipboardList },
   { id: "transfers", label: "sidebar.transfers", icon: ArrowLeftRight },
   { id: "statistics", label: "sidebar.statistics", icon: BarChart3 },
@@ -111,7 +112,7 @@ type StoredManagerSession = {
   whmId?: string;
   phone_number?: string;
   warehouse_id?: number | null;
-  owner_id?: number | null;
+  owner_id?: number;
   must_change_password?: boolean;
   tenant?: {
     url_slug?: string;
@@ -166,9 +167,7 @@ function ManagerSlugShell() {
       style={{ boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)" }}
     >
       <div className="flex items-center gap-2 px-4 py-5">
-        <div className="grid size-8 place-items-center rounded-xl bg-accent/30 text-accent-foreground">
-          <WarehouseIcon className="h-4 w-4" />
-        </div>
+        <AppLogo className="size-8" />
         {!collapsed && <span className="text-base font-semibold tracking-tight">{t("app.name")}</span>}
       </div>
       <nav className="flex-1 space-y-1 px-2">
@@ -281,18 +280,13 @@ function ManagerApp() {
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<ManagerOrder[]>([]);
-  const [movements, setMovements] = useState<InventoryMovement[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
   const [layoutProducts, setLayoutProducts] = useState<ManagerProduct[]>([]);
   const [warehouse, setWarehouse] = useState<{ id: number; name: string; type: string; location: string } | null>(null);
+  const [shipments, setShipments] = useState<ManagerShipment[]>([]);
+  const [movements, setMovements] = useState<InventoryMovement[]>([]);
 
-  type Session = {
-    whmId: string;
-    name: string;
-    warehouseId?: string;
-    ownerId?: number | null;
-    tenant?: StoredManagerSession["tenant"];
-  };
+  type Session = { whmId: string; name: string; warehouseId?: string; ownerId?: number };
   const [user, setUser] = useState<Session | null>(null);
   const [slug, setSlug] = useState<string | null>(null);
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -326,8 +320,7 @@ function ManagerApp() {
       whmId: parsed.whmId ?? parsed.id?.toString?.() ?? "WHM-000",
       name: parsed.name ?? parsed.full_name ?? "",
       warehouseId: parsed.warehouse_id?.toString?.(),
-      ownerId: parsed.owner_id ?? null,
-      tenant: parsed.tenant,
+      ownerId: parsed.owner_id,
     });
     setSlug(parsed.tenant?.url_slug ?? null);
     if (parsed.tenant?.url_slug) {
@@ -364,26 +357,31 @@ function ManagerApp() {
       setWarehouse(null);
       return;
     }
-    fetchSections(slug)
-      .then(({ sections: s }) => setSections(s))
-      .catch(() => setSections([]));
-    fetchManagerProducts(slug)
-      .then(({ products: p }) => {
-        setLayoutProducts(p);
-        setProducts(p.map((x) => ({ id: x.id, name: x.name, quantity: x.quantity ?? 0, reorderLevel: x.minimum_stock ?? 0 })));
-      })
-      .catch(() => {
-        setLayoutProducts([]);
-        setProducts([]);
-      });
-    fetchManagerWarehouse(slug)
-      .then(({ warehouse: w }) => {
-        if (w) setWarehouse({ id: w.id, name: w.warehouse_name, type: w.type, location: w.location });
-      })
-      .catch(() => setWarehouse(null));
-    fetchInventoryMovements(slug, { warehouse_id: Number(user.warehouseId), per_page: 8 })
-      .then(({ inventory_movements }) => setMovements(inventory_movements))
-      .catch(() => setMovements([]));
+    let cancel = false;
+    Promise.all([
+      fetchSections(slug).catch(() => ({ sections: [] as Section[] })),
+      fetchManagerProducts(slug).catch(() => ({ products: [] as ManagerProduct[] })),
+      fetchManagerShipments(slug).catch(() => ({ shipments: [] as ManagerShipment[] })),
+      fetchInventoryMovements(slug, { warehouse_id: Number(user.warehouseId), per_page: 20 }).catch(() => ({ inventory_movements: [] as InventoryMovement[], meta: undefined })),
+      fetchManagerWarehouse(slug).catch(() => ({ warehouse: null })),
+    ]).then(([secRes, prodRes, shipRes, movRes, whRes]) => {
+      if (cancel) return;
+      setSections(secRes.sections);
+      setLayoutProducts(prodRes.products);
+      setShipments(shipRes.shipments);
+      const src = whRes.warehouse || shipRes.shipments[0]?.warehouse || movRes.inventory_movements[0]?.warehouse || null;
+      if (src) {
+        setWarehouse({
+          id: src.id,
+          name: src.warehouse_name,
+          type: "type" in src ? (src as { type?: string }).type ?? "" : "",
+          location: "location" in src ? (src as { location?: string }).location ?? "" : "",
+        });
+      } else {
+        setWarehouse(null);
+      }
+    });
+    return () => { cancel = true; };
   }, [slug, user?.warehouseId]);
 
   useEffect(() => {
@@ -392,7 +390,7 @@ function ManagerApp() {
       return;
     }
     fetchManagerEmployees(slug, Number(user.warehouseId))
-      .then(({ employees }) => setWorkers(employees.map(workerFromBackendEmployee)))
+      .then(({ employees }) => setWorkers(employees.filter((e) => e.role !== "manager").map(workerFromBackendEmployee)))
       .catch(() => setWorkers([]));
   }, [slug, user?.warehouseId]);
 
@@ -407,6 +405,9 @@ function ManagerApp() {
   }, [slug]);
 
   useEffect(() => { loadOrders(); }, [loadOrders]);
+
+  const orderWarehouseName = orders.find((o) => o.warehouse?.warehouse_name)?.warehouse?.warehouse_name;
+  const warehouseName = warehouse?.name || orderWarehouseName || "";
 
   const logout = () => {
     localStorage.removeItem("stockyard.manager");
@@ -423,9 +424,7 @@ function ManagerApp() {
       style={{ boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)" }}
     >
       <div className="flex items-center gap-2 px-4 py-5">
-        <div className="grid size-8 place-items-center rounded-xl bg-accent/30 text-accent-foreground">
-          <WarehouseIcon className="h-4 w-4" />
-        </div>
+        <AppLogo className="size-8" />
         {!collapsed && <span className="text-base font-semibold tracking-tight">{t("app.name")}</span>}
       </div>
       <nav className="flex-1 space-y-1 px-2">
@@ -545,15 +544,13 @@ function ManagerApp() {
           <div className="flex flex-1 items-center gap-3">
             <div className="hidden md:block">
               <p className="text-xs uppercase tracking-wider text-cream/60">{t("manager.warehouse")}</p>
-              <p className="text-sm font-semibold text-cream">{warehouse?.name ?? t("warehouse.name")}</p>
+<p className="text-sm font-semibold text-cream">{warehouseName}{warehouse?.type ? ` · ${warehouse.type}` : ""}</p>
             </div>
             <div className="ms-auto hidden max-w-sm flex-1 items-center gap-2 rounded-xl bg-white/5 px-3 py-2 text-cream/80 ring-1 ring-white/10 sm:flex">
               <Search className="h-4 w-4" />
               <input className="w-full bg-transparent text-sm outline-none placeholder:text-cream/50" placeholder={t("placeholder.search")} />
             </div>
-            <Button variant="ghost" size="icon" className="text-cream hover:bg-cream/10">
-              <Bell className="h-4 w-4" />
-            </Button>
+            <NotificationsBell slug={slug} onTransferOpen={() => { setSection("transfers"); setMobileOpen(false); }} />
             <div className="hidden items-center gap-2 rounded-xl bg-white/5 px-3 py-1.5 text-cream sm:flex">
               <div className="grid h-7 w-7 place-items-center overflow-hidden rounded-full bg-accent text-foreground text-xs font-semibold">
                 {avatar ? <img src={avatar} alt={t("manager.alt_avatar")} className="h-full w-full object-cover" /> : (user?.name?.[0] ?? "M")}
@@ -585,7 +582,7 @@ function ManagerApp() {
                 />
               )}
               {section === "overview" && (
-                <Overview workers={workers} products={products} orders={orders} warehouse={warehouse} />
+                <Overview workers={workers} products={products} orders={orders} warehouseName={warehouseName} />
               )}
               {section === "workers" && (
                 <WorkersSection
@@ -595,22 +592,28 @@ function ManagerApp() {
                   warehouseId={user?.warehouseId ? Number(user.warehouseId) : null}
                 />
               )}
+              {section === "biometric" && slug && user?.warehouseId && (
+                <ManagerBiometricSection slug={slug} warehouseId={Number(user.warehouseId)} />
+              )}
               {section === "inventory" && (
-                <InventorySection products={products} movements={movements} />
+                <InventorySection products={products} setProducts={setProducts} warehouseName={warehouseName} />
+              )}
+              {section === "shipments" && slug && (
+                <ShipmentsSection slug={slug} shipments={shipments} setShipments={setShipments} />
               )}
               {section === "orders" && (
-                <OrdersSection orders={orders} onRefresh={loadOrders} />
+                <OrdersSection orders={orders} onRefresh={loadOrders} warehouseName={warehouseName} />
               )}
-              {section === "transfers" && slug && (
+              {section === "transfers" && slug && user?.warehouseId && (
                 <TransfersSection
                   slug={slug}
-                  ownerId={user?.ownerId}
-                  warehouseId={user?.warehouseId ? Number(user.warehouseId) : null}
+                  ownerId={user.ownerId}
+                  warehouseId={Number(user.warehouseId)}
                   products={layoutProducts}
                 />
               )}
-              {section === "statistics" && slug && <StatisticsSection slug={slug} />}
-              {section === "reports" && <ReportsSection />}
+              {section === "statistics" && <StatisticsSection workers={workers} />}
+{section === "reports" && <ReportsSection slug={slug} />}
               {section === "wallet" && user && (
                 <WalletSection user={user} />
               )}
@@ -673,12 +676,7 @@ function statusBadge(s: string) {
 
 /* ---------- Overview ---------- */
 
-function Overview({ workers, products, orders, warehouse }: {
-  workers: Worker[];
-  products: Product[];
-  orders: ManagerOrder[];
-  warehouse: { id: number; name: string; type: string; location: string } | null;
-}) {
+function Overview({ workers, products, orders, warehouseName }: { workers: Worker[]; products: Product[]; orders: ManagerOrder[]; warehouseName: string }) {
   const { t } = useTranslation();
   const totalWorkers = workers.length;
   const totalUnits = products.reduce((s, p) => s + p.quantity, 0);
@@ -701,7 +699,7 @@ function Overview({ workers, products, orders, warehouse }: {
   return (
     <div className="space-y-6">
       <SectionHeader
-        title={t("manager.welcome_back", { name: warehouse?.name ?? "" })}
+        title={t("manager.welcome_back", { name: warehouseName })}
         desc={t("manager.overview_desc")}
       />
 
@@ -935,7 +933,7 @@ function WorkersSection({
                   <TableCell className="font-mono text-xs">{w.workerId}</TableCell>
                   <TableCell>{w.section}</TableCell>
                   <TableCell>
-                    <Badge className={cn("border", statusBadge(w.status))}>{w.status}</Badge>
+                    <Badge className={cn("border", statusBadge(w.status))}>{t(`worker.status.${w.status}`)}</Badge>
                   </TableCell>
                   <TableCell className="text-cream/70">{w.lastActive}</TableCell>
                   <TableCell className="text-end">
@@ -1065,16 +1063,9 @@ function AddWorkerDialog({
       toast.error(t("common.fields_required"));
       return;
     }
-    if (!form.birthday) {
-      toast.error(t("worker.birthday_required"));
-      return;
-    }
-    if (!isAtLeast18(form.birthday)) {
-      toast.error(t("worker.birthday_min_age"));
-      return;
-    }
-    if (!isValidInternationalPhone(form.phone_number)) {
-      toast.error(t("validation.phone_international"));
+    const phone = normalizePhoneNumber(form.phone_number);
+    if (!phone.valid) {
+      toast.error(t("manager.toast_phone_invalid"));
       return;
     }
     setSubmitting(true);
@@ -1083,14 +1074,14 @@ function AddWorkerDialog({
         const res = await createManagerWorker(slug, warehouseId, {
           full_name: form.full_name.trim(),
           birthday: form.birthday || null,
-          phone_number: form.phone_number.trim(),
+          phone_number: phone.normalized,
           user_name: form.user_name.trim(),
           role: form.role,
           status: form.status,
           salary: form.salary,
         });
-        onAdd(workerFromBackendEmployee(res.worker));
-        onCreated?.(res.worker, res.password);
+        onAdd(workerFromBackendEmployee(res.employee));
+        onCreated?.(res.employee, res.password);
         toast.success(t("worker.created"));
       } else {
         toast.error(t("worker.save_failed"));
@@ -1207,13 +1198,17 @@ function AddWorkerDialog({
 
 /* ---------- Inventory ---------- */
 
-function InventorySection({ products, movements }: { products: Product[]; movements: InventoryMovement[] }) {
+function InventorySection({ products, setProducts, warehouseName }: { products: Product[]; setProducts: React.Dispatch<React.SetStateAction<Product[]>>; warehouseName: string }) {
   const { t } = useTranslation();
   const lowStock = products.filter((p) => p.quantity < p.reorderLevel);
 
   return (
     <div className="space-y-6">
-      <SectionHeader title={t("inventory.title")} desc={t("inventory.real_time_desc")} />
+      <SectionHeader title={t("inventory.title")} desc={t("inventory.real_time_desc", { name: warehouseName })}>
+        <Button variant="outline" className="border-white/20 text-cream hover:bg-white/10">
+          <QrCode className="h-4 w-4" /> {t("inventory.scan_barcode")}
+        </Button>
+      </SectionHeader>
 
       {lowStock.length > 0 && (
         <GlassCard className="p-4">
@@ -1261,29 +1256,7 @@ function InventorySection({ products, movements }: { products: Product[]; moveme
 
       <GlassCard className="p-5">
         <h3 className="mb-3 text-sm font-semibold text-cream">{t("inventory.movement_history")}</h3>
-        <div className="space-y-2">
-          {movements.length === 0 && (
-            <p className="text-sm text-cream/60">{t("inventory.no_movements")}</p>
-          )}
-          {movements.map((m) => {
-            const label = (m.movement_type_label ?? "").toLowerCase();
-            const outgoing = label.includes("out");
-            return (
-              <div key={m.id} className="flex items-center justify-between rounded-xl bg-white/5 p-3 text-sm text-cream">
-                <div className="flex items-center gap-3">
-                  {outgoing
-                    ? <ArrowUpRight className="h-4 w-4 text-rose-300" />
-                    : <ArrowDownRight className="h-4 w-4 text-emerald-300" />}
-                  <div>
-                    <p className="font-medium">{m.product.name} · {t("common.units", { count: m.quantity_units })}</p>
-                    <p className="text-xs text-cream/60">{new Date(m.created_at).toLocaleString()} · {m.movement_type_label}</p>
-                  </div>
-                </div>
-                <Badge variant="outline" className="border-white/20 text-cream/80 capitalize">{m.movement_type_label}</Badge>
-              </div>
-            );
-          })}
-        </div>
+        <p className="text-sm text-cream/60">{t("common.no_data")}</p>
       </GlassCard>
     </div>
   );
@@ -1316,14 +1289,29 @@ const orderStatusBadge = (s: ManagerOrder["status"]) => {
   return map[s] ?? "bg-gray-500/15 text-gray-400 border-gray-300/40";
 };
 
-function OrdersSection({ orders, onRefresh }: { orders: ManagerOrder[]; onRefresh: () => void }) {
+const paymentStatusBadge = (s: ManagerOrder["payment_status"]) => {
+  const map: Record<ManagerOrder["payment_status"], string> = {
+    not_started: "bg-gray-500/15 text-gray-400 border-gray-300/40",
+    pending: "bg-amber-500/15 text-amber-400 border-amber-300/40",
+    processing: "bg-blue-500/15 text-blue-400 border-blue-300/40",
+    paid: "bg-emerald-500/15 text-emerald-400 border-emerald-300/40",
+    failed: "bg-rose-500/15 text-rose-400 border-rose-300/40",
+    cancelled: "bg-gray-500/15 text-gray-400 border-gray-300/40",
+    refunded: "bg-purple-500/15 text-purple-400 border-purple-300/40",
+  };
+  return map[s] ?? "bg-gray-500/15 text-gray-400 border-gray-300/40";
+};
+
+function OrdersSection({ orders, onRefresh, warehouseName }: { orders: ManagerOrder[]; onRefresh: () => void; warehouseName: string }) {
   const { t } = useTranslation();
   const [openOrder, setOpenOrder] = useState<ManagerOrder | null>(null);
-  const sorted = [...orders].sort((a, b) => b.id - a.id);
+  const [statusFilter, setStatusFilter] = useState<ManagerOrder["status"] | "all">("all");
+  const filtered = statusFilter === "all" ? orders : orders.filter((o) => o.status === statusFilter);
+  const sorted = [...filtered].sort((a, b) => b.id - a.id);
 
   return (
     <div className="space-y-6">
-      <SectionHeader title={t("order.title")} desc={t("order.desc")}>
+      <SectionHeader title={t("order.title")} desc={t("order.desc", { name: warehouseName })}>
         <Button
           variant="outline"
           size="sm"
@@ -1336,12 +1324,34 @@ function OrdersSection({ orders, onRefresh }: { orders: ManagerOrder[]; onRefres
       </SectionHeader>
 
       <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setStatusFilter("all")}
+          className={cn(
+            "rounded-full border px-3 py-1 text-xs transition",
+            statusFilter === "all"
+              ? "border-white/30 bg-white/10 text-cream ring-1 ring-white/20"
+              : "border-white/10 text-cream/60 hover:text-cream",
+          )}
+        >
+          {t("order.all")} ({orders.length})
+        </button>
         {ORDER_TABS.map((s) => {
           const count = orders.filter((o) => o.status === s).length;
+          const active = statusFilter === s;
           return (
-            <span key={s} className={cn("rounded-full border px-3 py-1 text-xs", orderStatusBadge(s))}>
+            <button
+              key={s}
+              type="button"
+              onClick={() => setStatusFilter(s)}
+              className={cn(
+                "rounded-full border px-3 py-1 text-xs transition",
+                orderStatusBadge(s),
+                active && "ring-1 ring-white/40",
+              )}
+            >
               {t(`order.status.${s}`)} ({count})
-            </span>
+            </button>
           );
         })}
       </div>
@@ -1357,6 +1367,7 @@ function OrdersSection({ orders, onRefresh }: { orders: ManagerOrder[]; onRefres
                 <TableHead className="text-cream/70">{t("order.items")}</TableHead>
                 <TableHead className="text-cream/70">{t("order.total")}</TableHead>
                 <TableHead className="text-cream/70">{t("order.status")}</TableHead>
+                <TableHead className="text-cream/70">{t("order.payment")}</TableHead>
                 <TableHead className="text-cream/70">{t("order.date")}</TableHead>
                 <TableHead className="text-end text-cream/70">{t("common.actions")}</TableHead>
               </TableRow>
@@ -1375,6 +1386,9 @@ function OrdersSection({ orders, onRefresh }: { orders: ManagerOrder[]; onRefres
                   <TableCell>
                     <Badge className={cn("border", orderStatusBadge(o.status))}>{t(`order.status.${o.status}`)}</Badge>
                   </TableCell>
+                  <TableCell>
+                    <Badge className={cn("border", paymentStatusBadge(o.payment_status))}>{t(`order.payment_status.${o.payment_status}`)}</Badge>
+                  </TableCell>
                   <TableCell className="text-sm text-cream/70">{formatOrderDate(o.order_date)}</TableCell>
                   <TableCell className="text-end">
                     <Button
@@ -1389,7 +1403,7 @@ function OrdersSection({ orders, onRefresh }: { orders: ManagerOrder[]; onRefres
                 </TableRow>
               ))}
               {sorted.length === 0 && (
-                <TableRow><TableCell colSpan={8} className="py-12 text-center text-cream/60">{t("order.no_orders")}</TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} className="py-12 text-center text-cream/60">{t("order.no_orders")}</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
@@ -1436,6 +1450,15 @@ function OrdersSection({ orders, onRefresh }: { orders: ManagerOrder[]; onRefres
                 <span className="font-medium text-[#1D2D44]">{t("order.status")}</span>
                 <Badge className="bg-[#1D2D44] text-[#eeebdd] hover:bg-[#1D2D44]/90">{t(`order.status.${openOrder.status}`)}</Badge>
               </div>
+              <div className="flex justify-between items-center">
+                <span className="font-medium text-[#1D2D44]">{t("order.payment")}</span>
+                <Badge className={cn("border", paymentStatusBadge(openOrder.payment_status))}>{t(`order.payment_status.${openOrder.payment_status}`)}</Badge>
+              </div>
+              {openOrder.status === "approved" && openOrder.payment_status !== "paid" && (
+                <div className="rounded-lg bg-amber-500/15 border border-amber-300/40 px-3 py-2 text-xs text-amber-500">
+                  {t("order.waiting_payment")}
+                </div>
+              )}
             </div>
           )}
         </DialogContent>
@@ -1446,56 +1469,232 @@ function OrdersSection({ orders, onRefresh }: { orders: ManagerOrder[]; onRefres
 
 /* ---------- Transfers ---------- */
 
-function TransfersSection({ slug, ownerId, warehouseId, products }: {
-  slug: string;
-  ownerId: number | null | undefined;
-  warehouseId: number | null;
-  products: ManagerProduct[];
-}) {
+function TransfersSection({ slug, ownerId, warehouseId, products }: { slug: string; ownerId?: number; warehouseId: number; products: ManagerProduct[] }) {
   const { t } = useTranslation();
-  const { available, mine, loading, creating, isAccepting, acceptRequest, createRequest } =
+  const { available, mine, loading, creating, isAccepting, refresh, acceptRequest, createRequest } =
     useTransferRequests(slug, ownerId, warehouseId);
 
   return (
     <div className="space-y-6">
-      <SectionHeader title={t("transfer_request.title")} desc={t("transfer_request.desc")} />
+      <SectionHeader title={t("transfer_request.title")} desc={t("transfer_request.desc")}>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={refresh} className="text-cream/80 hover:bg-white/10 hover:text-cream">
+            <RefreshCw className="size-3.5 me-1" /> {t("common.refresh")}
+          </Button>
+        </div>
+      </SectionHeader>
 
-      <GlassCard className="p-5">
+      <div>
         <h3 className="mb-3 text-sm font-semibold text-cream">{t("transfer_request.available_title")}</h3>
         <AvailableRequestsFeed requests={available} loading={loading} isAccepting={isAccepting} onAccept={acceptRequest} />
-      </GlassCard>
+      </div>
 
-      <GlassCard className="p-5">
-        <MyWarehouseRequests
-          requests={mine}
-          loading={loading}
-          products={products}
-          submitting={creating}
-          onCreate={(input) => createRequest(input)}
-        />
-      </GlassCard>
+      <MyWarehouseRequests requests={mine} loading={loading} products={products} submitting={creating} onCreate={createRequest} />
     </div>
   );
 }
 
 /* ---------- Statistics ---------- */
 
-function StatisticsSection({ slug }: { slug: string }) {
-  return <ManagerAnalytics slug={slug} currency="EGP" />;
+function StatisticsSection({ workers }: { workers: Worker[] }) {
+  const { t } = useTranslation();
+  const productivity = workers
+    .filter((w) => w.status === "active")
+    .map((w) => ({ name: w.name.split(" ")[0], orders: w.ordersProcessed, avg: w.avgHandlingMin }));
+
+  const peakHours: { hour: string; activity: number }[] = [];
+
+  const heatMax = Math.max(...peakHours.map((p) => p.activity));
+
+  return (
+    <div className="space-y-6">
+      <SectionHeader title={t("manager.statistics")} desc={t("manager.statistics_desc")}>
+        <Button variant="outline" className="border-white/20 text-cream hover:bg-white/10" onClick={() => toast.success(t("manager.exported_pdf")) }>
+          <Download className="h-4 w-4" /> {t("manager.export_pdf")}
+        </Button>
+        <Button variant="outline" className="border-white/20 text-cream hover:bg-white/10" onClick={() => toast.success(t("manager.exported_csv")) }>
+          <Download className="h-4 w-4" /> {t("manager.export_csv")}
+        </Button>
+      </SectionHeader>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <GlassCard className="p-5">
+          <h3 className="mb-3 text-sm font-semibold text-cream">{t("manager.worker_productivity")}</h3>
+          <div className="h-72">
+            <ResponsiveContainer>
+              <BarChart data={productivity}>
+                <CartesianGrid stroke="rgba(255,255,255,0.08)" />
+                <XAxis dataKey="name" stroke="#F0EBD8" tick={{ fontSize: 11 }} />
+                <YAxis stroke="#F0EBD8" tick={{ fontSize: 11 }} />
+                <RTooltip contentStyle={{ background: "#1D2D44", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 12, color: "#F0EBD8" }} />
+                <Legend />
+                <Bar dataKey="orders" name={t("order.title")} fill="#A7B3C3" radius={[6,6,0,0]} />
+                <Bar dataKey="avg" name={t("manager.avg_min")} fill="#F0EBD8" radius={[6,6,0,0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </GlassCard>
+
+        <GlassCard className="p-5">
+          <h3 className="mb-3 text-sm font-semibold text-cream">{t("manager.monthly_volume")}</h3>
+          <div className="h-72">
+            <ResponsiveContainer>
+              <BarChart data={[]}>
+                <CartesianGrid stroke="rgba(255,255,255,0.08)" />
+                <XAxis dataKey="month" stroke="#F0EBD8" tick={{ fontSize: 11 }} />
+                <YAxis stroke="#F0EBD8" tick={{ fontSize: 11 }} />
+                <RTooltip contentStyle={{ background: "#1D2D44", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 12, color: "#F0EBD8" }} />
+                <Legend />
+                <Bar dataKey="incoming" fill="#A7B3C3" radius={[6,6,0,0]} />
+                <Bar dataKey="outgoing" fill="#F0EBD8" radius={[6,6,0,0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </GlassCard>
+
+        <GlassCard className="p-5">
+          <h3 className="mb-3 text-sm font-semibold text-cream">{t("manager.attendance_week")}</h3>
+          <div className="h-64">
+            <ResponsiveContainer>
+              <LineChart data={[]}>
+                <CartesianGrid stroke="rgba(255,255,255,0.08)" />
+                <XAxis dataKey="day" stroke="#F0EBD8" tick={{ fontSize: 11 }} />
+                <YAxis stroke="#F0EBD8" tick={{ fontSize: 11 }} />
+                <RTooltip contentStyle={{ background: "#1D2D44", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 12, color: "#F0EBD8" }} />
+                <Legend />
+                <Line type="monotone" dataKey="active" stroke="#F0EBD8" strokeWidth={2} dot />
+                <Line type="monotone" dataKey="scheduled" stroke="#A7B3C3" strokeWidth={2} strokeDasharray="4 4" />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </GlassCard>
+
+        <GlassCard className="p-5">
+          <h3 className="mb-3 text-sm font-semibold text-cream">{t("manager.peak_hours")}</h3>
+          <div className="grid grid-cols-12 gap-1.5">
+            {peakHours.map((h) => {
+              const intensity = h.activity / heatMax;
+              return (
+                <Tooltip key={h.hour}>
+                  <TooltipTrigger asChild>
+                    <div
+                      className="aspect-square rounded-md ring-1 ring-white/10"
+                      style={{ background: `rgba(240, 235, 216, ${0.08 + intensity * 0.85})` }}
+                    />
+                  </TooltipTrigger>
+                  <TooltipContent>{h.hour} · {t("manager.actions", { count: h.activity })}</TooltipContent>
+                </Tooltip>
+              );
+            })}
+          </div>
+          <p className="mt-3 text-xs text-cream/60">{t("manager.heatmap_hint")}</p>
+        </GlassCard>
+      </div>
+    </div>
+  );
 }
 
 /* ---------- Reports ---------- */
 
-function ReportsSection() {
+const MANAGER_REPORTS: { key: "orders" | "returns" | "tasks"; label: string; desc: string }[] = [
+  { key: "orders", label: "manager.report_orders", desc: "report.orders.desc" },
+  { key: "returns", label: "manager.report_returns", desc: "report.returns.desc" },
+  { key: "tasks", label: "manager.report_tasks", desc: "report.tasks.desc" },
+];
+
+function ReportsSection({ slug }: { slug: string | null }) {
   const { t } = useTranslation();
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const reportUrl = (report: string, ext: "pdf" | "excel") => {
+    const params = new URLSearchParams();
+    if (from) params.set("date_from", from);
+    if (to) params.set("date_to", to);
+    const qs = params.toString();
+    return `/${slug}/reports/${report}/${ext}${qs ? `?${qs}` : ""}`;
+  };
+
+  const openPdf = (report: string) => {
+    window.open(reportUrl(report, "pdf"), "_blank");
+  };
+
+  const downloadExcel = async (report: string) => {
+    const id = `${report}-excel`;
+    setBusy(id);
+    try {
+      await getCsrfCookie();
+      const res = await api.get(reportUrl(report, "excel"), { responseType: "blob" });
+      const blobUrl = URL.createObjectURL(res.data);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = `${report}-report.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+      toast.success(t("manager.excel_downloaded", { report: t(`manager.report_${report}`) }));
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { message?: string } }; message?: string };
+      const msg = e?.response?.data?.message || e?.message || t("manager.download_failed");
+      toast.error(typeof msg === "string" ? msg : t("manager.download_failed"));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  if (!slug) return null;
+
   return (
     <div className="space-y-6">
       <SectionHeader title={t("report.title")} desc={t("report.desc")} />
-      <GlassCard className="p-8 text-center">
-        <FileText className="mx-auto size-8 text-cream/40" />
-        <p className="mt-3 text-sm font-medium text-cream">{t("report.not_available")}</p>
-        <p className="mt-1 text-xs text-cream/60">{t("report.not_available_desc")}</p>
+
+      <GlassCard className="p-5">
+        <div className="grid gap-3 sm:grid-cols-2 lg:max-w-xl">
+          <div className="space-y-2">
+            <Label className="text-cream/80">{t("inventory.from")}</Label>
+            <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="border-white/15 bg-white/5 text-cream" />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-cream/80">{t("inventory.to")}</Label>
+            <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="border-white/15 bg-white/5 text-cream" />
+          </div>
+        </div>
       </GlassCard>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        {MANAGER_REPORTS.map((r) => (
+          <GlassCard key={r.key} className="p-5">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-cream">{t(r.label)}</h3>
+              <FileText className="h-4 w-4 text-cream/50" />
+            </div>
+            <p className="mt-1 text-xs text-cream/60">{t(r.desc)}</p>
+            <div className="mt-4 flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1 border-white/15 bg-white/5 text-cream hover:bg-white/10"
+                onClick={() => downloadExcel(r.key)}
+                disabled={busy === `${r.key}-excel`}
+              >
+                {busy === `${r.key}-excel` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                {t("report.excel")}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1 border-white/15 bg-white/5 text-cream hover:bg-white/10"
+                onClick={() => openPdf(r.key)}
+              >
+                <Download className="h-4 w-4" />
+                {t("report.pdf")}
+              </Button>
+            </div>
+          </GlassCard>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1505,43 +1704,12 @@ function ReportsSection() {
 function SettingsSection({ user, slug, phone }: { user: { name: string; whmId: string }; slug: string | null; phone: string }) {
   const { t } = useTranslation();
   const [form, setForm] = useState({ name: user.name, phone });
-  const [saving, setSaving] = useState(false);
-  const [dark, setDark] = useState(false);
+  const [twoFA, setTwoFA] = useState(false);
+  const [emailNotif, setEmailNotif] = useState(true);
+  const [smsNotif, setSmsNotif] = useState(false);
 
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", dark);
-  }, [dark]);
-
-  const saveProfile = async () => {
-    if (!slug) {
-      toast.error(t("worker.save_failed"));
-      return;
-    }
-    if (!isValidInternationalPhone(form.phone)) {
-      toast.error(t("validation.phone_international"));
-      return;
-    }
-    setSaving(true);
-    try {
-      await updateManagerProfile(slug, { full_name: form.name, phone_number: form.phone });
-      try {
-        const raw = localStorage.getItem("stockyard.manager");
-        if (raw) {
-          const stored = JSON.parse(raw);
-          stored.full_name = form.name;
-          stored.name = form.name;
-          stored.phone_number = form.phone;
-          localStorage.setItem("stockyard.manager", JSON.stringify(stored));
-        }
-      } catch {
-        /* ignore storage errors */
-      }
-      toast.success(t("settings.profile_saved"));
-    } catch {
-      toast.error(t("worker.save_failed"));
-    } finally {
-      setSaving(false);
-    }
+  const saveProfile = () => {
+    toast.success(t("settings.profile_saved"));
   };
 
   return (
@@ -1562,18 +1730,11 @@ function SettingsSection({ user, slug, phone }: { user: { name: string; whmId: s
             <div className="space-y-2"><Label className="text-cream/80">{t("settings.manager_id")}</Label><Input className="border-white/15 bg-white/5 text-cream font-mono" value={user.whmId} readOnly /></div>
             <div className="space-y-2"><Label className="text-cream/80">{t("settings.name_username")}</Label><Input className="border-white/15 bg-white/5 text-cream" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
             <div className="space-y-2"><Label className="text-cream/80">{t("worker.phone")}</Label><Input className="border-white/15 bg-white/5 text-cream" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
-            <Button onClick={saveProfile} disabled={saving}>
-              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-              {t("settings.save_profile")}
-            </Button>
+            <Button onClick={saveProfile}>{t("settings.save_profile")}</Button>
           </div>
         </GlassCard>
 
-        <GlassCard className="p-5">
-          <h3 className="mb-4 text-sm font-semibold text-cream">{t("settings.appearance")}</h3>
-          <SettingRow label={t("settings.dark_theme")} checked={dark} onCheckedChange={setDark} />
-          <p className="mt-2 text-xs text-cream/60">{t("settings.dark_theme_desc")}</p>
-        </GlassCard>
+        
       </div>
     </div>
   );
@@ -1622,11 +1783,11 @@ function WalletSection({ user }: { user: { name: string; whmId: string; tenant?:
             </div>
             <div>
               <p className="text-xs uppercase tracking-wider text-cream/60">{t("wallet.started_at")}</p>
-              <p className="mt-1 font-semibold">{user.tenant?.subscription_start_date ?? "—"}</p>
+              <p className="mt-1 font-semibold">{user.tenant?.subscription_start_date ?? "-"}</p>
             </div>
             <div>
               <p className="text-xs uppercase tracking-wider text-cream/60">{t("wallet.ends_at")}</p>
-              <p className="mt-1 font-semibold">{user.tenant?.subscription_end_date ?? "—"}</p>
+              <p className="mt-1 font-semibold">{user.tenant?.subscription_end_date ?? "-"}</p>
             </div>
           </div>
         </GlassCard>

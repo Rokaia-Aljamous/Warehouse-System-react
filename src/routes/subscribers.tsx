@@ -89,7 +89,7 @@ function SubscribersPage() {
                   <TableCell className="font-medium text-muted-foreground">{s.full_name}</TableCell>
                   <TableCell className="text-muted-foreground">{s.email}</TableCell>
                   <TableCell className="text-muted-foreground">{s.tenant?.company_name || "—"}</TableCell>
-                  <TableCell className="text-muted-foreground">{s.tenant?.status || "—"}</TableCell>
+                  <TableCell className="text-muted-foreground">{s.tenant?.status ? (i18n.exists(`subscriber.status.${s.tenant.status}`) ? t(`subscriber.status.${s.tenant.status}`) : s.tenant.status) : "—"}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

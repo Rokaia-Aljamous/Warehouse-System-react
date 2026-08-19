@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 export interface DashboardUser {
   id: number;
   full_name: string;
+  email?: string;
   birthday: string | null;
   phone_number: string;
   user_name: string;
@@ -62,9 +63,9 @@ export const forceChangePassword = async (slug: string, password: string, passwo
   return response.data;
 };
 
-export const updateManagerProfile = async (
+export const updateDashboardProfile = async (
   slug: string,
-  data: Partial<{ full_name: string; birthday: string | null; phone_number: string }>,
+  data: { full_name?: string; phone_number?: string },
 ): Promise<{ message: string }> => {
   const response = await api.patch<{ message: string }>(`/${slug}/profile`, data);
   return response.data;
@@ -267,6 +268,19 @@ export interface InventoryMovement {
   updated_at: string;
 }
 
+const MOVEMENT_TYPE_KEYS: Record<string, string> = {
+  shipment_received: "inventory.movement.shipment_received",
+  section_fill: "inventory.movement.section_fill",
+  section_remove: "inventory.movement.section_remove",
+  section_transfer: "inventory.movement.section_transfer",
+  return_restock: "inventory.movement.return_restock",
+  disposal: "inventory.movement.disposal",
+};
+
+export function getMovementTypeKey(type: string): string {
+  return MOVEMENT_TYPE_KEYS[type] ?? "";
+}
+
 export interface InventoryMovementsResponse {
   inventory_movements: InventoryMovement[];
   meta: {
@@ -372,12 +386,41 @@ export interface ManagerShipment {
 }
 
 export const fetchManagerShipments = async (slug: string): Promise<{ shipments: ManagerShipment[] }> => {
-  const response = await api.get<{ shipments: ManagerShipment[] }>(`/${slug}/shipments`);
+  const response = await api.get<{ shipments: ManagerShipment[] }>(`/${slug}/manager/shipments`);
   return response.data;
 };
 
 export const receiveManagerShipment = async (slug: string, id: number): Promise<{ message: string; shipment: ManagerShipment }> => {
   const response = await api.post<{ message: string; shipment: ManagerShipment }>(`/${slug}/shipments/${id}/receive`);
+  return response.data;
+};
+
+/* ===== Manager: plan shipment departments (assign-sections) ===== */
+
+export interface AssignShipmentSectionItem {
+  product_id: number;
+  section_id: number;
+  quantity: number;
+}
+
+export interface ShipmentSectionAssignment {
+  shipment_id: number;
+  section_id: number;
+  product_id: number;
+  planned_quantity: number;
+  received_quantity: number;
+}
+
+export interface AssignShipmentSectionsResponse {
+  message: string;
+  assignments: ShipmentSectionAssignment[];
+}
+
+export const assignShipmentSections = async (slug: string, shipmentId: number, items: AssignShipmentSectionItem[]): Promise<AssignShipmentSectionsResponse> => {
+  const response = await api.post<AssignShipmentSectionsResponse>(
+    `/${slug}/manager/shipments/${shipmentId}/assign-sections`,
+    { items },
+  );
   return response.data;
 };
 
@@ -394,22 +437,91 @@ export interface ManagerOrderWarehouse {
   warehouse_name: string;
 }
 
+export interface ManagerOrderItem {
+  id: number;
+  product_id: number;
+  product_name: string;
+  quantity: number;
+  unit_price: string;
+  subtotal: string;
+  product?: {
+    id: number;
+    name: string;
+    brand?: string | null;
+    type?: string | null;
+    main_image: string | null;
+    main_image_url: string | null;
+  };
+}
+
 export interface ManagerOrder {
   id: number;
   customer: ManagerOrderCustomer;
   warehouse: ManagerOrderWarehouse;
   status: "pending" | "approved" | "in_preparation" | "shipped" | "delivered" | "rejected" | "cancelled";
+  payment_status: "not_started" | "pending" | "processing" | "paid" | "failed" | "cancelled" | "refunded";
+  payment_method: string | null;
+  payment_currency: string | null;
+  paid_at: string | null;
+  can_prepare: boolean;
   total_price: string;
   delivery_fee: string;
   delivery_region: string | null;
+  transfer_assignment: string;
   order_date: string;
   customer_location: string;
+  customer_latitude?: string | null;
+  customer_longitude?: string | null;
   order_qr_code: string;
   items_count: number;
+  items?: ManagerOrderItem[];
 }
 
 export const fetchManagerOrders = async (slug: string): Promise<{ orders: ManagerOrder[] }> => {
-  const response = await api.get<{ orders: ManagerOrder[] }>(`/${slug}/manager/orders`);
+  const response = await api.get<{ orders: ManagerOrder[] }>(`/${slug}/manager/orders`, {
+    params: { status: "all" },
+  });
+  return response.data;
+};
+
+export const fetchKeeperOrders = async (slug: string): Promise<{ orders: ManagerOrder[] }> => {
+  const response = await api.get<{ orders: ManagerOrder[] }>(`/${slug}/keeper/orders`, {
+    params: { status: "all" },
+  });
+  return response.data;
+};
+
+export const acceptKeeperOrder = async (
+  slug: string,
+  orderId: number,
+  transferAssignment = 0,
+): Promise<{ message: string; order: ManagerOrder }> => {
+  const response = await api.post<{ message: string; order: ManagerOrder }>(
+    `/${slug}/keeper/orders/${orderId}/accept`,
+    { transfer_assignment: transferAssignment },
+  );
+  return response.data;
+};
+
+export const rejectKeeperOrder = async (
+  slug: string,
+  orderId: number,
+): Promise<{ message: string; order: ManagerOrder }> => {
+  const response = await api.post<{ message: string; order: ManagerOrder }>(
+    `/${slug}/keeper/orders/${orderId}/reject`,
+  );
+  return response.data;
+};
+
+export const updateKeeperOrderStatus = async (
+  slug: string,
+  orderId: number,
+  status: "in_preparation" | "shipped" | "delivered",
+): Promise<{ message: string; order: ManagerOrder }> => {
+  const response = await api.patch<{ message: string; order: ManagerOrder }>(
+    `/${slug}/keeper/orders/${orderId}/status`,
+    { status },
+  );
   return response.data;
 };
 
@@ -437,28 +549,6 @@ export interface ManagerEmployee {
 
 export const fetchManagerEmployees = async (slug: string, warehouseId: number): Promise<{ employees: ManagerEmployee[] }> => {
   const response = await api.get<{ employees: ManagerEmployee[] }>(`/${slug}/manager/workers/${warehouseId}`);
-  return response.data;
-};
-
-/* ===== Keeper (warehouse secretary) roster ===== */
-
-export interface KeeperWorker {
-  id: number;
-  system_user_id: number;
-  warehouse_id: number;
-  role: string;
-  status: string;
-  salary: string | number;
-  system_user: {
-    id: number;
-    full_name: string;
-    phone_number: string;
-    profile_image: string | null;
-  };
-}
-
-export const fetchKeeperWorkers = async (slug: string, warehouseId: number): Promise<{ employees: KeeperWorker[] }> => {
-  const response = await api.get<{ employees: KeeperWorker[] }>(`/${slug}/keeper/workers/${warehouseId}`);
   return response.data;
 };
 
@@ -575,45 +665,20 @@ export const processKeeperReturn = async (
   return response.data;
 };
 
-/* ===== Keeper (warehouse secretary) tasks ===== */
-
-export interface KeeperTask {
-  id: number;
-  status: string;
-  task_type: string;
-  worker: { id: number; full_name: string; phone_number: string };
-  employee: { id: number; full_name: string | null } | null;
-  related_type: string;
-  related_id: number;
-  related: { id: number; type: string; label: string } | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export const fetchKeeperTasks = async (
-  slug: string,
-  status?: string,
-  taskType?: string,
-): Promise<{ tasks: KeeperTask[] }> => {
-  const response = await api.get<{ tasks: KeeperTask[] }>(`/${slug}/keeper/tasks`, {
-    params: {
-      ...(status ? { status } : {}),
-      ...(taskType ? { task_type: taskType } : {}),
-    },
-  });
-  return response.data;
-};
-
 export const createManagerEmployee = async (
   slug: string,
   warehouseId: number,
   data: { full_name: string; phone_number: string; user_name: string; role: string; salary: number; status?: string }
-): Promise<{ message: string; employee: ManagerEmployee; password?: string }> => {
-  const response = await api.post<{ message: string; worker: ManagerEmployee; password?: string }>(
+): Promise<{ message: string; employee: ManagerEmployee; worker?: ManagerEmployee; password?: string }> => {
+  const response = await api.post<{ message: string; employee: ManagerEmployee; worker?: ManagerEmployee; password?: string }>(
     `/${slug}/manager/workers/${warehouseId}`,
     { ...data, status: data.status ?? "available" },
   );
-  return { message: response.data.message, employee: response.data.worker, password: response.data.password };
+  return {
+    message: response.data.message,
+    employee: response.data.employee ?? response.data.worker!,
+    password: response.data.password,
+  };
 };
 
 export const updateManagerEmployee = async (
@@ -622,8 +687,8 @@ export const updateManagerEmployee = async (
   employeeId: number,
   data: Partial<{ full_name: string; phone_number: string; user_name: string; role: string; salary: number; status: string }>
 ): Promise<{ message: string; employee: ManagerEmployee }> => {
-  const response = await api.patch<{ message: string; worker: ManagerEmployee }>(`/${slug}/manager/workers/${warehouseId}/${employeeId}`, data);
-  return { message: response.data.message, employee: response.data.worker };
+  const response = await api.patch<{ message: string; employee: ManagerEmployee }>(`/${slug}/manager/workers/${warehouseId}/${employeeId}`, data);
+  return { message: response.data.message, employee: response.data.employee };
 };
 
 export const deleteManagerEmployee = async (slug: string, warehouseId: number, employeeId: number): Promise<void> => {
@@ -648,7 +713,8 @@ export interface ManagerWorkerInput {
 
 export interface ManagerWorkerResponse {
   message: string;
-  worker: ManagerEmployee;
+  employee: ManagerEmployee;
+  worker?: ManagerEmployee;
   password?: string | null;
 }
 
@@ -658,7 +724,8 @@ export const createManagerWorker = async (
   data: ManagerWorkerInput,
 ): Promise<ManagerWorkerResponse> => {
   const response = await api.post<ManagerWorkerResponse>(`/${slug}/manager/workers/${warehouseId}`, data);
-  return response.data;
+  const body = response.data;
+  return { ...body, employee: body.employee ?? body.worker! };
 };
 
 /* ===== Tasks ===== */
@@ -726,9 +793,74 @@ export const updateTaskStatus = async (slug: string, taskId: number, data: Updat
   return response.data;
 };
 
+/* ===== Keeper (Supervisor) Tasks & Worker Roster ===== */
+
+export interface KeeperTaskWorker {
+  id: number;
+  full_name: string;
+  phone_number: string;
+}
+
+export interface KeeperTaskEmployee {
+  id: number | null;
+  full_name: string | null;
+}
+
+export interface KeeperTaskRelated {
+  id: number;
+  type?: string;
+  label?: string;
+  status?: string;
+  total_price?: number;
+}
+
+export interface KeeperTask {
+  id: number;
+  status: "in_preparation" | "completed";
+  task_type: string;
+  worker: KeeperTaskWorker;
+  employee: KeeperTaskEmployee | null;
+  related_type: string | null;
+  related_id: number | null;
+  related: KeeperTaskRelated | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export const fetchKeeperTasks = async (slug: string, params?: { status?: string; task_type?: string; worker_id?: number }): Promise<{ tasks: KeeperTask[] }> => {
+  const response = await api.get<{ tasks: KeeperTask[] }>(`/${slug}/keeper/tasks`, { params });
+  return response.data;
+};
+
+export const assignKeeperTask = async (slug: string, data: AssignTaskInput): Promise<{ message: string; task: KeeperTask }> => {
+  const response = await api.post<{ message: string; task: KeeperTask }>(`/${slug}/keeper/tasks/assign`, data);
+  return response.data;
+};
+
+export interface KeeperRosterSystemUser {
+  id: number;
+  full_name: string;
+  phone_number: string | null;
+}
+
+export interface KeeperWorker {
+  id: number;
+  system_user_id: number;
+  warehouse_id: number;
+  role: "manager" | "warehouse_secretary" | "staff" | "driver";
+  status: string;
+  salary: string | number | null;
+  system_user?: KeeperRosterSystemUser;
+}
+
+export const fetchKeeperWorkers = async (slug: string, warehouseId: number): Promise<{ employees: KeeperWorker[] }> => {
+  const response = await api.get<{ employees: KeeperWorker[] }>(`/${slug}/keeper/workers/${warehouseId}`);
+  return response.data;
+};
+
 /* ===== Inter-Warehouse Transfer Requests ===== */
 
-export type TransferRequestStatus = "pending" | "accepted" | "fulfilled" | "cancelled";
+export type TransferRequestStatus = "pending" | "accepted" | "fulfilled" | "rejected" | "cancelled";
 
 export interface TransferRequestWarehouse {
   id: number;
@@ -780,6 +912,11 @@ export const fetchAvailableTransferRequests = async (slug: string): Promise<Tran
 
 export const fetchMyTransferRequests = async (slug: string): Promise<TransferRequestListResponse> => {
   const response = await api.get<TransferRequestListResponse>(`/${slug}/manager/transfer-requests/mine`);
+  return response.data;
+};
+
+export const fetchKeeperTransferRequests = async (slug: string): Promise<TransferRequestListResponse> => {
+  const response = await api.get<TransferRequestListResponse>(`/${slug}/keeper/transfer-requests`);
   return response.data;
 };
 

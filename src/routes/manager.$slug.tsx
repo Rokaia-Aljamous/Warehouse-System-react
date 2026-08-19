@@ -38,23 +38,26 @@ import {
   fetchSections, createSection, updateSection, deleteSection,
   fillSectionStock, removeSectionStock, assignProductToSection, unassignProductFromSection, transferSectionStock,
   fetchInventoryMovements,
-  fetchManagerProducts, fetchManagerShipments, receiveManagerShipment,
+  fetchManagerProducts, fetchManagerShipments,
   fetchManagerWarehouse,
   fetchManagerEmployees, createManagerEmployee, updateManagerEmployee, deleteManagerEmployee,
   fetchManagerTasks, assignTask, updateTaskStatus,
   fetchDriverTracking, fetchDriverRoute,
   type Section, type SectionInput,
   type ManagerProduct,
-  type ManagerShipment, type ManagerShipmentStatus,
+  type ManagerShipment,
   type ManagerEmployee,
+  getMovementTypeKey,
   type InventoryMovement,
   type ManagerTask, type AssignTaskInput,
   type DriverLivePosition, type DriverRouteWaypoint,
 } from "@/lib/manager-api";
 import { api, getStoredUser, setStoredUser, getCsrfCookie } from "@/lib/api";
 import i18n from "@/lib/i18n";
+import { normalizePhoneNumber } from "@/lib/phone";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { WarehouseLayout } from "@/components/WarehouseLayout";
+import { ShipmentsSection } from "@/components/ShipmentsSection";
 import { CredentialsDialog } from "@/components/CredentialsDialog";
 import { DriverTrackingMap } from "@/components/DriverTrackingMap";
 import { useTransferRequests } from "@/hooks/useTransferRequests";
@@ -602,15 +605,17 @@ function EmployeesSection({
 
   const handleSave = async () => {
     if (!form.full_name.trim() || !form.phone_number.trim() || !form.user_name.trim()) { toast.error(t("employee.required_fields")); return; }
+    const phone = normalizePhoneNumber(form.phone_number);
+    if (!phone.valid) { toast.error(t("manager.toast_phone_invalid")); return; }
     if (!warehouseId) return;
     setSubmitting(true);
     try {
       if (editEmp) {
-        const res = await updateManagerEmployee(slug, warehouseId, editEmp.id, { full_name: form.full_name, phone_number: form.phone_number, user_name: form.user_name, role: form.role, salary: form.salary });
+        const res = await updateManagerEmployee(slug, warehouseId, editEmp.id, { full_name: form.full_name, phone_number: phone.normalized, user_name: form.user_name, role: form.role, salary: form.salary });
         setEmployees((prev) => prev.map((e) => e.id === editEmp.id ? res.employee : e));
         toast.success(t("employee.updated"));
       } else {
-        const res = await createManagerEmployee(slug, warehouseId, form);
+        const res = await createManagerEmployee(slug, warehouseId, { ...form, phone_number: phone.normalized });
         setEmployees((prev) => [...prev, res.employee]);
         setCreatedCreds({ user_name: res.employee.system_user.user_name, password: res.password ?? "" });
         toast.success(t("employee.created"));
@@ -663,7 +668,7 @@ function EmployeesSection({
                 <TableCell className="font-medium text-[#1a2942]">{emp.system_user.full_name}</TableCell>
                 <TableCell className="text-[#1a2942]/80 font-mono text-xs">{emp.system_user.user_name}</TableCell>
                 <TableCell className="text-[#1a2942]/80">{emp.system_user.phone_number}</TableCell>
-                <TableCell><Badge className={cn("text-xs font-medium", roleColors[emp.role] ?? "bg-gray-100")}>{emp.role.replace("_", " ")}</Badge></TableCell>
+                <TableCell><Badge className={cn("text-xs font-medium", roleColors[emp.role] ?? "bg-gray-100")}>{t(`worker.role.${emp.role}`, { defaultValue: emp.role.replace("_", " ") })}</Badge></TableCell>
                 <TableCell><Badge variant={emp.status === "active" ? "default" : "secondary"} className="text-xs">{emp.status}</Badge></TableCell>
                 <TableCell className="text-[#1a2942]">${emp.salary}</TableCell>
                 <TableCell className="text-end">
@@ -720,70 +725,6 @@ function EmployeesSection({
   );
 }
 
-/* ===== Shipments ===== */
-function ShipmentsSection({
-  slug, shipments, setShipments,
-}: {
-  slug: string; shipments: ManagerShipment[]; setShipments: React.Dispatch<React.SetStateAction<ManagerShipment[]>>;
-}) {
-  const { t } = useTranslation();
-  const [receiving, setReceiving] = useState<number | null>(null);
-
-  const handleReceive = async (id: number) => {
-    setReceiving(id);
-    try {
-      const res = await receiveManagerShipment(slug, id);
-      setShipments((prev) => prev.map((s) => s.id === id ? res.shipment : s));
-      toast.success(t("shipment.received_success"));
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || t("shipment.receive_failed"));
-    } finally { setReceiving(null); }
-  };
-
-  const statusColors: Record<ManagerShipmentStatus, string> = { pending: "bg-yellow-100 text-yellow-700", in_transit: "bg-blue-100 text-blue-700", received: "bg-green-100 text-green-700" };
-
-  return (
-    <div className="space-y-4">
-      <h2 className="text-lg font-bold text-[#1a2942]">{t("shipment.title")}</h2>
-      <GlassCard className="p-0 overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent">
-              <TableHead className="text-[#1a2942]/70">{t("shipment.factory")}</TableHead>
-              <TableHead className="text-[#1a2942]/70">{t("shipment.total")}</TableHead>
-              <TableHead className="text-[#1a2942]/70">{t("shipment.arrival")}</TableHead>
-              <TableHead className="text-[#1a2942]/70">{t("employee.status")}</TableHead>
-              <TableHead className="text-end text-[#1a2942]/70">{t("common.action")}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {shipments.map((s) => (
-              <TableRow key={s.id} className="border-white/40">
-                <TableCell className="font-medium text-[#1a2942]">{s.factory_name}</TableCell>
-                <TableCell className="text-[#1a2942]">${s.total_price}</TableCell>
-                <TableCell className="text-[#1a2942]/80">{s.arrival_date ?? "—"}</TableCell>
-                <TableCell><Badge className={cn("text-xs font-medium", statusColors[s.status] ?? "")}>{s.status_label}</Badge></TableCell>
-                <TableCell className="text-end">
-                  {s.can_receive ? (
-                    <Button size="sm" className="h-8 text-xs" onClick={() => handleReceive(s.id)} disabled={receiving === s.id}>
-                      {receiving === s.id ? <Loader2 className="size-3 animate-spin me-1" /> : <CheckCircle2 className="size-3 me-1" />} {t("shipment.receive")}
-                    </Button>
-                  ) : (
-                    <span className="text-xs text-[#1a2942]/50">—</span>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-            {shipments.length === 0 && (
-              <TableRow><TableCell colSpan={5} className="py-8 text-center text-[#1a2942]/50">{t("shipment.no_shipments")}</TableCell></TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </GlassCard>
-    </div>
-  );
-}
-
 /* ===== Movements ===== */
 function MovementsSection({ movements }: { movements: InventoryMovement[] }) {
   const { t } = useTranslation();
@@ -814,7 +755,7 @@ function MovementsSection({ movements }: { movements: InventoryMovement[] }) {
             {movements.slice(0, 100).map((m) => (
               <TableRow key={m.id} className="border-white/40">
                 <TableCell className="text-xs text-[#1a2942]/80">{m.created_at?.slice(0, 16).replace("T", " ")}</TableCell>
-                <TableCell><Badge className={cn("text-xs font-medium", typeColors[m.movement_type] ?? "")}>{m.movement_type_label}</Badge></TableCell>
+                <TableCell><Badge className={cn("text-xs font-medium", typeColors[m.movement_type] ?? "")}>{getMovementTypeKey(m.movement_type) ? t(getMovementTypeKey(m.movement_type)) : m.movement_type}</Badge></TableCell>
                 <TableCell className="font-medium text-[#1a2942] text-sm">{m.product.name}</TableCell>
                 <TableCell className="text-[#1a2942]">{m.quantity_parcels}</TableCell>
                 <TableCell className="text-[#1a2942]">{m.quantity_units}</TableCell>
@@ -916,7 +857,7 @@ function TasksSection({
                 <TableCell className="font-medium text-[#1a2942] text-sm capitalize">{task.task_type.replace(/_/g, " ")}</TableCell>
                 <TableCell className="text-[#1a2942]/80">{task.worker.full_name}</TableCell>
                 <TableCell className="text-xs text-[#1a2942]/80">{task.related?.label ?? "—"}</TableCell>
-                <TableCell><Badge className={cn("text-xs font-medium", statusColors[task.status] ?? "")}>{task.status.replace(/_/g, " ")}</Badge></TableCell>
+                <TableCell><Badge className={cn("text-xs font-medium", statusColors[task.status] ?? "")}>{t(`task.status.${task.status}`)}</Badge></TableCell>
                 <TableCell className="text-xs text-[#1a2942]/60">{task.created_at?.slice(0, 10)}</TableCell>
                 <TableCell className="text-end">
                   {task.status === "in_preparation" ? (
@@ -1170,7 +1111,7 @@ function ReportsSection({ slug }: { slug: string }) {
   const baseUrl = (import.meta.env.VITE_API_BASE?.replace(/\/+$/, "") || "");
 
   const openPdf = (report: string) => {
-    window.open(`${baseUrl}/${slug}/manager/reports/${report}/pdf`, "_blank");
+    window.open(`${baseUrl}/${slug}/reports/${report}/pdf`, "_blank");
   };
 
   const downloadExcel = async (report: string) => {
@@ -1178,7 +1119,7 @@ function ReportsSection({ slug }: { slug: string }) {
     setBusy(id);
     try {
       await getCsrfCookie();
-      const url = `${baseUrl}/${slug}/manager/reports/${report}/excel`;
+      const url = `${baseUrl}/${slug}/reports/${report}/excel`;
       const res = await api.get(url, { responseType: "blob" });
       const blobUrl = URL.createObjectURL(res.data);
       const a = document.createElement("a");

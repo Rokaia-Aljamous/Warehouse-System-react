@@ -63,23 +63,34 @@ export function getTypeStyle(type: string): { color: string; icon: string } {
   return WAREHOUSE_TYPE_STYLES[type] ?? { color: "#6366f1", icon: "Warehouse" };
 }
 
+const WAREHOUSE_TYPE_KEYS: Record<string, string> = {
+  "Cold Storage": "warehouse.type.cold_storage",
+  "Dry Storage": "warehouse.type.dry_storage",
+  Hazardous: "warehouse.type.hazardous",
+  "Fulfillment Center": "warehouse.type.fulfillment_center",
+};
+
+export function getWarehouseTypeKey(type: string): string {
+  return WAREHOUSE_TYPE_KEYS[type] ?? "";
+}
+
 export const fetchWarehouses = async (slug: string): Promise<WarehouseListResponse> => {
-  const response = await api.get<WarehouseListResponse>(`/${slug}/warehouses`);
+  const response = await api.get<WarehouseListResponse>(`/${slug}/owner/warehouses`);
   return response.data;
 };
 
 export const createWarehouse = async (slug: string, data: WarehouseInput): Promise<WarehouseStoreResponse> => {
-  const response = await api.post<WarehouseStoreResponse>(`/${slug}/warehouses`, data);
+  const response = await api.post<WarehouseStoreResponse>(`/${slug}/owner/warehouses`, data);
   return response.data;
 };
 
 export const updateWarehouse = async (slug: string, id: number, data: Partial<WarehouseInput>): Promise<WarehouseStoreResponse> => {
-  const response = await api.patch<WarehouseStoreResponse>(`/${slug}/warehouses/${id}`, data);
+  const response = await api.patch<WarehouseStoreResponse>(`/${slug}/owner/warehouses/${id}`, data);
   return response.data;
 };
 
 export const deleteWarehouse = async (slug: string, id: number): Promise<void> => {
-  await api.delete(`/${slug}/warehouses/${id}`);
+  await api.delete(`/${slug}/owner/warehouses/${id}`);
 };
 
 export interface DeleteWarehouseInfo {
@@ -90,7 +101,7 @@ export interface DeleteWarehouseInfo {
 }
 
 export const fetchDeleteWarehouseInfo = async (slug: string, id: number): Promise<DeleteWarehouseInfo> => {
-  const response = await api.get<DeleteWarehouseInfo>(`/${slug}/warehouses/${id}/delete-info`);
+  const response = await api.get<DeleteWarehouseInfo>(`/${slug}/owner/warehouses/${id}/delete-info`);
   return response.data;
 };
 
@@ -149,32 +160,69 @@ export interface ProductInput {
   parcel_height: number;
 }
 
+export interface ProductSubmitInput extends ProductInput {
+  id?: number;
+  main_image?: File | null;
+  extra_data?: Record<string, unknown> | null;
+}
+
+const toProductFormData = (data: Partial<ProductSubmitInput>): FormData => {
+  const fd = new FormData();
+  fd.append("name", data.name ?? "");
+  fd.append("brand", data.brand ?? "");
+  fd.append("type", data.type ?? "");
+  fd.append("piece_barcode", data.piece_barcode ?? "");
+  fd.append("parcel_barcode", data.parcel_barcode ?? "");
+  fd.append("units_per_packing", String(data.units_per_packing ?? ""));
+  fd.append("current_purchase_price", String(data.current_purchase_price ?? ""));
+  fd.append("selling_price", String(data.selling_price ?? ""));
+  fd.append("parcel_length", String(data.parcel_length ?? ""));
+  fd.append("parcel_width", String(data.parcel_width ?? ""));
+  fd.append("parcel_height", String(data.parcel_height ?? ""));
+
+  if (data.main_image instanceof File) {
+    fd.append("main_image", data.main_image);
+  } else if (data.main_image === null) {
+    fd.append("main_image", "");
+  }
+
+  const extra =
+    data.extra_data && Object.keys(data.extra_data).length > 0 ? data.extra_data : null;
+  fd.append("extra_data", extra ? JSON.stringify(extra) : "");
+
+  return fd;
+};
+
 export const fetchProducts = async (slug: string): Promise<ProductListResponse> => {
-  const response = await api.get<ProductListResponse>(`/${slug}/products`);
+  const response = await api.get<ProductListResponse>(`/${slug}/owner/products`);
   return response.data;
 };
 
-export const createProduct = async (slug: string, data: ProductInput): Promise<ProductStoreResponse> => {
-  const response = await api.post<ProductStoreResponse>(`/${slug}/products`, data);
+export const createProduct = async (slug: string, data: ProductSubmitInput): Promise<ProductStoreResponse> => {
+  const response = await api.post<ProductStoreResponse>(`/${slug}/owner/products`, toProductFormData(data), {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
   return response.data;
 };
 
-export const updateProduct = async (slug: string, id: number, data: Partial<ProductInput>): Promise<ProductStoreResponse> => {
-  const response = await api.patch<ProductStoreResponse>(`/${slug}/products/${id}`, data);
+export const updateProduct = async (slug: string, id: number, data: Partial<ProductSubmitInput>): Promise<ProductStoreResponse> => {
+  const response = await api.patch<ProductStoreResponse>(`/${slug}/owner/products/${id}`, toProductFormData(data), {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
   return response.data;
 };
 
 export const deleteProduct = async (slug: string, id: number): Promise<void> => {
-  await api.delete(`/${slug}/products/${id}`);
+  await api.delete(`/${slug}/owner/products/${id}`);
 };
 
 export const updateProductStock = async (slug: string, warehouseId: number, productId: number, data: { minimum_stock: number }): Promise<ProductStoreResponse> => {
-  const response = await api.patch<ProductStoreResponse>(`/${slug}/warehouses/${warehouseId}/products/${productId}/stock`, data);
+  const response = await api.patch<ProductStoreResponse>(`/${slug}/owner/warehouses/${warehouseId}/products/${productId}/stock`, data);
   return response.data;
 };
 
 export const updateProductQuantity = async (slug: string, warehouseId: number, productId: number, quantity: number): Promise<ProductStoreResponse> => {
-  const response = await api.patch<ProductStoreResponse>(`/${slug}/warehouses/${warehouseId}/products/${productId}/quantity`, { quantity });
+  const response = await api.patch<ProductStoreResponse>(`/${slug}/owner/warehouses/${warehouseId}/products/${productId}/quantity`, { quantity });
   return response.data;
 };
 
@@ -253,26 +301,31 @@ export interface ShipmentItemInput {
 }
 
 export const fetchShipments = async (slug: string): Promise<ShipmentListResponse> => {
-  const response = await api.get<ShipmentListResponse>(`/${slug}/shipments`);
+  const response = await api.get<ShipmentListResponse>(`/${slug}/owner/shipments`);
   return response.data;
 };
 
 export const createShipment = async (slug: string, data: ShipmentInput): Promise<ShipmentStoreResponse> => {
-  const response = await api.post<ShipmentStoreResponse>(`/${slug}/shipments`, data);
+  const response = await api.post<ShipmentStoreResponse>(`/${slug}/owner/shipments`, data);
   return response.data;
 };
 
 export const updateShipment = async (slug: string, id: number, data: Partial<ShipmentInput>): Promise<ShipmentStoreResponse> => {
-  const response = await api.patch<ShipmentStoreResponse>(`/${slug}/shipments/${id}`, data);
+  const response = await api.patch<ShipmentStoreResponse>(`/${slug}/owner/shipments/${id}`, data);
   return response.data;
 };
 
 export const deleteShipment = async (slug: string, id: number): Promise<void> => {
-  await api.delete(`/${slug}/shipments/${id}`);
+  await api.delete(`/${slug}/owner/shipments/${id}`);
 };
 
 export const receiveShipment = async (slug: string, id: number): Promise<ShipmentStoreResponse> => {
-  const response = await api.post<ShipmentStoreResponse>(`/${slug}/shipments/${id}/receive`);
+  const response = await api.post<ShipmentStoreResponse>(`/${slug}/owner/shipments/${id}/receive`);
+  return response.data;
+};
+
+export const fetchStorekeeperShipments = async (slug: string): Promise<ShipmentListResponse> => {
+  const response = await api.get<ShipmentListResponse>(`/${slug}/shipments`);
   return response.data;
 };
 
@@ -322,7 +375,7 @@ export interface EmployeeInput {
 }
 
 export const fetchEmployees = async (slug: string, warehouseId: number): Promise<EmployeeListResponse> => {
-  const response = await api.get<EmployeeListResponse>(`/${slug}/warehouses/${warehouseId}/employees`);
+  const response = await api.get<EmployeeListResponse>(`/${slug}/owner/warehouses/${warehouseId}/employees`);
   return response.data;
 };
 

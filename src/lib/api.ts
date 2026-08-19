@@ -154,6 +154,7 @@ export interface DashboardLoginResponse {
   dashboard_user: {
     id: number;
     full_name: string;
+    email?: string;
     role: string;
     owner_id: number;
     tenant: {
@@ -178,6 +179,40 @@ export const loginDashboard = async (slug: string, user_name: string, password: 
 
 export const logoutDashboard = async (slug: string): Promise<void> => {
   await api.post(`/${slug}/logout`);
+};
+
+export interface ForgotPasswordResponse {
+  message: string;
+  debug_otp?: string | null;
+}
+
+export const forgotDashboardPassword = async (
+  slug: string,
+  phone_number: string,
+): Promise<ForgotPasswordResponse> => {
+  const response = await api.post<ForgotPasswordResponse>(`/${slug}/forgot-password`, {
+    phone_number,
+  });
+  return response.data;
+};
+
+export interface ResetPasswordResponse {
+  message: string;
+}
+
+export interface ResetDashboardPasswordPayload {
+  phone_number: string;
+  otp: string;
+  password: string;
+  password_confirmation: string;
+}
+
+export const resetDashboardPassword = async (
+  slug: string,
+  payload: ResetDashboardPasswordPayload,
+): Promise<ResetPasswordResponse> => {
+  const response = await api.post<ResetPasswordResponse>(`/${slug}/reset-password`, payload);
+  return response.data;
 };
 
 /* ===== User Helpers ===== */
